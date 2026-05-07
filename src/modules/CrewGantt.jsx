@@ -105,6 +105,8 @@ function ResourceRow({
   const [lContactEmail,  setLContactEmail]  = useState(resource.contactEmail)
   const [lContactPhone,  setLContactPhone]  = useState(resource.contactPhone)
   const [lVendor,        setLVendor]        = useState(resource.vendor)
+  const [lPoNumber,      setLPoNumber]      = useState(resource.poNumber)
+  const [lNotes,         setLNotes]         = useState(resource.notes)
 
   useEffect(() => setLName(resource.name),                 [resource.name])
   useEffect(() => setLRole(resource.role),                 [resource.role])
@@ -114,6 +116,8 @@ function ResourceRow({
   useEffect(() => setLContactEmail(resource.contactEmail), [resource.contactEmail])
   useEffect(() => setLContactPhone(resource.contactPhone), [resource.contactPhone])
   useEffect(() => setLVendor(resource.vendor),             [resource.vendor])
+  useEffect(() => setLPoNumber(resource.poNumber),         [resource.poNumber])
+  useEffect(() => setLNotes(resource.notes),               [resource.notes])
 
   function commit(field, local, original) {
     if (local !== original) onUpdate(resource.id, field, local)
@@ -267,7 +271,7 @@ function ResourceRow({
                 )}
               </div>
 
-              {/* Crew: email + phone */}
+              {/* Crew: email + phone + vendor crew */}
               {activeTab === 'crew' && (
                 <>
                   <div className="details-group">
@@ -292,23 +296,73 @@ function ResourceRow({
                       onBlur={() => commit('contactPhone', lContactPhone, resource.contactPhone)}
                     />
                   </div>
+                  <div className="details-group">
+                    <label className="details-label details-label-check">
+                      <input
+                        type="checkbox"
+                        className="details-checkbox"
+                        checked={resource.isVendorCrew}
+                        onChange={e => onUpdate(resource.id, 'isVendorCrew', e.target.checked)}
+                      />
+                      Vendor crew
+                    </label>
+                  </div>
+                  {resource.isVendorCrew && (
+                    <div className="details-group">
+                      <label className="details-label">Vendor</label>
+                      <input
+                        className="details-input"
+                        type="text"
+                        value={lVendor}
+                        placeholder="Vendor company"
+                        onChange={e => setLVendor(e.target.value)}
+                        onBlur={() => commit('vendor', lVendor, resource.vendor)}
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
-              {/* Equipment: vendor */}
+              {/* Equipment: supplier + PO# */}
               {activeTab === 'equipment' && (
-                <div className="details-group">
-                  <label className="details-label">Vendor</label>
-                  <input
-                    className="details-input"
-                    type="text"
-                    value={lVendor}
-                    placeholder="Vendor name"
-                    onChange={e => setLVendor(e.target.value)}
-                    onBlur={() => commit('vendor', lVendor, resource.vendor)}
-                  />
-                </div>
+                <>
+                  <div className="details-group">
+                    <label className="details-label">Supplier</label>
+                    <input
+                      className="details-input"
+                      type="text"
+                      value={lVendor}
+                      placeholder="Supplier name"
+                      onChange={e => setLVendor(e.target.value)}
+                      onBlur={() => commit('vendor', lVendor, resource.vendor)}
+                    />
+                  </div>
+                  <div className="details-group">
+                    <label className="details-label">PO #</label>
+                    <input
+                      className="details-input details-input-po"
+                      type="text"
+                      value={lPoNumber}
+                      placeholder="PO number"
+                      onChange={e => setLPoNumber(e.target.value)}
+                      onBlur={() => commit('poNumber', lPoNumber, resource.poNumber)}
+                    />
+                  </div>
+                </>
               )}
+
+              {/* Notes — all resources, full width */}
+              <div className="details-group details-group-full">
+                <label className="details-label">Notes</label>
+                <textarea
+                  className="details-input details-textarea"
+                  value={lNotes}
+                  placeholder="Notes…"
+                  rows={2}
+                  onChange={e => setLNotes(e.target.value)}
+                  onBlur={() => commit('notes', lNotes, resource.notes)}
+                />
+              </div>
 
             </div>
           </td>

@@ -7,23 +7,26 @@ let _productionId = null
 
 function mapResource(row) {
   return {
-    id:           row.id,
-    type:         row.type          ?? 'crew',
-    name:         row.name          ?? '',
-    department:   row.department    ?? '',
-    role:         row.role          ?? '',
-    category:     row.category      ?? '',
-    notes:        row.notes         ?? '',
-    sortOrder:    row.sort_order    ?? 0,
+    id:            row.id,
+    type:          row.type           ?? 'crew',
+    name:          row.name           ?? '',
+    department:    row.department     ?? '',
+    role:          row.role           ?? '',
+    category:      row.category       ?? '',
+    notes:         row.notes          ?? '',
+    sortOrder:     row.sort_order     ?? 0,
     // Cost
-    costAmount:   row.cost_amount   ?? '',
-    costType:     row.cost_type     ?? 'daily',
-    weekType:     row.week_type     ?? '5day',
+    costAmount:    row.cost_amount    ?? '',
+    costType:      row.cost_type      ?? 'daily',
+    weekType:      row.week_type      ?? '5day',
     // Crew-specific
-    contactEmail: row.contact_email ?? '',
-    contactPhone: row.contact_phone ?? '',
+    contactEmail:  row.contact_email  ?? '',
+    contactPhone:  row.contact_phone  ?? '',
+    isVendorCrew:  row.is_vendor_crew ?? false,
+    // Shared (vendor = supplier for equipment, vendor company for crew)
+    vendor:        row.vendor         ?? '',
     // Equipment-specific
-    vendor:       row.vendor        ?? '',
+    poNumber:      row.po_number      ?? '',
   }
 }
 
@@ -128,7 +131,9 @@ export function useCrewStore() {
     weekType:     'week_type',
     contactEmail: 'contact_email',
     contactPhone: 'contact_phone',
+    isVendorCrew: 'is_vendor_crew',
     vendor:       'vendor',
+    poNumber:     'po_number',
   }
 
   function updateResource(id, field, value) {

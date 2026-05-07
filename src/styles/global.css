@@ -1338,6 +1338,42 @@ textarea.field-input {
 .details-input[type="email"] { width: 170px; }
 .details-input[type="tel"]   { width: 130px; }
 .details-input[type="text"]  { width: 150px; }
+.details-input-po            { width: 110px; }
+
+.details-group-full {
+  width: 100%;
+  flex-basis: 100%;
+  margin-top: 4px;
+}
+.details-group-full .details-label { min-width: 38px; }
+
+.details-textarea {
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  padding: 4px 7px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.details-label-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.details-checkbox {
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+  accent-color: #2563eb;
+}
 
 .details-select {
   height: 26px;
