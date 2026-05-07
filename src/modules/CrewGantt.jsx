@@ -920,6 +920,10 @@ export default function CrewGantt({ production, shootDays }) {
                   const { date: dStr, wday } = formatColHeader(spec.date)
                   const sd = spec.shootDay
                   const isShoot = shootDateSet.has(spec.date)
+                  // Check for prep / splinter days on this date
+                  const daysOnDate = shootDays.filter(d => d.date === spec.date)
+                  const hasPrep     = daysOnDate.some(d => d.dayCategory === 'prep')
+                  const hasSplinter = daysOnDate.some(d => d.dayCategory === 'splinter')
                   return (
                     <th key={spec.date}
                         className={[
@@ -936,6 +940,12 @@ export default function CrewGantt({ production, shootDays }) {
                       </span>
                       <span className="gantt-day-date">{dStr}</span>
                       <span className="gantt-day-wday">{wday}</span>
+                      {(hasPrep || hasSplinter) && (
+                        <span className="gantt-day-badges">
+                          {hasPrep     && <span className="gantt-badge-p">P</span>}
+                          {hasSplinter && <span className="gantt-badge-s">S</span>}
+                        </span>
+                      )}
                     </th>
                   )
                 })}

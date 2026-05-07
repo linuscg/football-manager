@@ -9,7 +9,16 @@ import {
 
 // ─── Row mappers (snake_case DB → camelCase React) ────────────────────────────
 
-function mapDay(row, scenes = []) {
+function groupExtrasByCategory(extras) {
+  const out = {}
+  for (const e of extras ?? []) {
+    if (!out[e.category]) out[e.category] = []
+    out[e.category].push({ id: e.id, description: e.description, sortOrder: e.sort_order })
+  }
+  return out
+}
+
+function mapDay(row, scenes = [], extras = []) {
   // Support both the legacy single `location` text column and the new `locations`
   // jsonb array. The derived `location` field (first element) keeps all existing
   // code working without changes.
@@ -31,20 +40,23 @@ function mapDay(row, scenes = []) {
     description:   row.description     ?? '',
     notes:         row.notes           ?? '',
     sortOrder:     row.sort_order      ?? 0,
+    dayCategory:   row.day_category    ?? 'main',
     scenes:        scenes.map(mapScene).sort((a, b) => a.sortOrder - b.sortOrder),
+    extras:        groupExtrasByCategory(extras),
   }
 }
 
 function mapScene(row) {
   return {
-    id:          row.id,
-    sceneNumber: row.scene_number ?? '',
-    intExt:      row.int_ext      ?? 'INT',
-    location:    row.location     ?? '',
-    dayNight:    row.day_night    ?? 'DAY',
-    description: row.description  ?? '',
-    pages:       row.pages        ?? '',
-    sortOrder:   row.sort_order   ?? 0,
+    id:            row.id,
+    sceneNumber:   row.scene_number  ?? '',
+    intExt:        row.int_ext       ?? 'INT',
+    location:      row.location      ?? '',
+    dayNight:      row.day_night     ?? 'DAY',
+    description:   row.description   ?? '',
+    pages:         row.pages         ?? '',
+    sortOrder:     row.sort_order    ?? 0,
+    castMemberIds: row.cast_member_ids ?? [],
   }
 }
 
@@ -53,6 +65,7 @@ function mapProduction(row) {
     id:             row.id,
     name:           row.name            ?? 'Untitled Production',
     currency:       row.currency        ?? '£',
+    exchangeRates:  row.exchange_rates  ?? {},
     prepStartDate:  row.prep_start_date  ?? '',
     prepEndDate:    row.prep_end_date    ?? '',
     shootStartDate: row.shoot_start_date ?? '',
@@ -71,6 +84,15 @@ function mapProductionSummary(row) {
   return { id: row.id, name: row.name ?? 'Untitled Production' }
 }
 
+function mapCastMember(row) {
+  return {
+    id:        row.id,
+    name:      row.name       ?? '',
+    role:      row.role       ?? '',
+    sortOrder: row.sort_order ?? 0,
+  }
+}
+
 // camelCase field → snake_case DB column
 const DAY_FIELD_MAP = {
   dayNumber:   'day_number',
@@ -81,20 +103,23 @@ const DAY_FIELD_MAP = {
   dayType:     'day_type',
   description: 'description',
   notes:       'notes',
+  dayCategory: 'day_category',
 }
 
 const SCENE_FIELD_MAP = {
-  sceneNumber: 'scene_number',
-  intExt:      'int_ext',
-  location:    'location',
-  dayNight:    'day_night',
-  description: 'description',
-  pages:       'pages',
+  sceneNumber:   'scene_number',
+  intExt:        'int_ext',
+  location:      'location',
+  dayNight:      'day_night',
+  description:   'description',
+  pages:         'pages',
+  castMemberIds: 'cast_member_ids',
 }
 
 const PRODUCTION_FIELD_MAP = {
   name:           'name',
   currency:       'currency',
+  exchangeRates:  'exchange_rates',
   prepStartDate:  'prep_start_date',
   prepEndDate:    'prep_end_date',
   shootStartDate: 'shoot_start_date',
@@ -120,14 +145,15 @@ export function useScheduleStore() {
   const [productions, setProductions] = useState([])   // all productions (id + name)
   const [store,       setStore]       = useState({
     production: {
-      id: null, name: '', currency: '£',
+      id: null, name: '', currency: '£', exchangeRates: {},
       prepStartDate: '', prepEndDate: '',
       shootStartDate: '', shootEndDate: '',
       wrapStartDate:  '', wrapEndDate:  '',
       defaultDayType: 'SWD', workHours: 10,
       swdLunch: 60, cwdLunch: 0, scwdLunch: 30,
     },
-    shootDays: [],
+    shootDays:   [],
+    castMembers: [],
   })
 
   // ── Load data for the current production ─────────────────────────────────────
@@ -148,6 +174,7 @@ export function useScheduleStore() {
       if (daysErr) throw daysErr
 
       const dayIds = (days ?? []).map(d => d.id)
+
       const { data: scenes, error: scenesErr } = dayIds.length
         ? await supabase.from('scenes').select('*')
             .in('day_id', dayIds)
@@ -155,15 +182,35 @@ export function useScheduleStore() {
         : { data: [], error: null }
       if (scenesErr) throw scenesErr
 
+      const { data: extras, error: extrasErr } = dayIds.length
+        ? await supabase.from('day_extras').select('*')
+            .in('day_id', dayIds)
+            .order('sort_order', { ascending: true })
+        : { data: [], error: null }
+      if (extrasErr) throw extrasErr
+
+      const { data: castRows, error: castErr } = await supabase
+        .from('cast_members').select('*')
+        .eq('production_id', prodId)
+        .order('sort_order', { ascending: true })
+      if (castErr) throw castErr
+
       const byDay = {}
       for (const sc of scenes ?? []) {
         if (!byDay[sc.day_id]) byDay[sc.day_id] = []
         byDay[sc.day_id].push(sc)
       }
 
+      const extrasByDay = {}
+      for (const ex of extras ?? []) {
+        if (!extrasByDay[ex.day_id]) extrasByDay[ex.day_id] = []
+        extrasByDay[ex.day_id].push(ex)
+      }
+
       setStore({
-        production: mapProduction(prod),
-        shootDays:  (days ?? []).map(d => mapDay(d, byDay[d.id] ?? [])),
+        production:  mapProduction(prod),
+        shootDays:   (days ?? []).map(d => mapDay(d, byDay[d.id] ?? [], extrasByDay[d.id] ?? [])),
+        castMembers: (castRows ?? []).map(mapCastMember),
       })
       setError(null)
     } catch (err) {
@@ -217,8 +264,10 @@ export function useScheduleStore() {
     })
     const channel = supabase
       .channel('fm_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'shoot_days' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scenes' },     loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shoot_days' },   loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scenes' },        loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'day_extras' },    loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cast_members' },  loadAll)
       .subscribe()
     return () => {
       unsub()
@@ -277,10 +326,10 @@ export function useScheduleStore() {
 
   // ── Shoot days ─────────────────────────────────────────────────────────────
 
-  function addShootDay() {
+  function addShootDay(category = 'main') {
     const prodId = getCurrentProductionId()
     const days = store.shootDays
-    const shootingDays = days.filter(d => !d.isNonShootDay)
+    const shootingDays = days.filter(d => !d.isNonShootDay && d.dayCategory === 'main')
     const lastDayNum   = shootingDays.length
       ? Math.max(...shootingDays.map(d => d.dayNumber ?? 0)) : 0
 
@@ -297,13 +346,13 @@ export function useScheduleStore() {
 
     const newId        = crypto.randomUUID()
     const newSortOrder = days.length
-    const newDayNumber = lastDayNum + 1
+    const newDayNumber = category === 'main' ? lastDayNum + 1 : null
 
     const newDay = {
       id: newId, dayNumber: newDayNumber, date: nextDate ?? '',
       location: '', locations: [''], unitBase: '', generalCall: '', dayType: '',
       isNonShootDay: false, description: '', notes: '',
-      sortOrder: newSortOrder, scenes: [],
+      sortOrder: newSortOrder, scenes: [], dayCategory: category, extras: {},
     }
     optimistic(s => ({ ...s, shootDays: [...s.shootDays, newDay] }))
 
@@ -313,6 +362,59 @@ export function useScheduleStore() {
         day_number: newDayNumber, date: nextDate,
         locations: [], location: null,
         is_non_shoot_day: false, sort_order: newSortOrder,
+        day_category: category,
+      })
+    )
+    return newId
+  }
+
+  function addPrepDay(parentDay) {
+    const prodId = getCurrentProductionId()
+    const days = store.shootDays
+    const newId = crypto.randomUUID()
+    const newSortOrder = days.length
+
+    const newDay = {
+      id: newId, dayNumber: null, date: parentDay.date,
+      location: '', locations: [''], unitBase: '', generalCall: '', dayType: '',
+      isNonShootDay: false, description: '', notes: '',
+      sortOrder: newSortOrder, scenes: [], dayCategory: 'prep', extras: {},
+    }
+    optimistic(s => ({ ...s, shootDays: [...s.shootDays, newDay] }))
+
+    dbWrite(
+      supabase.from('shoot_days').insert({
+        id: newId, production_id: prodId,
+        day_number: null, date: parentDay.date,
+        locations: [], location: null,
+        is_non_shoot_day: false, sort_order: newSortOrder,
+        day_category: 'prep',
+      })
+    )
+    return newId
+  }
+
+  function addSplinterDay(parentDay) {
+    const prodId = getCurrentProductionId()
+    const days = store.shootDays
+    const newId = crypto.randomUUID()
+    const newSortOrder = days.length
+
+    const newDay = {
+      id: newId, dayNumber: parentDay.dayNumber, date: parentDay.date,
+      location: '', locations: [''], unitBase: '', generalCall: '', dayType: '',
+      isNonShootDay: false, description: '', notes: '',
+      sortOrder: newSortOrder, scenes: [], dayCategory: 'splinter', extras: {},
+    }
+    optimistic(s => ({ ...s, shootDays: [...s.shootDays, newDay] }))
+
+    dbWrite(
+      supabase.from('shoot_days').insert({
+        id: newId, production_id: prodId,
+        day_number: parentDay.dayNumber, date: parentDay.date,
+        locations: [], location: null,
+        is_non_shoot_day: false, sort_order: newSortOrder,
+        day_category: 'splinter',
       })
     )
     return newId
@@ -412,6 +514,7 @@ export function useScheduleStore() {
     const newScene = {
       id: newId, sceneNumber: '', intExt: 'INT', location: '',
       dayNight: 'DAY', description: '', pages: '', sortOrder,
+      castMemberIds: [],
     }
     optimistic(s => ({
       ...s,
@@ -447,6 +550,117 @@ export function useScheduleStore() {
     dbWrite(supabase.from('scenes').update({ [col]: dbVal(value) }).eq('id', sceneId))
   }
 
+  function updateSceneCast(dayId, sceneId, castMemberIds) {
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d =>
+        d.id === dayId
+          ? { ...d, scenes: d.scenes.map(sc => sc.id === sceneId ? { ...sc, castMemberIds } : sc) }
+          : d
+      ),
+    }))
+    dbWrite(supabase.from('scenes').update({ cast_member_ids: castMemberIds }).eq('id', sceneId))
+  }
+
+  // ── Day extras ─────────────────────────────────────────────────────────────
+
+  function addDayExtra(dayId, category) {
+    const newId = crypto.randomUUID()
+    const day = store.shootDays.find(d => d.id === dayId)
+    const existing = day?.extras?.[category] ?? []
+    const sortOrder = existing.length
+
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d => {
+        if (d.id !== dayId) return d
+        const prev = d.extras?.[category] ?? []
+        return {
+          ...d,
+          extras: {
+            ...d.extras,
+            [category]: [...prev, { id: newId, description: '', sortOrder }],
+          },
+        }
+      }),
+    }))
+
+    dbWrite(supabase.from('day_extras').insert({
+      id: newId, day_id: dayId, category, description: '', sort_order: sortOrder,
+    }))
+  }
+
+  function deleteDayExtra(dayId, extraId) {
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d => {
+        if (d.id !== dayId) return d
+        const newExtras = {}
+        for (const [cat, items] of Object.entries(d.extras ?? {})) {
+          const filtered = items.filter(e => e.id !== extraId)
+          if (filtered.length > 0) newExtras[cat] = filtered
+        }
+        return { ...d, extras: newExtras }
+      }),
+    }))
+    dbWrite(supabase.from('day_extras').delete().eq('id', extraId))
+  }
+
+  function updateDayExtra(dayId, extraId, description) {
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d => {
+        if (d.id !== dayId) return d
+        const newExtras = {}
+        for (const [cat, items] of Object.entries(d.extras ?? {})) {
+          newExtras[cat] = items.map(e => e.id === extraId ? { ...e, description } : e)
+        }
+        return { ...d, extras: newExtras }
+      }),
+    }))
+    dbWrite(supabase.from('day_extras').update({ description }).eq('id', extraId))
+  }
+
+  // ── Cast members ───────────────────────────────────────────────────────────
+
+  async function addCastMember() {
+    const prodId = getCurrentProductionId()
+    const newId = crypto.randomUUID()
+    const sortOrder = store.castMembers.length
+    const newMember = { id: newId, name: '', role: '', sortOrder }
+    optimistic(s => ({ ...s, castMembers: [...s.castMembers, newMember] }))
+    dbWrite(supabase.from('cast_members').insert({
+      id: newId, production_id: prodId, name: '', role: '', sort_order: sortOrder,
+    }))
+  }
+
+  function deleteCastMember(id) {
+    optimistic(s => ({ ...s, castMembers: s.castMembers.filter(c => c.id !== id) }))
+    dbWrite(supabase.from('cast_members').delete().eq('id', id))
+  }
+
+  function updateCastMember(id, field, value) {
+    optimistic(s => ({
+      ...s,
+      castMembers: s.castMembers.map(c => c.id === id ? { ...c, [field]: value } : c),
+    }))
+    const col = field === 'sortOrder' ? 'sort_order' : field
+    dbWrite(supabase.from('cast_members').update({ [col]: value }).eq('id', id))
+  }
+
+  async function reorderCastMembers(fromIdx, toIdx) {
+    const members = [...store.castMembers]
+    const [moved] = members.splice(fromIdx, 1)
+    members.splice(toIdx, 0, moved)
+    const updated = members.map((m, i) => ({ ...m, sortOrder: i }))
+    optimistic(s => ({ ...s, castMembers: updated }))
+    await Promise.all(
+      updated.map(m =>
+        supabase.from('cast_members').update({ sort_order: m.sortOrder }).eq('id', m.id)
+      )
+    )
+  }
+
   // ── Generate weekday shoot days ────────────────────────────────────────────
 
   async function generateShootDays(startDate, endDate) {
@@ -468,11 +682,13 @@ export function useScheduleStore() {
       cur.setDate(cur.getDate() + 1)
     }
 
-    const existingDates = new Set(store.shootDays.map(d => d.date))
+    const existingDates = new Set(
+      store.shootDays.filter(d => d.dayCategory === 'main').map(d => d.date)
+    )
     const newDates = weekdays.filter(d => !existingDates.has(d))
     if (newDates.length === 0) return { count: 0 }
 
-    const shootingOnly = store.shootDays.filter(d => !d.isNonShootDay)
+    const shootingOnly = store.shootDays.filter(d => !d.isNonShootDay && d.dayCategory === 'main')
     const maxDayNum = shootingOnly.length ? Math.max(...shootingOnly.map(d => d.dayNumber ?? 0)) : 0
     const maxSort   = store.shootDays.length ? Math.max(...store.shootDays.map(d => d.sortOrder ?? 0)) : -1
 
@@ -483,7 +699,9 @@ export function useScheduleStore() {
       location:      '', locations: [''], unitBase: '', generalCall: '',
       isNonShootDay: false, description: '', notes: '',
       sortOrder:     maxSort + i + 1,
+      dayCategory:   'main',
       scenes:        [],
+      extras:        {},
     }))
 
     optimistic(s => ({ ...s, shootDays: [...s.shootDays, ...newDays] }))
@@ -495,6 +713,7 @@ export function useScheduleStore() {
           day_number: day.dayNumber, date: day.date,
           locations: [], location: null,
           is_non_shoot_day: false, sort_order: day.sortOrder,
+          day_category: 'main',
         })
       )
     )
@@ -513,7 +732,11 @@ export function useScheduleStore() {
     updateProduction,
     generateShootDays,
     addShootDay, deleteShootDay, updateShootDay,
+    addPrepDay, addSplinterDay,
     moveDayUp, moveDayDown, reorderDays,
     addScene, deleteScene, updateScene,
+    updateSceneCast,
+    addDayExtra, deleteDayExtra, updateDayExtra,
+    addCastMember, deleteCastMember, updateCastMember, reorderCastMembers,
   }
 }

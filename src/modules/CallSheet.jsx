@@ -6,6 +6,15 @@ import { useCrewStore } from '../store/useCrewStore'
 const STATUS_LABEL = { booked: 'Confirmed', hold: 'On Hold', unavailable: 'Unavailable', cancelled: 'Cancelled' }
 const STATUS_ICON  = { booked: '✓',         hold: 'H',        unavailable: '✕',           cancelled: '✕' }
 
+const EXTRAS_CATEGORY_LABELS = {
+  animals:  'Animals',
+  risk:     'Risk Assessments',
+  stunts:   'Stunts',
+  vfx:      'VFX',
+  extras:   'Extras',
+  visitors: 'Visitors',
+}
+
 function formatDateFull(dateStr) {
   if (!dateStr) return '—'
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
@@ -70,13 +79,13 @@ function CopyBtn({ getText }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CallSheet({ store }) {
+export default function CallSheet({ store, castMembers = [] }) {
   const { shootDays, production } = store
   const { resources, bookings } = useCrewStore()
 
   // Only real shoot days (not non-shoot days)
   const shootingDays = useMemo(
-    () => shootDays.filter(d => !d.isNonShootDay),
+    () => shootDays.filter(d => !d.isNonShootDay && d.dayCategory === 'main'),
     [shootDays]
   )
 
@@ -159,6 +168,24 @@ export default function CallSheet({ store }) {
 
   function notesTSV() {
     return day?.notes ?? ''
+  }
+
+  // Extras categories with entries (non-empty only)
+  const extrasWithEntries = useMemo(() => {
+    if (!day?.extras) return []
+    return Object.entries(EXTRAS_CATEGORY_LABELS)
+      .map(([key, label]) => ({ key, label, items: day.extras[key] ?? [] }))
+      .filter(e => e.items.length > 0)
+  }, [day])
+
+  // Cast for each scene: resolve ids to member objects
+  function scenecastNames(scene) {
+    const ids = scene.castMemberIds ?? []
+    if (!ids.length) return null
+    return castMembers
+      .filter(c => ids.includes(c.id))
+      .map(c => c.name || '(unnamed)')
+      .join(', ')
   }
 
   // ── Empty state ─────────────────────────────────────────────────────────────
@@ -297,26 +324,50 @@ export default function CallSheet({ store }) {
                       <th className="cs-th cs-th-loc">Location</th>
                       <th className="cs-th cs-th-tag">D/N</th>
                       <th className="cs-th cs-th-desc">Description</th>
+                      <th className="cs-th">Cast</th>
                       <th className="cs-th cs-th-pages">Pages</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {day.scenes.map(scene => (
-                      <tr key={scene.id} className="cs-tr">
-                        <td className="cs-td cs-td-sc">{scene.sceneNumber || '—'}</td>
-                        <td className="cs-td">
-                          <span className={`cs-tag ${scene.intExt.toLowerCase()}`}>{scene.intExt}</span>
-                        </td>
-                        <td className="cs-td">{scene.location || '—'}</td>
-                        <td className="cs-td">
-                          <span className={`cs-tag ${scene.dayNight.toLowerCase()}`}>{scene.dayNight}</span>
-                        </td>
-                        <td className="cs-td">{scene.description || '—'}</td>
-                        <td className="cs-td cs-td-pages">{scene.pages || '—'}</td>
-                      </tr>
-                    ))}
+                    {day.scenes.map(scene => {
+                      const castStr = scenecastNames(scene)
+                      return (
+                        <tr key={scene.id} className="cs-tr">
+                          <td className="cs-td cs-td-sc">{scene.sceneNumber || '—'}</td>
+                          <td className="cs-td">
+                            <span className={`cs-tag ${scene.intExt.toLowerCase()}`}>{scene.intExt}</span>
+                          </td>
+                          <td className="cs-td">{scene.location || '—'}</td>
+                          <td className="cs-td">
+                            <span className={`cs-tag ${scene.dayNight.toLowerCase()}`}>{scene.dayNight}</span>
+                          </td>
+                          <td className="cs-td">{scene.description || '—'}</td>
+                          <td className="cs-td cs-td-cast">{castStr || '—'}</td>
+                          <td className="cs-td cs-td-pages">{scene.pages || '—'}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* ── Additional Info (extras) ─────────────────────────────────── */}
+            {extrasWithEntries.length > 0 && (
+              <div className="cs-section">
+                <div className="cs-section-title">Additional Info</div>
+                {extrasWithEntries.map(({ key, label, items }) => (
+                  <div key={key} className="cs-group">
+                    <div className="cs-group-header">{label}</div>
+                    <ul style={{ margin: '4px 0 8px 8px', paddingLeft: 16 }}>
+                      {items.map(e => (
+                        <li key={e.id} style={{ fontSize: 12.5, color: '#1f2937', lineHeight: 1.7 }}>
+                          {e.description || '(no description)'}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -417,7 +468,7 @@ export default function CallSheet({ store }) {
 
             {/* ── Truly empty state ───────────────────────────────────────── */}
             {day.scenes.length === 0 && crewGroups.length === 0 &&
-             equipGroups.length === 0 && !day.notes && (
+             equipGroups.length === 0 && !day.notes && extrasWithEntries.length === 0 && (
               <div className="cs-empty">
                 No scenes, crew, or equipment booked for this day yet.
               </div>

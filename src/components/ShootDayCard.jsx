@@ -7,6 +7,15 @@ const DAY_TYPES = [
   { value: 'SCWD', label: 'SCWD — Semi-Continuous' },
 ]
 
+const EXTRAS_CATEGORIES = [
+  { key: 'animals',  label: 'Animals' },
+  { key: 'risk',     label: 'Risk Assessments' },
+  { key: 'stunts',   label: 'Stunts' },
+  { key: 'vfx',      label: 'VFX' },
+  { key: 'extras',   label: 'Extras' },
+  { key: 'visitors', label: 'Visitors' },
+]
+
 function calcWrapTime(generalCall, workHours, lunchMinutes) {
   if (!generalCall) return null
   const [h, m] = generalCall.split(':').map(Number)
@@ -30,6 +39,113 @@ function formatDateDisplay(dateStr) {
 const STATUS_LABEL = { booked: 'Confirmed', hold: 'On Hold', unavailable: 'Unavailable' }
 const STATUS_ICON  = { booked: '✓',         hold: 'H',         unavailable: '✕' }
 
+// ─── ExtraSubRow — individual editable extra entry ───────────────────────────
+
+function ExtraSubRow({ dayId, extra, onUpdate, onDelete }) {
+  const [lDesc, setLDesc] = useState(extra.description)
+
+  return (
+    <div className="extras-sub-row">
+      <input
+        className="scene-input"
+        type="text"
+        value={lDesc}
+        placeholder="Description…"
+        onChange={e => setLDesc(e.target.value)}
+        onBlur={() => {
+          if (lDesc !== extra.description) onUpdate(dayId, extra.id, lDesc)
+        }}
+        style={{ flex: 1 }}
+      />
+      <button
+        className="btn-icon danger"
+        onClick={() => onDelete(dayId, extra.id)}
+        title="Remove"
+      >✕</button>
+    </div>
+  )
+}
+
+// ─── ExtrasSection — the "Additional Info" collapsible block ─────────────────
+
+function ExtrasSection({ day, onAddDayExtra, onDeleteDayExtra, onUpdateDayExtra }) {
+  const [open,         setOpen]         = useState(false)
+  const [openCats,     setOpenCats]     = useState({})
+
+  const totalCount = EXTRAS_CATEGORIES.reduce((s, c) => {
+    return s + (day.extras?.[c.key]?.length ?? 0)
+  }, 0)
+
+  function toggleCat(key) {
+    setOpenCats(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  return (
+    <div className="extras-section">
+      <div
+        className="additionals-header"
+        onClick={() => setOpen(o => !o)}
+      >
+        <span className="scenes-label">Additional Info</span>
+        {totalCount > 0 && (
+          <span className="additionals-count">{totalCount}</span>
+        )}
+        <span className={`chevron${open ? ' open' : ''}`}>▶</span>
+      </div>
+
+      {open && (
+        <div className="additionals-body">
+          {EXTRAS_CATEGORIES.map(({ key, label }) => {
+            const items = day.extras?.[key] ?? []
+            const isOpen = !!openCats[key]
+            return (
+              <div key={key} className="extras-cat-block">
+                <div
+                  className="additionals-sub-header extras-cat-header"
+                  onClick={() => toggleCat(key)}
+                  style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span style={{ flex: 1 }}>{label}</span>
+                  {items.length > 0 && (
+                    <span className="additionals-count">{items.length}</span>
+                  )}
+                  <span className={`chevron${isOpen ? ' open' : ''}`} style={{ fontSize: 9 }}>▶</span>
+                </div>
+
+                {isOpen && (
+                  <div style={{ padding: '4px 0 4px 8px' }}>
+                    {items.map(extra => (
+                      <ExtraSubRow
+                        key={extra.id}
+                        dayId={day.id}
+                        extra={extra}
+                        onUpdate={onUpdateDayExtra}
+                        onDelete={onDeleteDayExtra}
+                      />
+                    ))}
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ marginTop: 4 }}
+                      onClick={() => {
+                        onAddDayExtra(day.id, key)
+                        setOpenCats(prev => ({ ...prev, [key]: true }))
+                      }}
+                    >
+                      + Add {label}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main ShootDayCard ────────────────────────────────────────────────────────
+
 export default function ShootDayCard({
   day,
   index,
@@ -43,8 +159,15 @@ export default function ShootDayCard({
   onAddScene,
   onDeleteScene,
   onUpdateScene,
+  onAddPrepDay,
+  onAddSplinterDay,
+  onAddDayExtra,
+  onDeleteDayExtra,
+  onUpdateDayExtra,
+  onUpdateSceneCast,
   additionals = [],
   production = {},
+  castMembers = [],
 }) {
   // Resolve which day type applies and calculate wrap time
   const effectiveDayType = day.dayType || production.defaultDayType || 'SWD'
@@ -57,9 +180,14 @@ export default function ShootDayCard({
   const [isDragOver,       setIsDragOver]       = useState(false)
   const cardRef = useRef(null)
 
+  const category = day.dayCategory ?? 'main'
+  const isPrep     = category === 'prep'
+  const isSplinter = category === 'splinter'
+
+  // Category-specific CSS classes
+  const categoryClass = isPrep ? ' day-card--prep' : isSplinter ? ' day-card--splinter' : ''
+
   // ── Drag-and-drop ─────────────────────────────────────────────────────────
-  // Only activate dragging when the user grabs the handle — otherwise text
-  // selection inside the card is impossible.
   function onHandleMouseDown() {
     cardRef.current?.setAttribute('draggable', 'true')
   }
@@ -96,7 +224,8 @@ export default function ShootDayCard({
   // ── Delete with confirmation ───────────────────────────────────────────────
   function handleDelete(e) {
     e.stopPropagation()
-    if (window.confirm(`Delete Day ${day.dayNumber}? This cannot be undone.`)) {
+    const label = isPrep ? 'Prep unit' : isSplinter ? 'Splinter unit' : `Day ${day.dayNumber}`
+    if (window.confirm(`Delete ${label}? This cannot be undone.`)) {
       onDelete(day.id)
     }
   }
@@ -106,7 +235,7 @@ export default function ShootDayCard({
   return (
     <div
       ref={cardRef}
-      className={`day-card${day.isNonShootDay ? ' non-shoot' : ''}${isDragOver ? ' drag-over' : ''}`}
+      className={`day-card${day.isNonShootDay ? ' non-shoot' : ''}${isDragOver ? ' drag-over' : ''}${categoryClass}`}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
@@ -124,9 +253,19 @@ export default function ShootDayCard({
           ⠿
         </span>
 
-        {!day.isNonShootDay && (
+        {/* Badge: Day N / Prep / Splinter */}
+        {isPrep ? (
+          <span className="prep-badge">Prep</span>
+        ) : isSplinter ? (
+          <>
+            <span className="splinter-badge">Splinter</span>
+            {day.dayNumber != null && (
+              <span className="day-number-label" style={{ marginLeft: 4 }}>D{day.dayNumber}</span>
+            )}
+          </>
+        ) : !day.isNonShootDay ? (
           <span className="day-number-label">Day {day.dayNumber}</span>
-        )}
+        ) : null}
 
         <div className="day-summary">
           <span className="day-date-display">{formatDateDisplay(day.date)}</span>
@@ -188,7 +327,7 @@ export default function ShootDayCard({
       {expanded && (
         <div className="day-card-body">
           <div className="field-grid">
-            {!day.isNonShootDay && (
+            {!day.isNonShootDay && !isPrep && (
               <div className="field-group">
                 <label className="field-label">Day #</label>
                 <input
@@ -352,8 +491,40 @@ export default function ShootDayCard({
                   dayId={day.id}
                   onUpdate={onUpdateScene}
                   onDelete={onDeleteScene}
+                  castMembers={castMembers}
+                  onUpdateSceneCast={onUpdateSceneCast}
                 />
               ))}
+            </div>
+          )}
+
+          {/* ── Additional Info (extras) ─────────────────────────────────────── */}
+          {!day.isNonShootDay && (
+            <ExtrasSection
+              day={day}
+              onAddDayExtra={onAddDayExtra}
+              onDeleteDayExtra={onDeleteDayExtra}
+              onUpdateDayExtra={onUpdateDayExtra}
+            />
+          )}
+
+          {/* ── Prep / Splinter actions (main days only) ─────────────────────── */}
+          {!day.isNonShootDay && category === 'main' && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f0f0ea', display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => onAddPrepDay(day)}
+                title="Add a prep unit for this date"
+              >
+                ＋ Prep Unit
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => onAddSplinterDay(day)}
+                title="Add a splinter unit for this date"
+              >
+                ＋ Splinter
+              </button>
             </div>
           )}
 

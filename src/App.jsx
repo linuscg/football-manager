@@ -36,14 +36,21 @@ export default function App() {
     updateProduction,
     generateShootDays,
     addShootDay, deleteShootDay, updateShootDay,
+    addPrepDay, addSplinterDay,
     moveDayUp, moveDayDown, reorderDays,
     addScene, deleteScene, updateScene,
+    updateSceneCast,
+    addDayExtra, deleteDayExtra, updateDayExtra,
+    addCastMember, deleteCastMember, updateCastMember, reorderCastMembers,
   } = useScheduleStore()
 
   const scheduleActions = {
     addShootDay, deleteShootDay, updateShootDay,
+    addPrepDay, addSplinterDay,
     moveDayUp, moveDayDown, reorderDays,
     addScene, deleteScene, updateScene,
+    updateSceneCast,
+    addDayExtra, deleteDayExtra, updateDayExtra,
   }
 
   if (loading) return (
@@ -165,8 +172,13 @@ export default function App() {
             <ProjectSetup
               production={store.production}
               shootDays={store.shootDays}
+              castMembers={store.castMembers}
               onUpdate={updateProduction}
               onGenerate={generateShootDays}
+              onAddCastMember={addCastMember}
+              onDeleteCastMember={deleteCastMember}
+              onUpdateCastMember={updateCastMember}
+              onReorderCastMembers={reorderCastMembers}
             />
           )}
 
@@ -182,7 +194,7 @@ export default function App() {
           )}
 
           {currentModule === 'callsheet' && (
-            <CallSheet store={store} />
+            <CallSheet store={store} castMembers={store.castMembers} />
           )}
 
           {currentModule === 'budget' && (

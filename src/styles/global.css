@@ -621,13 +621,7 @@ textarea.field-input {
 }
 
 /* ── Scene row ───────────────────────────────────────────── */
-.scene-row {
-  display: grid;
-  grid-template-columns: 60px 54px 1fr 64px 1fr 72px 28px;
-  gap: 5px;
-  align-items: center;
-  margin-bottom: 5px;
-}
+/* (grid columns updated below with cast column) */
 
 .scene-input {
   padding: 5px 7px;
@@ -2267,6 +2261,216 @@ textarea.field-input {
 
 .budget-grand-hold .budget-grand-label { color: #6b7280; font-size: 12px; }
 .budget-grand-hold .budget-grand-value { font-size: 16px; color: #fcd34d; }
+
+/* ── Prep / Splinter day cards ───────────────────────────── */
+
+.day-card--prep .day-card-header {
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+}
+.day-card--prep {
+  border-left: 3px solid #f59e0b;
+}
+
+.day-card--splinter .day-card-header {
+  background: #faf5ff;
+  border-left: 3px solid #8b5cf6;
+}
+.day-card--splinter {
+  border-left: 3px solid #8b5cf6;
+}
+
+.prep-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  color: #d97706;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.splinter-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  background: #ede9fe;
+  border: 1px solid #c4b5fd;
+  border-radius: 10px;
+  color: #7c3aed;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Gantt prep/splinter badges ──────────────────────────── */
+
+.gantt-day-badges {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.gantt-badge-p,
+.gantt-badge-s {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 0px 3px;
+  border-radius: 3px;
+  line-height: 1.4;
+}
+
+.gantt-badge-p {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.gantt-badge-s {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
+/* ── Extras section ──────────────────────────────────────── */
+
+.extras-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #f0f0ea;
+}
+
+.extras-cat-block {
+  margin-top: 2px;
+}
+
+.extras-cat-header {
+  cursor: pointer;
+  user-select: none;
+}
+
+.extras-cat-header:hover span { color: #374151; }
+
+.extras-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+/* ── Cast dropdown ────────────────────────────────────────── */
+
+.scene-row {
+  display: grid;
+  grid-template-columns: 60px 54px 1fr 64px 1fr 72px 90px 28px;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.cast-cell {
+  position: relative;
+}
+
+.cast-summary-btn {
+  width: 100%;
+  padding: 5px 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #f9fafb;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.cast-summary-btn:hover {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+}
+
+.cast-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 100;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  min-width: 200px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.cast-dropdown-empty {
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.cast-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.08s;
+}
+
+.cast-dropdown-item:hover {
+  background: #f9fafb;
+}
+
+.cast-dropdown-item input[type="checkbox"] {
+  accent-color: #2563eb;
+  flex-shrink: 0;
+}
+
+.cast-dropdown-name {
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+}
+
+.cast-dropdown-role {
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+/* ── Cast member row (Project Setup) ─────────────────────── */
+
+.cast-member-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+/* ── Exchange rate grid ───────────────────────────────────── */
+
+.fx-rate-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 16px;
+  margin-bottom: 8px;
+}
+
+/* ── CallSheet cast column ────────────────────────────────── */
+
+.cs-td-cast {
+  font-size: 11.5px;
+  color: #6b7280;
+}
 
 /* ── Print styles ─────────────────────────────────────────── */
 @media print {

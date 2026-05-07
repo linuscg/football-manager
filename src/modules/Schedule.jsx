@@ -3,7 +3,7 @@ import ShootDayCard from '../components/ShootDayCard'
 import { useCrewStore } from '../store/useCrewStore'
 
 export default function Schedule({ store, actions }) {
-  const { shootDays, production } = store
+  const { shootDays, production, castMembers } = store
   const { resources, bookings } = useCrewStore()
 
   // Build date → sorted list of booked crew/equipment for that day
@@ -22,6 +22,7 @@ export default function Schedule({ store, actions }) {
       a.name.localeCompare(b.name)
     )
   }
+
   // Track the id of the most recently added day so we can auto-expand it.
   const [newestId, setNewestId] = useState(null)
   const listBottomRef = useRef(null)
@@ -37,6 +38,36 @@ export default function Schedule({ store, actions }) {
       listBottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
   }, [newestId, shootDays.length])
+
+  // Group shoot days by date, then within each date group:
+  // main/splinter days first (sorted by sortOrder), then prep days beneath
+  const dateGroups = []
+  const seenDates  = []
+  const byDate     = {}
+
+  for (const day of shootDays) {
+    const key = day.date || `no-date-${day.id}`
+    if (!byDate[key]) {
+      byDate[key] = []
+      seenDates.push(key)
+    }
+    byDate[key].push(day)
+  }
+
+  for (const date of seenDates) {
+    const group = byDate[date]
+    const mainSplinter = group
+      .filter(d => d.dayCategory !== 'prep')
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+    const prep = group
+      .filter(d => d.dayCategory === 'prep')
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+    dateGroups.push([date, [...mainSplinter, ...prep]])
+  }
+
+  // Flat ordered list with all days for index/total props
+  const allOrdered = dateGroups.flatMap(([, days]) => days)
+  const totalDays  = allOrdered.length
 
   return (
     <div className="module-wrap">
@@ -57,25 +88,42 @@ export default function Schedule({ store, actions }) {
         </div>
       ) : (
         <>
-          {shootDays.map((day, index) => (
-            <ShootDayCard
-              key={day.id}
-              day={day}
-              index={index}
-              totalDays={shootDays.length}
-              defaultExpanded={day.id === newestId}
-              onUpdate={actions.updateShootDay}
-              onDelete={actions.deleteShootDay}
-              onMoveUp={actions.moveDayUp}
-              onMoveDown={actions.moveDayDown}
-              onReorder={actions.reorderDays}
-              onAddScene={actions.addScene}
-              onDeleteScene={actions.deleteScene}
-              onUpdateScene={actions.updateScene}
-              additionals={additionalsByDate[day.date] ?? []}
-              production={production}
-            />
-          ))}
+          {dateGroups.map(([, daysInGroup]) =>
+            daysInGroup.map((day) => {
+              const index = allOrdered.findIndex(d => d.id === day.id)
+              const isPrep = day.dayCategory === 'prep'
+              return (
+                <div
+                  key={day.id}
+                  style={isPrep ? { marginLeft: 32 } : undefined}
+                >
+                  <ShootDayCard
+                    day={day}
+                    index={index}
+                    totalDays={totalDays}
+                    defaultExpanded={day.id === newestId}
+                    onUpdate={actions.updateShootDay}
+                    onDelete={actions.deleteShootDay}
+                    onMoveUp={actions.moveDayUp}
+                    onMoveDown={actions.moveDayDown}
+                    onReorder={actions.reorderDays}
+                    onAddScene={actions.addScene}
+                    onDeleteScene={actions.deleteScene}
+                    onUpdateScene={actions.updateScene}
+                    onAddPrepDay={actions.addPrepDay}
+                    onAddSplinterDay={actions.addSplinterDay}
+                    onAddDayExtra={actions.addDayExtra}
+                    onDeleteDayExtra={actions.deleteDayExtra}
+                    onUpdateDayExtra={actions.updateDayExtra}
+                    onUpdateSceneCast={actions.updateSceneCast}
+                    additionals={additionalsByDate[day.date] ?? []}
+                    production={production}
+                    castMembers={castMembers ?? []}
+                  />
+                </div>
+              )
+            })
+          )}
           <div ref={listBottomRef} />
         </>
       )}

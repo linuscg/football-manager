@@ -10,6 +10,27 @@ const PHASES = [
   { id: 'wrap',  label: 'Wrap',     startKey: 'wrapStartDate',  endKey: 'wrapEndDate',  color: '#16a34a' },
 ]
 
+// All supported currency symbols and their codes
+const CURRENCIES = [
+  { symbol: '£',   code: 'GBP', label: '£ GBP' },
+  { symbol: '$',   code: 'USD', label: '$ USD' },
+  { symbol: '€',   code: 'EUR', label: '€ EUR' },
+  { symbol: '¥',   code: 'JPY', label: '¥ JPY' },
+  { symbol: 'kr',  code: 'SEK', label: 'kr SEK' },
+  { symbol: 'A$',  code: 'AUD', label: 'A$ AUD' },
+  { symbol: 'C$',  code: 'CAD', label: 'C$ CAD' },
+  { symbol: 'CHF', code: 'CHF', label: 'CHF' },
+  { symbol: 'zł',  code: 'PLN', label: 'zł PLN' },
+  { symbol: 'Kč',  code: 'CZK', label: 'Kč CZK' },
+]
+
+const SYMBOL_TO_CODE = {}
+const CODE_TO_SYMBOL = {}
+for (const c of CURRENCIES) {
+  SYMBOL_TO_CODE[c.symbol] = c.code
+  CODE_TO_SYMBOL[c.code]   = c.symbol
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(amount, symbol) {
@@ -61,10 +82,10 @@ function BudgetItemRow({ item, symbol, onUpdate, onDelete }) {
   const [lAmount, setLAmount] = useState(String(item.amount))
   const [lNotes,  setLNotes]  = useState(item.notes)
 
-  useEffect(() => setLCat(item.category),       [item.category])
-  useEffect(() => setLName(item.name),          [item.name])
-  useEffect(() => setLAmount(String(item.amount)), [item.amount])
-  useEffect(() => setLNotes(item.notes),        [item.notes])
+  useEffect(() => setLCat(item.category),           [item.category])
+  useEffect(() => setLName(item.name),               [item.name])
+  useEffect(() => setLAmount(String(item.amount)),   [item.amount])
+  useEffect(() => setLNotes(item.notes),             [item.notes])
 
   function commit(field, local, original, parse) {
     const val = parse ? (parseFloat(local) || 0) : local
@@ -146,16 +167,32 @@ function BudgetSection({ title, total, symbol, defaultOpen = true, children }) {
 
 export default function Budget({ store, onUpdate }) {
   const { production } = store
-  const currency = production.currency ?? '£'
+  const baseCurrency = production.currency ?? '£'
   const { resources, bookings } = useCrewStore()
   const { loading: bLoading, items: otherItems, addItem, deleteItem, updateItem } = useBudgetStore()
+
+  // viewCurrency: the currency to display amounts in (defaults to base)
+  const [viewCurrency, setViewCurrency] = useState(baseCurrency)
+
+  // If base currency changes, reset view currency
+  useEffect(() => { setViewCurrency(baseCurrency) }, [baseCurrency])
+
+  // Compute FX rate for display
+  const viewCode    = SYMBOL_TO_CODE[viewCurrency] ?? 'GBP'
+  const baseCode    = SYMBOL_TO_CODE[baseCurrency] ?? 'GBP'
+  const fxRate      = viewCode === baseCode
+    ? 1
+    : (production.exchangeRates?.[viewCode] ?? 1)
+
+  // The symbol shown in display — use viewCurrency symbol
+  const displaySymbol = viewCurrency
 
   // ── Auto-calculate costs from bookings ──────────────────────────────────────
 
   const crewResources  = resources.filter(r => r.type === 'crew')
   const equipResources = resources.filter(r => r.type === 'equipment')
 
-  // Enrich each resource with its cost figures
+  // Enrich each resource with its cost figures (in base currency)
   const enriched = useMemo(() => resources.map(r => ({
     ...r,
     confirmedDays: countDays(r, bookings, 'booked'),
@@ -193,7 +230,7 @@ export default function Budget({ store, onUpdate }) {
     )
   }, [enrichedEquip])
 
-  // Totals
+  // Totals (in base currency)
   const crewConfirmed  = enrichedCrew.reduce((s, r)  => s + r.confirmedCost, 0)
   const crewHold       = enrichedCrew.reduce((s, r)  => s + r.holdCost,      0)
   const equipConfirmed = enrichedEquip.reduce((s, r) => s + r.confirmedCost, 0)
@@ -202,6 +239,9 @@ export default function Budget({ store, onUpdate }) {
 
   const grandConfirmed = crewConfirmed + equipConfirmed + otherTotal
   const grandWithHolds = grandConfirmed + crewHold + equipHold
+
+  // Converted totals for display
+  const cv = n => n * fxRate
 
   // Phase cost breakdown — look at which phase each booked day falls in
   const phaseCosts = useMemo(() => {
@@ -231,8 +271,24 @@ export default function Budget({ store, onUpdate }) {
       <div className="budget-topbar">
         <h1 className="budget-title">Budget</h1>
         <div className="budget-currency-row">
-          <span className="budget-currency-sym">{currency}</span>
-          <span className="budget-currency-label">Currency set in Project Setup</span>
+          <span className="budget-currency-sym">{baseCurrency}</span>
+          <span className="budget-currency-label">Base currency (set in Project Setup)</span>
+          <span className="budget-currency-label" style={{ margin: '0 8px' }}>|</span>
+          <label className="budget-currency-label" style={{ marginRight: 6 }}>View in:</label>
+          <select
+            className="budget-currency-select"
+            value={viewCurrency}
+            onChange={e => setViewCurrency(e.target.value)}
+          >
+            {CURRENCIES.map(c => (
+              <option key={c.symbol} value={c.symbol}>{c.label}</option>
+            ))}
+          </select>
+          {viewCode !== baseCode && (
+            <span className="budget-currency-label" style={{ marginLeft: 8, color: '#d97706' }}>
+              1 {baseCode} = {fxRate.toLocaleString('en-GB', { maximumFractionDigits: 4 })} {viewCode}
+            </span>
+          )}
         </div>
       </div>
 
@@ -242,28 +298,28 @@ export default function Budget({ store, onUpdate }) {
         <div className="budget-summary-grid">
           <div className="budget-card budget-card-primary">
             <div className="budget-card-label">Total Confirmed</div>
-            <div className="budget-card-value">{fmtZero(grandConfirmed, currency)}</div>
+            <div className="budget-card-value">{fmtZero(cv(grandConfirmed), displaySymbol)}</div>
           </div>
           <div className="budget-card budget-card-hold">
             <div className="budget-card-label">Total inc. Holds</div>
-            <div className="budget-card-value">{fmtZero(grandWithHolds, currency)}</div>
+            <div className="budget-card-value">{fmtZero(cv(grandWithHolds), displaySymbol)}</div>
             {crewHold + equipHold > 0 && (
-              <div className="budget-card-sub">+{fmtZero(crewHold + equipHold, currency)} on hold</div>
+              <div className="budget-card-sub">+{fmtZero(cv(crewHold + equipHold), displaySymbol)} on hold</div>
             )}
           </div>
           <div className="budget-card">
             <div className="budget-card-label">Crew</div>
-            <div className="budget-card-value">{fmtZero(crewConfirmed, currency)}</div>
-            {crewHold > 0 && <div className="budget-card-sub">+{fmtZero(crewHold, currency)} on hold</div>}
+            <div className="budget-card-value">{fmtZero(cv(crewConfirmed), displaySymbol)}</div>
+            {crewHold > 0 && <div className="budget-card-sub">+{fmtZero(cv(crewHold), displaySymbol)} on hold</div>}
           </div>
           <div className="budget-card">
             <div className="budget-card-label">Equipment</div>
-            <div className="budget-card-value">{fmtZero(equipConfirmed, currency)}</div>
-            {equipHold > 0 && <div className="budget-card-sub">+{fmtZero(equipHold, currency)} on hold</div>}
+            <div className="budget-card-value">{fmtZero(cv(equipConfirmed), displaySymbol)}</div>
+            {equipHold > 0 && <div className="budget-card-sub">+{fmtZero(cv(equipHold), displaySymbol)} on hold</div>}
           </div>
           <div className="budget-card">
             <div className="budget-card-label">Other Costs</div>
-            <div className="budget-card-value">{fmtZero(otherTotal, currency)}</div>
+            <div className="budget-card-value">{fmtZero(cv(otherTotal), displaySymbol)}</div>
           </div>
         </div>
 
@@ -274,21 +330,21 @@ export default function Budget({ store, onUpdate }) {
               <div key={p.id} className="budget-phase-item" style={{ '--phase-color': p.color }}>
                 <span className="budget-phase-dot" />
                 <span className="budget-phase-label">{p.label}</span>
-                <span className="budget-phase-amount">{fmtZero(phaseCosts[p.id], currency)}</span>
+                <span className="budget-phase-amount">{fmtZero(cv(phaseCosts[p.id]), displaySymbol)}</span>
               </div>
             ))}
             {phaseCosts.other > 0 && (
               <div className="budget-phase-item" style={{ '--phase-color': '#9ca3af' }}>
                 <span className="budget-phase-dot" />
                 <span className="budget-phase-label">Other</span>
-                <span className="budget-phase-amount">{fmtZero(phaseCosts.other, currency)}</span>
+                <span className="budget-phase-amount">{fmtZero(cv(phaseCosts.other), displaySymbol)}</span>
               </div>
             )}
           </div>
         )}
 
         {/* ── Crew Costs ───────────────────────────────────────────────────────── */}
-        <BudgetSection title="Crew Costs" total={crewConfirmed} symbol={currency}>
+        <BudgetSection title="Crew Costs" total={cv(crewConfirmed)} symbol={displaySymbol}>
           {crewByDept.length === 0 ? (
             <p className="budget-empty">No crew added yet — add crew in the Crew &amp; Equipment tab.</p>
           ) : (
@@ -300,8 +356,8 @@ export default function Budget({ store, onUpdate }) {
                   <div className="budget-group-header">
                     <span>{dept}</span>
                     <span className="budget-group-total">
-                      {fmtZero(deptConf, currency)}
-                      {deptHold > 0 && <span className="budget-hold-note"> +{fmt(deptHold, currency)} hold</span>}
+                      {fmtZero(cv(deptConf), displaySymbol)}
+                      {deptHold > 0 && <span className="budget-hold-note"> +{fmt(cv(deptHold), displaySymbol)} hold</span>}
                     </span>
                   </div>
                   <table className="budget-table">
@@ -324,8 +380,8 @@ export default function Budget({ store, onUpdate }) {
                           <td className="budget-td budget-td-rate">{rateStr(r)}</td>
                           <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
                           <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
-                          <td className="budget-td budget-td-cost">{fmt(r.confirmedCost, currency)}</td>
-                          <td className="budget-td budget-td-hold">{fmt(r.holdCost, currency)}</td>
+                          <td className="budget-td budget-td-cost">{fmt(cv(r.confirmedCost), displaySymbol)}</td>
+                          <td className="budget-td budget-td-hold">{fmt(cv(r.holdCost), displaySymbol)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -335,10 +391,10 @@ export default function Budget({ store, onUpdate }) {
                           {dept} subtotal
                         </td>
                         <td className="budget-td budget-td-cost budget-subtotal-value">
-                          {fmtZero(deptConf, currency)}
+                          {fmtZero(cv(deptConf), displaySymbol)}
                         </td>
                         <td className="budget-td budget-td-hold budget-subtotal-value">
-                          {fmt(deptHold, currency)}
+                          {fmt(cv(deptHold), displaySymbol)}
                         </td>
                       </tr>
                     </tfoot>
@@ -350,7 +406,7 @@ export default function Budget({ store, onUpdate }) {
         </BudgetSection>
 
         {/* ── Equipment Costs ──────────────────────────────────────────────────── */}
-        <BudgetSection title="Equipment Costs" total={equipConfirmed} symbol={currency}>
+        <BudgetSection title="Equipment Costs" total={cv(equipConfirmed)} symbol={displaySymbol}>
           {equipByCat.length === 0 ? (
             <p className="budget-empty">No equipment added yet — add items in the Crew &amp; Equipment tab.</p>
           ) : (
@@ -362,8 +418,8 @@ export default function Budget({ store, onUpdate }) {
                   <div className="budget-group-header">
                     <span>{cat}</span>
                     <span className="budget-group-total">
-                      {fmtZero(catConf, currency)}
-                      {catHold > 0 && <span className="budget-hold-note"> +{fmt(catHold, currency)} hold</span>}
+                      {fmtZero(cv(catConf), displaySymbol)}
+                      {catHold > 0 && <span className="budget-hold-note"> +{fmt(cv(catHold), displaySymbol)} hold</span>}
                     </span>
                   </div>
                   <table className="budget-table">
@@ -386,8 +442,8 @@ export default function Budget({ store, onUpdate }) {
                           <td className="budget-td budget-td-rate">{rateStr(r)}</td>
                           <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
                           <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
-                          <td className="budget-td budget-td-cost">{fmt(r.confirmedCost, currency)}</td>
-                          <td className="budget-td budget-td-hold">{fmt(r.holdCost, currency)}</td>
+                          <td className="budget-td budget-td-cost">{fmt(cv(r.confirmedCost), displaySymbol)}</td>
+                          <td className="budget-td budget-td-hold">{fmt(cv(r.holdCost), displaySymbol)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -397,10 +453,10 @@ export default function Budget({ store, onUpdate }) {
                           {cat} subtotal
                         </td>
                         <td className="budget-td budget-td-cost budget-subtotal-value">
-                          {fmtZero(catConf, currency)}
+                          {fmtZero(cv(catConf), displaySymbol)}
                         </td>
                         <td className="budget-td budget-td-hold budget-subtotal-value">
-                          {fmt(catHold, currency)}
+                          {fmt(cv(catHold), displaySymbol)}
                         </td>
                       </tr>
                     </tfoot>
@@ -412,7 +468,7 @@ export default function Budget({ store, onUpdate }) {
         </BudgetSection>
 
         {/* ── Other Costs ──────────────────────────────────────────────────────── */}
-        <BudgetSection title="Other Costs" total={otherTotal} symbol={currency}>
+        <BudgetSection title="Other Costs" total={cv(otherTotal)} symbol={displaySymbol}>
           <div className="budget-other-wrap">
             <table className="budget-table budget-other-table">
               <thead>
@@ -436,7 +492,7 @@ export default function Budget({ store, onUpdate }) {
                   <BudgetItemRow
                     key={item.id}
                     item={item}
-                    symbol={currency}
+                    symbol={baseCurrency}
                     onUpdate={updateItem}
                     onDelete={deleteItem}
                   />
@@ -447,7 +503,7 @@ export default function Budget({ store, onUpdate }) {
                   <tr className="budget-subtotal-row">
                     <td colSpan={2} className="budget-td budget-subtotal-label">Total other costs</td>
                     <td className="budget-td budget-td-cost budget-subtotal-value">
-                      {fmtZero(otherTotal, currency)}
+                      {fmtZero(cv(otherTotal), displaySymbol)}
                     </td>
                     <td colSpan={2} className="budget-td" />
                   </tr>
@@ -464,12 +520,12 @@ export default function Budget({ store, onUpdate }) {
         <div className="budget-grand-total">
           <div className="budget-grand-row">
             <span className="budget-grand-label">Grand Total (confirmed)</span>
-            <span className="budget-grand-value">{fmtZero(grandConfirmed, currency)}</span>
+            <span className="budget-grand-value">{fmtZero(cv(grandConfirmed), displaySymbol)}</span>
           </div>
           {crewHold + equipHold > 0 && (
             <div className="budget-grand-row budget-grand-hold">
               <span className="budget-grand-label">Total including holds</span>
-              <span className="budget-grand-value">{fmtZero(grandWithHolds, currency)}</span>
+              <span className="budget-grand-value">{fmtZero(cv(grandWithHolds), displaySymbol)}</span>
             </div>
           )}
         </div>
