@@ -122,10 +122,10 @@ export default function CallSheet({ store, castMembers = [] }) {
       .filter(Boolean)
   }, [day, bookings, resources])
 
-  // Prep unit bookings for the same date (keyed by prep day dayId)
+  // Prep and splinter unit bookings for the same date (keyed by dayId)
   const prepUnitGroups = useMemo(() => {
     if (!day) return []
-    const prepDays = shootDays.filter(d => d.date === day.date && d.dayCategory === 'prep')
+    const prepDays = shootDays.filter(d => d.date === day.date && (d.dayCategory === 'prep' || d.dayCategory === 'splinter'))
     return prepDays.map(prepDay => {
       const items = bookings
         .filter(b => b.dayId === prepDay.id && b.status !== 'cancelled')
@@ -473,15 +473,18 @@ export default function CallSheet({ store, castMembers = [] }) {
               </div>
             )}
 
-            {/* ── Prep Unit(s) ────────────────────────────────────────────── */}
+            {/* ── Prep / Splinter Unit(s) ─────────────────────────────────── */}
             {prepUnitGroups.map(({ prepDay, items }) => {
-              const prepCrew  = items.filter(r => r.type === 'crew')
-              const prepEquip = items.filter(r => r.type === 'equipment')
-              const prepLoc   = (prepDay.locations ?? []).filter(Boolean)[0] || prepDay.description || ''
+              const isSplinter = prepDay.dayCategory === 'splinter'
+              const prepCrew   = items.filter(r => r.type === 'crew')
+              const prepEquip  = items.filter(r => r.type === 'equipment')
+              const prepLoc    = (prepDay.locations ?? []).filter(Boolean)[0] || prepDay.description || ''
               return (
-                <div key={prepDay.id} className="cs-section cs-section-prep">
+                <div key={prepDay.id} className={`cs-section ${isSplinter ? 'cs-section-splinter' : 'cs-section-prep'}`}>
                   <div className="cs-section-title">
-                    <span className="cs-prep-badge">PREP UNIT</span>
+                    <span className={isSplinter ? 'cs-splinter-badge' : 'cs-prep-badge'}>
+                      {isSplinter ? 'SPLINTER UNIT' : 'PREP UNIT'}
+                    </span>
                     {prepLoc && <span style={{ fontWeight: 400, fontSize: 12, color: '#6b7280', marginLeft: 8 }}>{prepLoc}</span>}
                     <span className="cs-section-count">{items.length}</span>
                   </div>

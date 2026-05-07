@@ -2543,36 +2543,56 @@ textarea.field-input {
   flex-shrink: 0;
 }
 
-/* ── Gantt prep day column ───────────────────────────────────────────────────── */
-.gantt-prep-col {
-  background: #fffbf0 !important;
-  border-left: 2px solid #f59e0b !important;
+/* ── Gantt sub-unit columns (prep / splinter) ───────────────────────────────── */
+.gantt-prep-col,
+.gantt-splinter-col {
   min-width: 38px !important;
   max-width: 38px !important;
   padding: 4px 2px !important;
   text-align: center;
 }
 
-.gantt-prep-col .gantt-badge-p {
+.gantt-prep-col {
+  background: #fffbf0 !important;
+  border-left: 2px solid #f59e0b !important;
+}
+
+.gantt-splinter-col {
+  background: #faf5ff !important;
+  border-left: 2px solid #7c3aed !important;
+}
+
+.gantt-prep-col .gantt-badge-p,
+.gantt-splinter-col .gantt-badge-s {
   display: block;
   margin: 0 auto 2px;
 }
 
-/* Prep booking cell */
+/* Sub-unit booking cells */
 .gantt-cell.cell-prep {
   background: #fffbf0;
   border-left: 1px solid #fde68a;
 }
 
-/* ── CallSheet prep unit section ─────────────────────────────────────────────── */
+.gantt-cell.cell-splinter {
+  background: #faf5ff;
+  border-left: 1px solid #ddd6fe;
+}
+
+/* ── CallSheet sub-unit sections ─────────────────────────────────────────────── */
 .cs-section-prep {
   border-left: 3px solid #f59e0b;
   padding-left: 8px;
 }
 
-.cs-prep-badge {
+.cs-section-splinter {
+  border-left: 3px solid #7c3aed;
+  padding-left: 8px;
+}
+
+.cs-prep-badge,
+.cs-splinter-badge {
   display: inline-block;
-  background: #f59e0b;
   color: #fff;
   font-size: 9px;
   font-weight: 700;
@@ -2581,3 +2601,6 @@ textarea.field-input {
   border-radius: 3px;
   vertical-align: middle;
 }
+
+.cs-prep-badge     { background: #f59e0b; }
+.cs-splinter-badge { background: #7c3aed; }

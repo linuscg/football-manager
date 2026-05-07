@@ -226,10 +226,28 @@ export function useCrewStore() {
   }
 
   function setBooking(resourceId, dateStr, status, dayId = null) {
-    // Prep day bookings are keyed by dayId; main bookings by (resourceId, date, no dayId)
+    // Sub-unit bookings keyed by dayId; main bookings by (resourceId, date, no dayId)
     const existing = dayId
       ? bookings.find(b => b.resourceId === resourceId && b.dayId === dayId)
       : bookings.find(b => b.resourceId === resourceId && b.date === dateStr && !b.dayId)
+
+    // One person can only be in one place at a time — when setting a booking,
+    // clear any conflicting bookings on the same date for a different unit.
+    if (status !== null) {
+      const conflicts = bookings.filter(b =>
+        b.resourceId === resourceId &&
+        b.date === dateStr &&
+        b.id !== existing?.id &&
+        (dayId === null ? b.dayId !== null : b.dayId !== dayId)
+      )
+      if (conflicts.length) {
+        optB(bs => bs.filter(b => !conflicts.some(c => c.id === b.id)))
+        conflicts.forEach(c => {
+          supabase.from('resource_bookings').delete().eq('id', c.id)
+            .then(({ error: err }) => { if (err) loadAll() })
+        })
+      }
+    }
 
     if (status === null) {
       if (!existing) return

@@ -60,7 +60,7 @@ function formatNoticeDate(dateStr) {
 
 // ─── Column spec builder ──────────────────────────────────────────────────────
 
-function buildColSpecs(production, expandedPhases, dateMap, today, prepDaysByDate = {}) {
+function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDate = {}) {
   const specs = []
   for (const phase of PHASES) {
     const start = production[phase.startKey]
@@ -75,16 +75,16 @@ function buildColSpecs(production, expandedPhases, dateMap, today, prepDaysByDat
           phaseId: phase.id, phaseColor: phase.color,
           isToday: date === today, isWeekend,
           shootDay: dateMap[date] ?? null,
-          dayId: null, isPrepDay: false,
+          dayId: null, subUnitCategory: null,
         })
-        // Insert a column for each prep unit on this date
-        for (const prepDay of prepDaysByDate[date] ?? []) {
+        // Insert a column for each prep / splinter unit on this date
+        for (const subDay of subUnitsByDate[date] ?? []) {
           specs.push({
             type: 'day', date,
             phaseId: phase.id, phaseColor: phase.color,
             isToday: date === today, isWeekend,
-            shootDay: prepDay,
-            dayId: prepDay.id, isPrepDay: true,
+            shootDay: subDay,
+            dayId: subDay.id, subUnitCategory: subDay.dayCategory,
           })
         }
       }
@@ -283,15 +283,19 @@ function ResourceRow({
           const status     = booking?.status ?? null
           const isShootDay = shootDateSet.has(spec.date)
 
+          const isSubUnit = !!spec.subUnitCategory
           const cls = [
             'gantt-cell',
             status ?? '',
-            spec.isPrepDay            ? 'cell-prep'     : '',
-            spec.shootDay?.isNonShootDay && !spec.isPrepDay ? 'cell-nonshoot' : '',
+            spec.subUnitCategory === 'prep'     ? 'cell-prep'     : '',
+            spec.subUnitCategory === 'splinter' ? 'cell-splinter' : '',
+            spec.shootDay?.isNonShootDay && !isSubUnit ? 'cell-nonshoot' : '',
             spec.isWeekend ? 'cell-weekend'  : '',
             spec.isToday   ? 'cell-today'    : '',
-            !isShootDay && !spec.isPrepDay ? 'cell-no-shoot' : '',
+            !isShootDay && !isSubUnit ? 'cell-no-shoot' : '',
           ].filter(Boolean).join(' ')
+
+          const unitLabel = spec.subUnitCategory === 'prep' ? 'Prep' : spec.subUnitCategory === 'splinter' ? 'Splinter' : null
 
           return (
             <td
@@ -300,8 +304,8 @@ function ResourceRow({
               onMouseDown={e => { e.preventDefault(); onCellMouseDown(resource.id, spec.date, spec.dayId) }}
               onMouseEnter={() => onCellMouseEnter(resource.id, spec.date, spec.dayId)}
               title={
-                spec.isPrepDay
-                  ? (status ? `Prep: ${status}` : 'Prep unit — click to assign')
+                unitLabel
+                  ? (status ? `${unitLabel}: ${status}` : `${unitLabel} unit — click to assign`)
                   : status
                     ? `${status.charAt(0).toUpperCase() + status.slice(1)}${isShootDay ? ' — drag to paint more' : ''}`
                     : isShootDay
@@ -538,18 +542,18 @@ export default function CrewGantt({ production, shootDays }) {
 
   const hasPhases = PHASES.some(p => production[p.startKey] && production[p.endKey])
 
-  // date → main shootDay map (for column labels)
+  // date → main shootDay map (for column labels — main unit only)
   const dateMap = {}
   for (const sd of shootDays) {
-    if (sd.date && sd.dayCategory !== 'prep') dateMap[sd.date] = sd
+    if (sd.date && sd.dayCategory === 'main') dateMap[sd.date] = sd
   }
 
-  // date → [prepDay, ...] map
-  const prepDaysByDate = {}
+  // date → [subUnit, ...] map — prep AND splinter units get their own columns
+  const subUnitsByDate = {}
   for (const sd of shootDays) {
-    if (sd.dayCategory === 'prep' && sd.date) {
-      if (!prepDaysByDate[sd.date]) prepDaysByDate[sd.date] = []
-      prepDaysByDate[sd.date].push(sd)
+    if ((sd.dayCategory === 'prep' || sd.dayCategory === 'splinter') && sd.date) {
+      if (!subUnitsByDate[sd.date]) subUnitsByDate[sd.date] = []
+      subUnitsByDate[sd.date].push(sd)
     }
   }
 
@@ -559,7 +563,7 @@ export default function CrewGantt({ production, shootDays }) {
   )
 
   const colSpecs = hasPhases
-    ? buildColSpecs(production, expandedPhases, dateMap, today, prepDaysByDate)
+    ? buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDate)
     : []
 
   // booking lookup:
@@ -952,21 +956,27 @@ export default function CrewGantt({ production, shootDays }) {
                   const sd = spec.shootDay
                   const isShoot = shootDateSet.has(spec.date)
 
-                  // Prep unit column — compact amber header
-                  if (spec.isPrepDay) {
+                  // Sub-unit column (prep or splinter) — compact coloured header
+                  if (spec.subUnitCategory) {
+                    const isPrep = spec.subUnitCategory === 'prep'
                     return (
-                      <th key={`prep-${spec.dayId}`}
-                          className={['gantt-day-th gantt-prep-col', spec.isToday ? 'is-today' : ''].filter(Boolean).join(' ')}
+                      <th key={`sub-${spec.dayId}`}
+                          className={[
+                            'gantt-day-th',
+                            isPrep ? 'gantt-prep-col' : 'gantt-splinter-col',
+                            spec.isToday ? 'is-today' : '',
+                          ].filter(Boolean).join(' ')}
                           style={{ '--phase-color': spec.phaseColor }}
-                          title={`Prep unit — ${spec.date}${sd?.description ? ': ' + sd.description : ''}`}>
-                        <span className="gantt-badge-p">P</span>
+                          title={`${isPrep ? 'Prep' : 'Splinter'} unit — ${spec.date}${sd?.description ? ': ' + sd.description : ''}`}>
+                        <span className={isPrep ? 'gantt-badge-p' : 'gantt-badge-s'}>
+                          {isPrep ? 'P' : 'S'}
+                        </span>
                         <span className="gantt-day-date" style={{ fontSize: 9 }}>{dStr}</span>
                       </th>
                     )
                   }
 
-                  // Check for splinter days on this date (still shown as badge on main column)
-                  const hasSplinter = shootDays.some(d => d.date === spec.date && d.dayCategory === 'splinter')
+                  // Main unit column
                   return (
                     <th key={spec.date}
                         className={[
@@ -983,11 +993,6 @@ export default function CrewGantt({ production, shootDays }) {
                       </span>
                       <span className="gantt-day-date">{dStr}</span>
                       <span className="gantt-day-wday">{wday}</span>
-                      {hasSplinter && (
-                        <span className="gantt-day-badges">
-                          <span className="gantt-badge-s">S</span>
-                        </span>
-                      )}
                     </th>
                   )
                 })}
