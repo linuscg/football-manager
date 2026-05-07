@@ -138,7 +138,7 @@ function BudgetItemRow({ item, symbol, onUpdate, onDelete }) {
       </td>
       <td className="budget-td budget-td-action">
         <button
-          className="btn-icon danger"
+          className="pm-icon-btn danger"
           onClick={() => onDelete(item.id)}
           title="Delete line"
         >✕</button>
@@ -510,7 +510,7 @@ export default function Budget({ store, onUpdate }) {
                 </tfoot>
               )}
             </table>
-            <button className="btn btn-secondary btn-sm budget-add-btn" onClick={addItem}>
+            <button className="pm-btn pm-btn--ghost pm-btn--sm budget-add-btn" onClick={addItem}>
               + Add line item
             </button>
           </div>

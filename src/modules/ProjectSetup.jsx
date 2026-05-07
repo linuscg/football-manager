@@ -73,7 +73,7 @@ function CastMemberRow({ member, index, total, onUpdate, onDelete, onMoveUp, onM
   return (
     <div className="cast-member-row">
       <input
-        className="field-input"
+        className="pm-input"
         type="number"
         min="1"
         value={lNum}
@@ -88,7 +88,7 @@ function CastMemberRow({ member, index, total, onUpdate, onDelete, onMoveUp, onM
         style={{ width: 52, flexShrink: 0 }}
       />
       <input
-        className="field-input"
+        className="pm-input"
         value={lName}
         placeholder="Name"
         onChange={e => setLName(e.target.value)}
@@ -96,16 +96,16 @@ function CastMemberRow({ member, index, total, onUpdate, onDelete, onMoveUp, onM
         style={{ flex: 2 }}
       />
       <input
-        className="field-input"
+        className="pm-input"
         value={lRole}
         placeholder="Role / Character"
         onChange={e => setLRole(e.target.value)}
         onBlur={() => { if (lRole !== member.role) onUpdate(member.id, 'role', lRole) }}
         style={{ flex: 2 }}
       />
-      <button className="btn-icon" onClick={() => onMoveUp(index)} disabled={index === 0} title="Move up">↑</button>
-      <button className="btn-icon" onClick={() => onMoveDown(index)} disabled={index === total - 1} title="Move down">↓</button>
-      <button className="btn-icon danger" onClick={() => onDelete(member.id)} title="Remove cast member">✕</button>
+      <button className="pm-icon-btn" onClick={() => onMoveUp(index)} disabled={index === 0} title="Move up">↑</button>
+      <button className="pm-icon-btn" onClick={() => onMoveDown(index)} disabled={index === total - 1} title="Move down">↓</button>
+      <button className="pm-icon-btn danger" onClick={() => onDelete(member.id)} title="Remove cast member">✕</button>
     </div>
   )
 }
@@ -193,16 +193,16 @@ export default function ProjectSetup({
   }
 
   return (
-    <div className="module-wrap">
-      <div className="module-header">
-        <h1 className="module-title">Project Setup</h1>
+    <div className="pm-module">
+      <div className="pm-module-head">
+        <h1 className="pm-h1">Project Setup</h1>
       </div>
 
       {/* ── Production name ──────────────────────────────────────────────────── */}
       <div className="setup-card">
         <div className="setup-card-label">Production Name</div>
         <input
-          className="field-input setup-name-input"
+          className="pm-input setup-name-input"
           value={production.name}
           placeholder="Untitled Production"
           onChange={e => onUpdate('name', e.target.value)}
@@ -239,20 +239,20 @@ export default function ProjectSetup({
             {range && <div className="setup-phase-summary">{range}</div>}
 
             <div className="setup-date-row">
-              <div className="field-group">
-                <label className="field-label">Start</label>
+              <div className="pm-field-group">
+                <label className="pm-field-label">Start</label>
                 <input
-                  className="field-input"
+                  className="pm-input"
                   type="date"
                   value={start}
                   onChange={e => onUpdate(phase.startField, e.target.value)}
                 />
               </div>
               <div className="setup-date-arrow">→</div>
-              <div className="field-group">
-                <label className="field-label">End</label>
+              <div className="pm-field-group">
+                <label className="pm-field-label">End</label>
                 <input
-                  className="field-input"
+                  className="pm-input"
                   type="date"
                   value={end}
                   min={start || undefined}
@@ -265,7 +265,7 @@ export default function ProjectSetup({
             {phase.id === 'shoot' && (
               <div className="setup-generate-row">
                 <button
-                  className="btn btn-primary btn-sm"
+                  className="pm-btn pm-btn--primary pm-btn--sm"
                   disabled={!shootStart || !shootEnd || wdCount === 0 || genStatus === 'loading' || alreadyGenerated}
                   onClick={handleGenerate}
                   title={alreadyGenerated ? 'Change the shoot dates to re-generate' : undefined}
@@ -313,10 +313,10 @@ export default function ProjectSetup({
         </div>
 
         <div className="setup-date-row" style={{ marginBottom: 16 }}>
-          <div className="field-group">
-            <label className="field-label">Base currency</label>
+          <div className="pm-field-group">
+            <label className="pm-field-label">Base currency</label>
             <select
-              className="field-input"
+              className="pm-input"
               value={production.currency ?? '£'}
               onChange={e => onUpdate('currency', e.target.value)}
               style={{ width: 200 }}
@@ -339,7 +339,7 @@ export default function ProjectSetup({
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
             <button
-              className="btn btn-secondary btn-sm"
+              className="pm-btn pm-btn--ghost pm-btn--sm"
               onClick={handleFetchRates}
               disabled={fxLoading}
             >
@@ -358,10 +358,10 @@ export default function ProjectSetup({
             .map(c => {
               const val = production.exchangeRates?.[c.code] ?? ''
               return (
-                <div key={c.code} className="field-group">
-                  <label className="field-label">{c.label}</label>
+                <div key={c.code} className="pm-field-group">
+                  <label className="pm-field-label">{c.label}</label>
                   <input
-                    className="field-input"
+                    className="pm-input"
                     type="number"
                     min="0"
                     step="0.0001"
@@ -389,10 +389,10 @@ export default function ProjectSetup({
         </div>
 
         <div className="setup-date-row" style={{ flexWrap: 'wrap', gap: '12px 24px' }}>
-          <div className="field-group">
-            <label className="field-label">Work hours / day</label>
+          <div className="pm-field-group">
+            <label className="pm-field-label">Work hours / day</label>
             <input
-              className="field-input"
+              className="pm-input"
               type="number"
               min="1"
               max="24"
@@ -403,10 +403,10 @@ export default function ProjectSetup({
             />
           </div>
 
-          <div className="field-group">
-            <label className="field-label">Default day type</label>
+          <div className="pm-field-group">
+            <label className="pm-field-label">Default day type</label>
             <select
-              className="field-input"
+              className="pm-input"
               value={production.defaultDayType}
               onChange={e => onUpdate('defaultDayType', e.target.value)}
               style={{ width: 120 }}
@@ -425,10 +425,10 @@ export default function ProjectSetup({
             { key: 'cwdLunch',  label: 'CWD — Continuous' },
             { key: 'scwdLunch', label: 'SCWD — Semi-Continuous' },
           ].map(({ key, label }) => (
-            <div key={key} className="field-group">
-              <label className="field-label">{label}</label>
+            <div key={key} className="pm-field-group">
+              <label className="pm-field-label">{label}</label>
               <input
-                className="field-input"
+                className="pm-input"
                 type="number"
                 min="0"
                 max="120"
@@ -473,7 +473,7 @@ export default function ProjectSetup({
         ))}
 
         <button
-          className="btn btn-secondary btn-sm"
+          className="pm-btn pm-btn--ghost pm-btn--sm"
           style={{ marginTop: 10 }}
           onClick={onAddCastMember}
         >

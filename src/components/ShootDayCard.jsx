@@ -16,6 +16,10 @@ const EXTRAS_CATEGORIES = [
   { key: 'visitors', label: 'Visitors' },
 ]
 
+const STATUS_LABEL = { booked: 'Confirmed', hold: 'On Hold', unavailable: 'Unavailable' }
+const STATUS_ICON  = { booked: '✓',         hold: 'H',         unavailable: '✕' }
+const STATUS_PM = { booked: 'w', hold: 'h', unavailable: 'u' }
+
 function calcWrapTime(generalCall, workHours, lunchMinutes) {
   if (!generalCall) return null
   const [h, m] = generalCall.split(':').map(Number)
@@ -36,9 +40,6 @@ function formatDateDisplay(dateStr) {
   })
 }
 
-const STATUS_LABEL = { booked: 'Confirmed', hold: 'On Hold', unavailable: 'Unavailable' }
-const STATUS_ICON  = { booked: '✓',         hold: 'H',         unavailable: '✕' }
-
 // ─── ExtraSubRow — individual editable extra entry ───────────────────────────
 
 function ExtraSubRow({ dayId, extra, onUpdate, onDelete }) {
@@ -47,7 +48,7 @@ function ExtraSubRow({ dayId, extra, onUpdate, onDelete }) {
   return (
     <div className="extras-sub-row">
       <input
-        className="scene-input"
+        className="pm-input"
         type="text"
         value={lDesc}
         placeholder="Description…"
@@ -58,7 +59,7 @@ function ExtraSubRow({ dayId, extra, onUpdate, onDelete }) {
         style={{ flex: 1 }}
       />
       <button
-        className="btn-icon danger"
+        className="pm-icon-btn danger"
         onClick={() => onDelete(dayId, extra.id)}
         title="Remove"
       >✕</button>
@@ -86,11 +87,11 @@ function ExtrasSection({ day, onAddDayExtra, onDeleteDayExtra, onUpdateDayExtra 
         className="additionals-header"
         onClick={() => setOpen(o => !o)}
       >
-        <span className="scenes-label">Additional Info</span>
+        <span className="pm-section-label">Additional Info</span>
         {totalCount > 0 && (
           <span className="additionals-count">{totalCount}</span>
         )}
-        <span className={`chevron${open ? ' open' : ''}`}>▶</span>
+        <span className={`pm-chev${open ? ' open' : ''}`}>▶</span>
       </div>
 
       {open && (
@@ -109,7 +110,7 @@ function ExtrasSection({ day, onAddDayExtra, onDeleteDayExtra, onUpdateDayExtra 
                   {items.length > 0 && (
                     <span className="additionals-count">{items.length}</span>
                   )}
-                  <span className={`chevron${isOpen ? ' open' : ''}`} style={{ fontSize: 9 }}>▶</span>
+                  <span className={`pm-chev${isOpen ? ' open' : ''}`} style={{ fontSize: 9 }}>▶</span>
                 </div>
 
                 {isOpen && (
@@ -124,7 +125,7 @@ function ExtrasSection({ day, onAddDayExtra, onDeleteDayExtra, onUpdateDayExtra 
                       />
                     ))}
                     <button
-                      className="btn btn-secondary btn-sm"
+                      className="pm-btn pm-btn--ghost pm-btn--sm"
                       style={{ marginTop: 4 }}
                       onClick={() => {
                         onAddDayExtra(day.id, key)
@@ -185,7 +186,7 @@ export default function ShootDayCard({
   const isSplinter = category === 'splinter'
 
   // Category-specific CSS classes
-  const categoryClass = isPrep ? ' day-card--prep' : isSplinter ? ' day-card--splinter' : ''
+  const categoryClass = isPrep ? ' pm-day--prep' : isSplinter ? ' pm-day--splinter' : ''
 
   // ── Drag-and-drop ─────────────────────────────────────────────────────────
   function onHandleMouseDown() {
@@ -235,7 +236,7 @@ export default function ShootDayCard({
   return (
     <div
       ref={cardRef}
-      className={`day-card${day.isNonShootDay ? ' non-shoot' : ''}${isDragOver ? ' drag-over' : ''}${categoryClass}`}
+      className={`pm-day${day.isNonShootDay ? ' pm-day--nonshoot' : ''}${isDragOver ? ' drag-over' : ''}${categoryClass}`}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
@@ -243,7 +244,7 @@ export default function ShootDayCard({
       onDrop={handleDrop}
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="day-card-header" onClick={() => setExpanded(e => !e)}>
+      <div className="pm-day-head" onClick={() => setExpanded(e => !e)}>
         <span
           className="drag-handle"
           onMouseDown={onHandleMouseDown}
@@ -260,32 +261,32 @@ export default function ShootDayCard({
           <>
             <span className="splinter-badge">Splinter</span>
             {day.dayNumber != null && (
-              <span className="day-number-label" style={{ marginLeft: 4 }}>D{day.dayNumber}</span>
+              <span className="pm-day-tab" style={{ marginLeft: 4 }}>D{day.dayNumber}</span>
             )}
           </>
         ) : !day.isNonShootDay ? (
-          <span className="day-number-label">Day {day.dayNumber}</span>
+          <span className="pm-day-tab">Day {day.dayNumber}</span>
         ) : null}
 
-        <div className="day-summary">
-          <span className="day-date-display">{formatDateDisplay(day.date)}</span>
+        <div className="pm-day-summary">
+          <span className="pm-day-date">{formatDateDisplay(day.date)}</span>
           {isPrep ? (
-            <span className="day-location-display">
+            <span className="pm-day-loc">
               {(day.locations ?? []).filter(Boolean)[0] || day.description ||
                <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>Prep unit</span>}
             </span>
           ) : day.isNonShootDay ? (
-            <span className="day-location-display">
+            <span className="pm-day-loc">
               {day.description || <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>Non-shooting</span>}
             </span>
           ) : (
             <>
               {(day.locations ?? [day.location]).filter(Boolean).length > 0 && (
-                <span className="day-location-display">
+                <span className="pm-day-loc">
                   {(day.locations ?? [day.location]).filter(Boolean).join(' · ')}
                 </span>
               )}
-              <span className="day-scene-count">
+              <span className="pm-day-meta-item">
                 {sceneCount} scene{sceneCount !== 1 ? 's' : ''}
               </span>
             </>
@@ -293,7 +294,7 @@ export default function ShootDayCard({
         </div>
 
         {day.isNonShootDay && !isPrep && (
-          <span className="non-shoot-badge">Non-shooting</span>
+          <span className="pm-tag pm-tag--nonshoot">Non-shooting</span>
         )}
 
         <div
@@ -301,7 +302,7 @@ export default function ShootDayCard({
           onClick={e => e.stopPropagation()}
         >
           <button
-            className="btn-icon"
+            className="pm-icon-btn"
             onClick={() => onMoveUp(day.id)}
             disabled={index === 0}
             title="Move up"
@@ -309,7 +310,7 @@ export default function ShootDayCard({
             ↑
           </button>
           <button
-            className="btn-icon"
+            className="pm-icon-btn"
             onClick={() => onMoveDown(day.id)}
             disabled={index === totalDays - 1}
             title="Move down"
@@ -317,7 +318,7 @@ export default function ShootDayCard({
             ↓
           </button>
           <button
-            className="btn-icon danger"
+            className="pm-icon-btn danger"
             onClick={handleDelete}
             title="Delete day"
           >
@@ -325,18 +326,18 @@ export default function ShootDayCard({
           </button>
         </div>
 
-        <span className={`chevron${expanded ? ' open' : ''}`}>▶</span>
+        <span className={`pm-chev${expanded ? ' open' : ''}`}>▶</span>
       </div>
 
       {/* ── Expanded body ──────────────────────────────────────────────────── */}
       {expanded && (
-        <div className="day-card-body">
-          <div className="field-grid">
+        <div className="pm-day-body">
+          <div className="pm-field-grid">
             {!day.isNonShootDay && !isPrep && (
-              <div className="field-group">
-                <label className="field-label">Day #</label>
+              <div className="pm-field-group">
+                <label className="pm-field-label">Day #</label>
                 <input
-                  className="field-input"
+                  className="pm-input"
                   type="number"
                   min="1"
                   value={day.dayNumber ?? ''}
@@ -347,10 +348,10 @@ export default function ShootDayCard({
               </div>
             )}
 
-            <div className="field-group">
-              <label className="field-label">Date</label>
+            <div className="pm-field-group">
+              <label className="pm-field-label">Date</label>
               <input
-                className="field-input"
+                className="pm-input"
                 type="date"
                 value={day.date}
                 onChange={e => onUpdate(day.id, 'date', e.target.value)}
@@ -359,10 +360,10 @@ export default function ShootDayCard({
 
             {/* Non-shoot main days: description only */}
             {day.isNonShootDay && !isPrep && (
-              <div className="field-group">
-                <label className="field-label">Description</label>
+              <div className="pm-field-group">
+                <label className="pm-field-label">Description</label>
                 <input
-                  className="field-input"
+                  className="pm-input"
                   type="text"
                   value={day.description}
                   placeholder="e.g. Holiday, Travel day, Turnaround…"
@@ -375,12 +376,12 @@ export default function ShootDayCard({
             {/* Prep day fields: location(s) + description */}
             {isPrep && (
               <>
-                <div className="field-group field-full">
-                  <label className="field-label">Location(s)</label>
+                <div className="pm-field-group field-full">
+                  <label className="pm-field-label">Location(s)</label>
                   {(day.locations ?? [day.location ?? '']).map((loc, i) => (
                     <div key={i} className="location-row">
                       <input
-                        className="field-input"
+                        className="pm-input"
                         type="text"
                         value={loc}
                         placeholder={i === 0 ? 'Stage 4A, prep area…' : 'Additional location…'}
@@ -392,7 +393,7 @@ export default function ShootDayCard({
                       />
                       {(day.locations ?? []).length > 1 && (
                         <button
-                          className="btn-icon danger location-remove"
+                          className="pm-icon-btn danger location-remove"
                           title="Remove location"
                           onClick={() => {
                             const next = [...day.locations]
@@ -404,17 +405,17 @@ export default function ShootDayCard({
                     </div>
                   ))}
                   <button
-                    className="btn btn-secondary btn-sm btn-add-location"
+                    className="pm-btn pm-btn--ghost pm-btn--sm btn-add-location"
                     onClick={() => {
                       const current = day.locations ?? [day.location ?? '']
                       onUpdate(day.id, 'locations', [...current, ''])
                     }}
                   >+ Add location</button>
                 </div>
-                <div className="field-group field-full">
-                  <label className="field-label">Description</label>
+                <div className="pm-field-group field-full">
+                  <label className="pm-field-label">Description</label>
                   <input
-                    className="field-input"
+                    className="pm-input"
                     type="text"
                     value={day.description}
                     placeholder="e.g. Camera tests, costume fittings, rigging…"
@@ -426,20 +427,20 @@ export default function ShootDayCard({
 
             {!day.isNonShootDay && (
               <>
-                <div className="field-group">
-                  <label className="field-label">General Call</label>
+                <div className="pm-field-group">
+                  <label className="pm-field-label">General Call</label>
                   <input
-                    className="field-input"
+                    className="pm-input"
                     type="time"
                     value={day.generalCall}
                     onChange={e => onUpdate(day.id, 'generalCall', e.target.value)}
                   />
                 </div>
 
-                <div className="field-group">
-                  <label className="field-label">Day Type</label>
+                <div className="pm-field-group">
+                  <label className="pm-field-label">Day Type</label>
                   <select
-                    className="field-input"
+                    className="pm-input"
                     value={day.dayType}
                     onChange={e => onUpdate(day.id, 'dayType', e.target.value)}
                   >
@@ -451,8 +452,8 @@ export default function ShootDayCard({
                 </div>
 
                 {wrapTime && (
-                  <div className="field-group">
-                    <label className="field-label">Est. Wrap</label>
+                  <div className="pm-field-group">
+                    <label className="pm-field-label">Est. Wrap</label>
                     <div className="field-wrap-time">
                       {wrapTime}
                       <span className="field-wrap-hint">
@@ -462,12 +463,12 @@ export default function ShootDayCard({
                   </div>
                 )}
 
-                <div className="field-group field-full">
-                  <label className="field-label">Location(s)</label>
+                <div className="pm-field-group field-full">
+                  <label className="pm-field-label">Location(s)</label>
                   {(day.locations ?? [day.location ?? '']).map((loc, i) => (
                     <div key={i} className="location-row">
                       <input
-                        className="field-input"
+                        className="pm-input"
                         type="text"
                         value={loc}
                         placeholder={i === 0 ? 'Stage 4A, Prague…' : 'Additional location…'}
@@ -479,7 +480,7 @@ export default function ShootDayCard({
                       />
                       {(day.locations ?? []).length > 1 && (
                         <button
-                          className="btn-icon danger location-remove"
+                          className="pm-icon-btn danger location-remove"
                           title="Remove location"
                           onClick={() => {
                             const next = [...day.locations]
@@ -491,7 +492,7 @@ export default function ShootDayCard({
                     </div>
                   ))}
                   <button
-                    className="btn btn-secondary btn-sm btn-add-location"
+                    className="pm-btn pm-btn--ghost pm-btn--sm btn-add-location"
                     onClick={() => {
                       const current = day.locations ?? [day.location ?? '']
                       onUpdate(day.id, 'locations', [...current, ''])
@@ -499,10 +500,10 @@ export default function ShootDayCard({
                   >+ Add location</button>
                 </div>
 
-                <div className="field-group">
-                  <label className="field-label">Unit Base</label>
+                <div className="pm-field-group">
+                  <label className="pm-field-label">Unit Base</label>
                   <input
-                    className="field-input"
+                    className="pm-input"
                     type="text"
                     value={day.unitBase}
                     placeholder="Stage car park"
@@ -512,10 +513,10 @@ export default function ShootDayCard({
               </>
             )}
 
-            <div className="field-group field-full">
-              <label className="field-label">Notes</label>
+            <div className="pm-field-group field-full">
+              <label className="pm-field-label">Notes</label>
               <textarea
-                className="field-input"
+                className="pm-input"
                 value={day.notes}
                 placeholder="Free notes for this day…"
                 onChange={e => onUpdate(day.id, 'notes', e.target.value)}
@@ -525,11 +526,11 @@ export default function ShootDayCard({
 
           {/* ── Scenes ──────────────────────────────────────────────────────── */}
           {!day.isNonShootDay && (
-            <div className="scenes-section">
-              <div className="scenes-header">
-                <span className="scenes-label">Scenes</span>
+            <div className="pm-scenes">
+              <div className="pm-scenes-head">
+                <span className="pm-section-label">Scenes</span>
                 <button
-                  className="btn btn-secondary btn-sm"
+                  className="pm-btn pm-btn--ghost pm-btn--sm"
                   onClick={() => onAddScene(day.id)}
                 >
                   + Scene
@@ -570,14 +571,14 @@ export default function ShootDayCard({
           {!day.isNonShootDay && category === 'main' && (
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f0f0ea', display: 'flex', gap: 8 }}>
               <button
-                className="btn btn-secondary btn-sm"
+                className="pm-btn pm-btn--ghost pm-btn--sm"
                 onClick={() => onAddPrepDay(day)}
                 title="Add a prep unit for this date"
               >
                 ＋ Prep Unit
               </button>
               <button
-                className="btn btn-secondary btn-sm"
+                className="pm-btn pm-btn--ghost pm-btn--sm"
                 onClick={() => onAddSplinterDay(day)}
                 title="Add a splinter unit for this date"
               >
@@ -593,11 +594,11 @@ export default function ShootDayCard({
                 className="additionals-header"
                 onClick={() => setAdditionalsOpen(o => !o)}
               >
-                <span className="scenes-label">Additionals</span>
+                <span className="pm-section-label">Additionals</span>
                 {additionals.length > 0 && (
                   <span className="additionals-count">{additionals.length}</span>
                 )}
-                <span className={`chevron${additionalsOpen ? ' open' : ''}`}>▶</span>
+                <span className={`pm-chev${additionalsOpen ? ' open' : ''}`}>▶</span>
               </div>
 
               {additionalsOpen && (
@@ -621,7 +622,7 @@ export default function ShootDayCard({
                                 <span className="additional-role">
                                   {[item.role, item.department].filter(Boolean).join(' · ')}
                                 </span>
-                                <span className={`additional-badge ${item.bookingStatus}`}>
+                                <span className={`pm-status pm-status--${STATUS_PM[item.bookingStatus] ?? item.bookingStatus}`}>
                                   {STATUS_ICON[item.bookingStatus]} {STATUS_LABEL[item.bookingStatus]}
                                 </span>
                               </div>
@@ -636,7 +637,7 @@ export default function ShootDayCard({
                                 <span className={`additional-status-dot ${item.bookingStatus}`} />
                                 <span className="additional-name">{item.name}</span>
                                 <span className="additional-role">{item.category}</span>
-                                <span className={`additional-badge ${item.bookingStatus}`}>
+                                <span className={`pm-status pm-status--${STATUS_PM[item.bookingStatus] ?? item.bookingStatus}`}>
                                   {STATUS_ICON[item.bookingStatus]} {STATUS_LABEL[item.bookingStatus]}
                                 </span>
                               </div>
@@ -656,11 +657,11 @@ export default function ShootDayCard({
       {/* ── Non-shoot toggle — hidden for prep days (always non-shoot) ─────── */}
       {!isPrep && (
         <div
-          className="toggle-row"
+          className="pm-toggle-row"
           onClick={() => onUpdate(day.id, 'isNonShootDay', !day.isNonShootDay)}
         >
-          <div className={`toggle-track${day.isNonShootDay ? ' on' : ''}`}>
-            <div className="toggle-thumb" />
+          <div className={`pm-toggle${day.isNonShootDay ? ' on' : ''}`}>
+            <div className="pm-toggle-thumb" />
           </div>
           <span className="toggle-label">Non-shooting day</span>
         </div>

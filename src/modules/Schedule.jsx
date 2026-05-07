@@ -70,10 +70,10 @@ export default function Schedule({ store, actions }) {
   const totalDays  = allOrdered.length
 
   return (
-    <div className="module-wrap">
-      <div className="module-header">
-        <h1 className="module-title">Shooting Schedule</h1>
-        <button className="btn btn-primary" onClick={handleAddDay}>
+    <div className="pm-module">
+      <div className="pm-module-head">
+        <h1 className="pm-h1">Shooting Schedule</h1>
+        <button className="pm-btn pm-btn--primary" onClick={handleAddDay}>
           + Add shoot day
         </button>
       </div>

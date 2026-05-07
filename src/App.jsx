@@ -91,21 +91,21 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell" onClick={() => setProdMenuOpen(false)}>
+    <div className="pm-shell" onClick={() => setProdMenuOpen(false)}>
 
       {/* ── Sidebar ───────────────────────────────────────────────────────────── */}
-      <aside className="sidebar">
+      <aside className="pm-sidebar">
 
         {/* Production switcher */}
-        <div className="sidebar-logo" onClick={e => e.stopPropagation()}>
-          <div className="sidebar-eyebrow">Production</div>
+        <div className="pm-sidebar-mast" onClick={e => e.stopPropagation()}>
+          <div className="pm-sidebar-eyebrow">Production</div>
           <button
-            className="sidebar-prod-btn"
+            className="pm-sidebar-prod"
             onClick={() => setProdMenuOpen(o => !o)}
             title="Switch production"
           >
-            <span className="sidebar-prod-name">{store.production.name || 'Untitled'}</span>
-            <span className="sidebar-prod-chevron">{prodMenuOpen ? '▴' : '▾'}</span>
+            <span className="pm-sidebar-prod-name">{store.production.name || 'Untitled'}</span>
+            <span className="pm-sidebar-prod-chev">{prodMenuOpen ? '▴' : '▾'}</span>
           </button>
 
           {prodMenuOpen && (
@@ -139,18 +139,18 @@ export default function App() {
           )}
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="pm-sidebar-nav">
           {NAV.map(item => (
             <div
               key={item.id}
               className={[
-                'nav-item',
-                currentModule === item.id ? 'active' : '',
+                'pm-nav-item',
+                currentModule === item.id ? 'is-active' : '',
                 item.soon ? 'disabled' : '',
               ].filter(Boolean).join(' ')}
               onClick={() => !item.soon && navigate(item.id)}
             >
-              <span className="nav-icon">{item.icon}</span>
+              <span className="pm-nav-icon">{item.icon}</span>
               {item.label}
               {item.soon && <span className="nav-soon">Soon</span>}
             </div>
@@ -159,14 +159,14 @@ export default function App() {
       </aside>
 
       {/* ── Main ──────────────────────────────────────────────────────────────── */}
-      <div className="main-area">
-        <header className="top-bar">
-          <span className="top-bar-title">
+      <div className="pm-main">
+        <header className="pm-topbar">
+          <span className="pm-topbar-title">
             {NAV.find(n => n.id === currentModule)?.label ?? ''}
           </span>
         </header>
 
-        <div className={`content-area${isGantt ? ' content-area--gantt' : ''}${isCallsheet ? ' content-area--callsheet' : ''}`}>
+        <div className={`pm-content${isGantt ? ' pm-content--gantt' : ''}${isCallsheet ? ' pm-content--cs' : ''}`}>
 
           {currentModule === 'setup' && (
             <ProjectSetup

@@ -186,7 +186,7 @@ function ResourceRow({
     <Fragment>
       <tr className="gantt-resource-row">
         {/* ── Sticky name cell ─────────────────────────────────────────────────── */}
-        <td className="gantt-name-td">
+        <td className="pm-g-name">
           <div className="gantt-name-cell">
             <button
               className={`gantt-row-expand${expanded ? ' open' : ''}`}
@@ -254,9 +254,9 @@ function ResourceRow({
               )}
             </div>
             <div className="gantt-name-actions">
-              <button className="btn-icon" onClick={() => onMoveUp(resource.id)}   title="Move up">↑</button>
-              <button className="btn-icon" onClick={() => onMoveDown(resource.id)} title="Move down">↓</button>
-              <button className="btn-icon danger" title="Delete"
+              <button className="pm-icon-btn" onClick={() => onMoveUp(resource.id)}   title="Move up">↑</button>
+              <button className="pm-icon-btn" onClick={() => onMoveDown(resource.id)} title="Move down">↓</button>
+              <button className="pm-icon-btn danger" title="Delete"
                 onClick={() => {
                   if (window.confirm(`Delete "${resource.name}"? This cannot be undone.`))
                     onDelete(resource.id)
@@ -284,9 +284,11 @@ function ResourceRow({
           const isShootDay = shootDateSet.has(spec.date)
 
           const isSubUnit = !!spec.subUnitCategory
+          const statusCls = status === 'unavailable' ? 'pm-g-cell--unavail'
+                          : status ? `pm-g-cell--${status}` : ''
           const cls = [
-            'gantt-cell',
-            status ?? '',
+            'pm-g-cell',
+            statusCls,
             spec.subUnitCategory === 'prep'     ? 'cell-prep'     : '',
             spec.subUnitCategory === 'splinter' ? 'cell-splinter' : '',
             spec.shootDay?.isNonShootDay && !isSubUnit ? 'cell-nonshoot' : '',
@@ -841,13 +843,13 @@ export default function CrewGantt({ production, shootDays }) {
 
         <div className="gantt-toolbar">
           {/* Add / import resource */}
-          <button className="btn btn-primary btn-sm" onClick={() => addResource(activeTab)}>
+          <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={() => addResource(activeTab)}>
             + Add {typeLabel}
           </button>
-          <button className="btn btn-secondary btn-sm" onClick={downloadTemplate} title="Download CSV template">
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadTemplate} title="Download CSV template">
             ↓ Template
           </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => importFileRef.current?.click()} title="Import from CSV">
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => importFileRef.current?.click()} title="Import from CSV">
             ↑ Import CSV
           </button>
           <input
@@ -901,7 +903,7 @@ export default function CrewGantt({ production, shootDays }) {
                   </button>
                 )
               })}
-              <button className="btn btn-secondary btn-sm" onClick={collapseBeforeToday}>
+              <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={collapseBeforeToday}>
                 Collapse past
               </button>
             </div>
@@ -909,10 +911,10 @@ export default function CrewGantt({ production, shootDays }) {
 
           {/* Legend */}
           <div className="gantt-legend">
-            <span className="legend-item"><span className="legend-swatch booked" />Confirmed</span>
-            <span className="legend-item"><span className="legend-swatch hold" />On Hold</span>
-            <span className="legend-item"><span className="legend-swatch unavailable" />Unavailable</span>
-            <span className="legend-item"><span className="legend-swatch cancelled" />Cancelled</span>
+            <span className="pm-leg"><span className="pm-leg-sw booked" />Confirmed</span>
+            <span className="pm-leg"><span className="pm-leg-sw hold" />On Hold</span>
+            <span className="pm-leg"><span className="pm-leg-sw unavailable" />Unavailable</span>
+            <span className="pm-leg"><span className="pm-leg-sw cancelled" />Cancelled</span>
           </div>
         </div>
       </div>
@@ -931,11 +933,11 @@ export default function CrewGantt({ production, shootDays }) {
           onMouseMove={handleScrollAreaMouseMove}
           onMouseLeave={handleScrollAreaMouseLeave}
         >
-          <table className="gantt-table" onDragStart={e => e.preventDefault()}>
+          <table className="pm-g-tbl" onDragStart={e => e.preventDefault()}>
 
             <thead>
               <tr>
-                <th className="gantt-name-th">
+                <th className="pm-g-corner">
                   {activeTab === 'crew' ? 'Name / Role / Dept' : 'Item / Category'}
                 </th>
                 {colSpecs.map(spec => {
@@ -962,7 +964,7 @@ export default function CrewGantt({ production, shootDays }) {
                     return (
                       <th key={`sub-${spec.dayId}`}
                           className={[
-                            'gantt-day-th',
+                            'pm-g-day',
                             isPrep ? 'gantt-prep-col' : 'gantt-splinter-col',
                             spec.isToday ? 'is-today' : '',
                           ].filter(Boolean).join(' ')}
@@ -980,7 +982,7 @@ export default function CrewGantt({ production, shootDays }) {
                   return (
                     <th key={spec.date}
                         className={[
-                          'gantt-day-th',
+                          'pm-g-day',
                           sd?.isNonShootDay ? 'non-shoot'  : '',
                           spec.isToday      ? 'is-today'   : '',
                           spec.isWeekend    ? 'is-weekend' : '',
@@ -1010,7 +1012,7 @@ export default function CrewGantt({ production, shootDays }) {
               ) : (
                 groups.map(([deptName, deptResources]) => (
                   <Fragment key={`dept-${deptName}`}>
-                    <tr className="gantt-dept-row">
+                    <tr className="pm-g-dept">
                       <td colSpan={colSpecs.length + 1}>{deptName}</td>
                     </tr>
                     {deptResources.map(resource => (

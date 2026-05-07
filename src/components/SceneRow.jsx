@@ -48,7 +48,7 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
 
       {/* INT / EXT toggle */}
       <button
-        className={`scene-tag-btn ${scene.intExt.toLowerCase()}`}
+        className={`pm-sc-tag pm-sc-tag--${scene.intExt.toLowerCase()}`}
         onClick={() => cycle('intExt')}
         title="Click to toggle INT / EXT"
       >
@@ -66,7 +66,7 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
 
       {/* DAY / NIGHT toggle */}
       <button
-        className={`scene-tag-btn ${scene.dayNight.toLowerCase()}`}
+        className={`pm-sc-tag pm-sc-tag--${scene.dayNight.toLowerCase()}`}
         onClick={() => cycle('dayNight')}
         title="Click to toggle DAY / NIGHT"
       >
@@ -134,7 +134,7 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
 
       {/* Delete */}
       <button
-        className="btn-icon danger"
+        className="pm-icon-btn danger"
         onClick={() => onDelete(dayId, scene.id)}
         title="Remove scene"
       >

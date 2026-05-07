@@ -210,7 +210,7 @@ export default function CallSheet({ store, castMembers = [] }) {
 
   if (shootingDays.length === 0) {
     return (
-      <div className="module-wrap">
+      <div className="pm-module">
         <div className="empty-state">
           <div className="empty-state-icon">☰</div>
           <div className="empty-state-text">No shoot days yet.</div>
@@ -228,7 +228,7 @@ export default function CallSheet({ store, castMembers = [] }) {
       {/* ── Day selector bar ───────────────────────────────────────────────── */}
       <div className="cs-selector no-print">
         <button
-          className="btn btn-secondary btn-sm"
+          className="pm-btn pm-btn--ghost pm-btn--sm"
           disabled={currentIdx <= 0}
           onClick={() => setSelectedId(shootingDays[currentIdx - 1].id)}
         >
@@ -248,7 +248,7 @@ export default function CallSheet({ store, castMembers = [] }) {
         </select>
 
         <button
-          className="btn btn-secondary btn-sm"
+          className="pm-btn pm-btn--ghost pm-btn--sm"
           disabled={currentIdx >= shootingDays.length - 1}
           onClick={() => setSelectedId(shootingDays[currentIdx + 1].id)}
         >
@@ -256,7 +256,7 @@ export default function CallSheet({ store, castMembers = [] }) {
         </button>
 
         <button
-          className="btn btn-primary btn-sm cs-print-btn"
+          className="pm-btn pm-btn--primary pm-btn--sm cs-print-btn"
           onClick={() => window.print()}
         >
           🖨 Print / Save PDF
@@ -266,36 +266,36 @@ export default function CallSheet({ store, castMembers = [] }) {
       {/* ── Scrollable document area ────────────────────────────────────────── */}
       {day && (
         <div className="cs-scroll">
-          <div className="cs-doc">
+          <div className="pm-cs-doc">
 
             {/* ── Header ──────────────────────────────────────────────────── */}
-            <div className="cs-header">
+            <div className="pm-cs-header">
               <div className="cs-header-left">
-                <div className="cs-prod-name">{production.name || 'Untitled Production'}</div>
+                <div className="pm-cs-prod">{production.name || 'Untitled Production'}</div>
                 <div className="cs-date-line">{formatDateFull(day.date)}</div>
               </div>
               <div className="cs-header-center">
-                <div className="cs-title-badge">DAILY INFO</div>
+                <div className="pm-cs-stamp">DAILY INFO</div>
                 {day.dayNumber != null && (
-                  <div className="cs-day-num">Shoot Day {day.dayNumber}</div>
+                  <div className="pm-cs-daynum">Shoot Day {day.dayNumber}</div>
                 )}
               </div>
               <div className="cs-header-right">
                 {day.generalCall ? (
-                  <div className="cs-call-block">
-                    <span className="cs-call-label">General Call</span>
-                    <span className="cs-call-value">{day.generalCall}</span>
+                  <div className="pm-cs-call-block">
+                    <span className="pm-cs-call-label">General Call</span>
+                    <span className="pm-cs-call-val">{day.generalCall}</span>
                   </div>
                 ) : (
-                  <div className="cs-call-block cs-call-empty">
-                    <span className="cs-call-label">General Call</span>
-                    <span className="cs-call-value cs-call-tbd">TBC</span>
+                  <div className="pm-cs-call-block cs-call-empty">
+                    <span className="pm-cs-call-label">General Call</span>
+                    <span className="pm-cs-call-val cs-call-tbd">TBC</span>
                   </div>
                 )}
                 {wrapTime && (
-                  <div className="cs-call-block cs-wrap-block">
-                    <span className="cs-call-label">Est. Wrap</span>
-                    <span className="cs-call-value cs-wrap-value">{wrapTime}</span>
+                  <div className="pm-cs-call-block cs-wrap-block">
+                    <span className="pm-cs-call-label">Est. Wrap</span>
+                    <span className="pm-cs-call-val cs-wrap-value">{wrapTime}</span>
                   </div>
                 )}
               </div>
@@ -307,23 +307,23 @@ export default function CallSheet({ store, castMembers = [] }) {
               const showStrip = locs.length > 0 || day.unitBase
               if (!showStrip) return null
               return (
-                <div className="cs-info-strip">
+                <div className="pm-cs-strip">
                   {locs.length === 1 && (
-                    <div className="cs-info-item">
-                      <span className="cs-info-label">Location</span>
-                      <span className="cs-info-value">{locs[0]}</span>
+                    <div className="pm-cs-strip-item">
+                      <span className="pm-cs-strip-label">Location</span>
+                      <span className="pm-cs-strip-val">{locs[0]}</span>
                     </div>
                   )}
                   {locs.length > 1 && locs.map((loc, i) => (
-                    <div key={i} className="cs-info-item">
-                      <span className="cs-info-label">Location {i + 1}</span>
-                      <span className="cs-info-value">{loc}</span>
+                    <div key={i} className="pm-cs-strip-item">
+                      <span className="pm-cs-strip-label">Location {i + 1}</span>
+                      <span className="pm-cs-strip-val">{loc}</span>
                     </div>
                   ))}
                   {day.unitBase && (
-                    <div className="cs-info-item">
-                      <span className="cs-info-label">Unit Base</span>
-                      <span className="cs-info-value">{day.unitBase}</span>
+                    <div className="pm-cs-strip-item">
+                      <span className="pm-cs-strip-label">Unit Base</span>
+                      <span className="pm-cs-strip-val">{day.unitBase}</span>
                     </div>
                   )}
                 </div>
@@ -332,9 +332,9 @@ export default function CallSheet({ store, castMembers = [] }) {
 
             {/* ── Scenes ──────────────────────────────────────────────────── */}
             {day.scenes.length > 0 && (
-              <div className="cs-section">
-                <div className="cs-section-title">Scenes</div>
-                <table className="cs-table">
+              <div className="pm-cs-section">
+                <div className="pm-cs-section-head">Scenes</div>
+                <table className="pm-cs-tbl">
                   <thead>
                     <tr>
                       <th className="cs-th cs-th-sc">Sc #</th>
@@ -372,8 +372,8 @@ export default function CallSheet({ store, castMembers = [] }) {
 
             {/* ── Additional Info (extras) ─────────────────────────────────── */}
             {extrasWithEntries.length > 0 && (
-              <div className="cs-section">
-                <div className="cs-section-title">Additional Info</div>
+              <div className="pm-cs-section">
+                <div className="pm-cs-section-head">Additional Info</div>
                 {extrasWithEntries.map(({ key, label, items }) => (
                   <div key={key} className="cs-group">
                     <div className="cs-group-header">{label}</div>
@@ -391,8 +391,8 @@ export default function CallSheet({ store, castMembers = [] }) {
 
             {/* ── Crew ────────────────────────────────────────────────────── */}
             {crewGroups.length > 0 && (
-              <div className="cs-section">
-                <div className="cs-section-title">
+              <div className="pm-cs-section">
+                <div className="pm-cs-section-head">
                   Crew
                   <span className="cs-section-count">{allCrew.length}</span>
                   <CopyBtn getText={crewTSV} />
@@ -400,7 +400,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                 {crewGroups.map(([dept, members]) => (
                   <div key={dept} className="cs-group">
                     <div className="cs-group-header">{dept}</div>
-                    <table className="cs-table">
+                    <table className="pm-cs-tbl">
                       <thead>
                         <tr>
                           <th className="cs-th cs-th-name">Name</th>
@@ -435,8 +435,8 @@ export default function CallSheet({ store, castMembers = [] }) {
 
             {/* ── Equipment ───────────────────────────────────────────────── */}
             {equipGroups.length > 0 && (
-              <div className="cs-section">
-                <div className="cs-section-title">
+              <div className="pm-cs-section">
+                <div className="pm-cs-section-head">
                   Equipment
                   <span className="cs-section-count">{allEquip.length}</span>
                   <CopyBtn getText={equipTSV} />
@@ -444,7 +444,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                 {equipGroups.map(([cat, items]) => (
                   <div key={cat} className="cs-group">
                     <div className="cs-group-header">{cat}</div>
-                    <table className="cs-table">
+                    <table className="pm-cs-tbl">
                       <thead>
                         <tr>
                           <th className="cs-th cs-th-name">Name</th>
@@ -480,8 +480,8 @@ export default function CallSheet({ store, castMembers = [] }) {
               const prepEquip  = items.filter(r => r.type === 'equipment')
               const prepLoc    = (prepDay.locations ?? []).filter(Boolean)[0] || prepDay.description || ''
               return (
-                <div key={prepDay.id} className={`cs-section ${isSplinter ? 'cs-section-splinter' : 'cs-section-prep'}`}>
-                  <div className="cs-section-title">
+                <div key={prepDay.id} className={`pm-cs-section ${isSplinter ? 'cs-section-splinter' : 'cs-section-prep'}`}>
+                  <div className="pm-cs-section-head">
                     <span className={isSplinter ? 'cs-splinter-badge' : 'cs-prep-badge'}>
                       {isSplinter ? 'SPLINTER UNIT' : 'PREP UNIT'}
                     </span>
@@ -491,7 +491,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                   {prepCrew.length > 0 && (
                     <div className="cs-group">
                       <div className="cs-group-header">Crew</div>
-                      <table className="cs-table">
+                      <table className="pm-cs-tbl">
                         <thead><tr>
                           <th className="cs-th cs-th-name">Name</th>
                           <th className="cs-th">Role</th>
@@ -518,7 +518,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                   {prepEquip.length > 0 && (
                     <div className="cs-group">
                       <div className="cs-group-header">Equipment</div>
-                      <table className="cs-table">
+                      <table className="pm-cs-tbl">
                         <thead><tr>
                           <th className="cs-th cs-th-name">Name</th>
                           <th className="cs-th">Category</th>
@@ -546,8 +546,8 @@ export default function CallSheet({ store, castMembers = [] }) {
 
             {/* ── Notes ───────────────────────────────────────────────────── */}
             {day.notes && (
-              <div className="cs-section">
-                <div className="cs-section-title">
+              <div className="pm-cs-section">
+                <div className="pm-cs-section-head">
                   Notes
                   <CopyBtn getText={notesTSV} />
                 </div>
