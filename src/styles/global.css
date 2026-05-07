@@ -1521,13 +1521,25 @@ textarea.field-input {
 
 .cs-header-right {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
 }
 
 .cs-call-block {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+}
+
+.cs-wrap-block {
+  border-top: 1px solid rgba(255,255,255,0.12);
+  padding-top: 6px;
+}
+
+.cs-wrap-value {
+  font-size: 18px !important;
+  color: #9ca3af !important;
 }
 
 .cs-call-label {

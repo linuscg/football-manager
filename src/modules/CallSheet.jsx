@@ -20,6 +20,16 @@ function formatDateShort(dateStr) {
   })
 }
 
+// Wrap time: General Call + work hours + lunch minutes → "HH:MM"
+function calcWrapTime(generalCall, workHours, lunchMinutes) {
+  if (!generalCall) return null
+  const [h, m] = generalCall.split(':').map(Number)
+  const total = h * 60 + m + Math.round(workHours * 60) + (lunchMinutes ?? 0)
+  const wh = Math.floor(total / 60) % 24
+  const wm = total % 60
+  return `${String(wh).padStart(2, '0')}:${String(wm).padStart(2, '0')}`
+}
+
 // Build a TSV string (tab-separated) from an array of row arrays
 function toTSV(headers, rows) {
   return [headers, ...rows].map(r => r.join('\t')).join('\n')
@@ -74,6 +84,16 @@ export default function CallSheet({ store }) {
 
   const day = shootingDays.find(d => d.id === selectedId) ?? shootingDays[0] ?? null
   const currentIdx = shootingDays.findIndex(d => d.id === day?.id)
+
+  // Wrap time for the selected day
+  const wrapTime = useMemo(() => {
+    if (!day) return null
+    const effectiveDayType = day.dayType || production.defaultDayType || 'SWD'
+    const lunchMinutes = effectiveDayType === 'CWD'  ? (production.cwdLunch  ?? 0)
+                       : effectiveDayType === 'SCWD' ? (production.scwdLunch ?? 30)
+                       :                               (production.swdLunch  ?? 60)
+    return calcWrapTime(day.generalCall, production.workHours ?? 10, lunchMinutes)
+  }, [day, production])
 
   // All booked resources for this day's date
   const dayBookings = useMemo(() => {
@@ -225,6 +245,12 @@ export default function CallSheet({ store }) {
                   <div className="cs-call-block cs-call-empty">
                     <span className="cs-call-label">General Call</span>
                     <span className="cs-call-value cs-call-tbd">TBC</span>
+                  </div>
+                )}
+                {wrapTime && (
+                  <div className="cs-call-block cs-wrap-block">
+                    <span className="cs-call-label">Est. Wrap</span>
+                    <span className="cs-call-value cs-wrap-value">{wrapTime}</span>
                   </div>
                 )}
               </div>
