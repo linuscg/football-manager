@@ -103,13 +103,19 @@ export default function ShootDayCard({
 
         <div className="day-summary">
           <span className="day-date-display">{formatDateDisplay(day.date)}</span>
-          {day.location && (
-            <span className="day-location-display">{day.location}</span>
-          )}
-          {!day.isNonShootDay && (
-            <span className="day-scene-count">
-              {sceneCount} scene{sceneCount !== 1 ? 's' : ''}
+          {day.isNonShootDay ? (
+            <span className="day-location-display">
+              {day.description || <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>Non-shooting</span>}
             </span>
+          ) : (
+            <>
+              {day.location && (
+                <span className="day-location-display">{day.location}</span>
+              )}
+              <span className="day-scene-count">
+                {sceneCount} scene{sceneCount !== 1 ? 's' : ''}
+              </span>
+            </>
           )}
         </div>
 
@@ -178,37 +184,55 @@ export default function ShootDayCard({
               />
             </div>
 
-            <div className="field-group">
-              <label className="field-label">General Call</label>
-              <input
-                className="field-input"
-                type="time"
-                value={day.generalCall}
-                onChange={e => onUpdate(day.id, 'generalCall', e.target.value)}
-              />
-            </div>
+            {day.isNonShootDay && (
+              <div className="field-group">
+                <label className="field-label">Description</label>
+                <input
+                  className="field-input"
+                  type="text"
+                  value={day.description}
+                  placeholder="e.g. Holiday, Travel day, Turnaround…"
+                  autoFocus
+                  onChange={e => onUpdate(day.id, 'description', e.target.value)}
+                />
+              </div>
+            )}
 
-            <div className="field-group">
-              <label className="field-label">Location</label>
-              <input
-                className="field-input"
-                type="text"
-                value={day.location}
-                placeholder="Stage 4A, Prague"
-                onChange={e => onUpdate(day.id, 'location', e.target.value)}
-              />
-            </div>
+            {!day.isNonShootDay && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">General Call</label>
+                  <input
+                    className="field-input"
+                    type="time"
+                    value={day.generalCall}
+                    onChange={e => onUpdate(day.id, 'generalCall', e.target.value)}
+                  />
+                </div>
 
-            <div className="field-group">
-              <label className="field-label">Unit Base</label>
-              <input
-                className="field-input"
-                type="text"
-                value={day.unitBase}
-                placeholder="Stage car park"
-                onChange={e => onUpdate(day.id, 'unitBase', e.target.value)}
-              />
-            </div>
+                <div className="field-group">
+                  <label className="field-label">Location</label>
+                  <input
+                    className="field-input"
+                    type="text"
+                    value={day.location}
+                    placeholder="Stage 4A, Prague"
+                    onChange={e => onUpdate(day.id, 'location', e.target.value)}
+                  />
+                </div>
+
+                <div className="field-group">
+                  <label className="field-label">Unit Base</label>
+                  <input
+                    className="field-input"
+                    type="text"
+                    value={day.unitBase}
+                    placeholder="Stage car park"
+                    onChange={e => onUpdate(day.id, 'unitBase', e.target.value)}
+                  />
+                </div>
+              </>
+            )}
 
             <div className="field-group field-full">
               <label className="field-label">Notes</label>

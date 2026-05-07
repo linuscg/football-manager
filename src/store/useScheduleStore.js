@@ -12,6 +12,7 @@ function mapDay(row, scenes = []) {
     unitBase: row.unit_base ?? '',
     generalCall: row.general_call ?? '',
     isNonShootDay: row.is_non_shoot_day ?? false,
+    description: row.description ?? '',
     notes: row.notes ?? '',
     sortOrder: row.sort_order ?? 0,
     scenes: scenes
@@ -40,6 +41,7 @@ const DAY_FIELD_MAP = {
   location:    'location',
   unitBase:    'unit_base',
   generalCall: 'general_call',
+  description: 'description',
   notes:       'notes',
 }
 
@@ -212,7 +214,7 @@ export function useScheduleStore() {
     const newDay = {
       id: newId, dayNumber: newDayNumber, date: nextDate ?? '',
       location: '', unitBase: '', generalCall: '',
-      isNonShootDay: false, notes: '', sortOrder: newSortOrder, scenes: [],
+      isNonShootDay: false, description: '', notes: '', sortOrder: newSortOrder, scenes: [],
     }
     optimistic(s => ({ ...s, shootDays: [...s.shootDays, newDay] }))
 
