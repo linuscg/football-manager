@@ -1,0 +1,45 @@
+-- Run this once in the Supabase SQL editor (supabase.com → your project → SQL Editor)
+
+-- Production metadata
+create table if not exists production (
+  id        uuid primary key default gen_random_uuid(),
+  name      text not null default 'Untitled Production',
+  prep_start_date date,
+  created_at timestamptz default now()
+);
+
+-- Shoot days
+create table if not exists shoot_days (
+  id              uuid primary key default gen_random_uuid(),
+  production_id   uuid references production(id) on delete cascade,
+  day_number      integer,          -- null for non-shooting days
+  date            date,
+  location        text default '',
+  unit_base       text default '',
+  general_call    time,
+  is_non_shoot_day boolean not null default false,
+  notes           text default '',
+  sort_order      integer not null default 0,
+  created_at      timestamptz default now()
+);
+
+-- Scenes (child of shoot_days)
+create table if not exists scenes (
+  id          uuid primary key default gen_random_uuid(),
+  day_id      uuid references shoot_days(id) on delete cascade,
+  scene_number text default '',
+  int_ext      text not null default 'INT' check (int_ext in ('INT','EXT')),
+  location     text default '',
+  day_night    text not null default 'DAY' check (day_night in ('DAY','NIGHT')),
+  description  text default '',
+  pages        text default '',
+  sort_order   integer not null default 0,
+  created_at   timestamptz default now()
+);
+
+-- Enable real-time on both tables (needed for multi-user live updates)
+alter publication supabase_realtime add table shoot_days;
+alter publication supabase_realtime add table scenes;
+
+-- Insert a default production row to get started
+insert into production (name) values ('Untitled Production');

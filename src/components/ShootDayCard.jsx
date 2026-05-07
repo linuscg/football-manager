@@ -28,13 +28,23 @@ export default function ShootDayCard({
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [isDragOver, setIsDragOver] = useState(false)
-  const dragRef = useRef(null)
+  const cardRef = useRef(null)
 
-  // ── Drag-and-drop ──────────────────────────────────────────────────────────
+  // ── Drag-and-drop ─────────────────────────────────────────────────────────
+  // Only activate dragging when the user grabs the handle — otherwise text
+  // selection inside the card is impossible.
+  function onHandleMouseDown() {
+    cardRef.current?.setAttribute('draggable', 'true')
+  }
+
   function handleDragStart(e) {
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', day.id)
-    dragRef.current = day.id
+  }
+
+  function handleDragEnd() {
+    cardRef.current?.setAttribute('draggable', 'false')
+    setIsDragOver(false)
   }
 
   function handleDragOver(e) {
@@ -68,9 +78,10 @@ export default function ShootDayCard({
 
   return (
     <div
+      ref={cardRef}
       className={`day-card${day.isNonShootDay ? ' non-shoot' : ''}${isDragOver ? ' drag-over' : ''}`}
-      draggable
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -79,13 +90,16 @@ export default function ShootDayCard({
       <div className="day-card-header" onClick={() => setExpanded(e => !e)}>
         <span
           className="drag-handle"
+          onMouseDown={onHandleMouseDown}
           onClick={e => e.stopPropagation()}
           title="Drag to reorder"
         >
           ⠿
         </span>
 
-        <span className="day-number-label">Day {day.dayNumber}</span>
+        {!day.isNonShootDay && (
+          <span className="day-number-label">Day {day.dayNumber}</span>
+        )}
 
         <div className="day-summary">
           <span className="day-date-display">{formatDateDisplay(day.date)}</span>
@@ -139,18 +153,20 @@ export default function ShootDayCard({
       {expanded && (
         <div className="day-card-body">
           <div className="field-grid">
-            <div className="field-group">
-              <label className="field-label">Day #</label>
-              <input
-                className="field-input"
-                type="number"
-                min="1"
-                value={day.dayNumber}
-                onChange={e =>
-                  onUpdate(day.id, 'dayNumber', parseInt(e.target.value, 10) || 1)
-                }
-              />
-            </div>
+            {!day.isNonShootDay && (
+              <div className="field-group">
+                <label className="field-label">Day #</label>
+                <input
+                  className="field-input"
+                  type="number"
+                  min="1"
+                  value={day.dayNumber ?? ''}
+                  onChange={e =>
+                    onUpdate(day.id, 'dayNumber', parseInt(e.target.value, 10) || 1)
+                  }
+                />
+              </div>
+            )}
 
             <div className="field-group">
               <label className="field-label">Date</label>

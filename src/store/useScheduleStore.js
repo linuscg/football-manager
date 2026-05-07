@@ -59,8 +59,10 @@ export function useScheduleStore() {
     let newId = null
     updateStore(s => {
       const days = s.shootDays
-      const lastDayNum = days.length
-        ? Math.max(...days.map(d => d.dayNumber ?? 0))
+      // Only count shooting days when computing the next day number
+      const shootingDays = days.filter(d => !d.isNonShootDay)
+      const lastDayNum = shootingDays.length
+        ? Math.max(...shootingDays.map(d => d.dayNumber ?? 0))
         : 0
 
       // Auto-advance date from the last dated day.
@@ -107,9 +109,28 @@ export function useScheduleStore() {
   function updateShootDay(id, field, value) {
     updateStore(s => ({
       ...s,
-      shootDays: s.shootDays.map(d =>
-        d.id === id ? { ...d, [field]: value } : d
-      ),
+      shootDays: s.shootDays.map(d => {
+        if (d.id !== id) return d
+
+        // Special handling when toggling the non-shoot flag
+        if (field === 'isNonShootDay') {
+          if (value === true) {
+            // Becoming a non-shooting day — clear the day number
+            return { ...d, isNonShootDay: true, dayNumber: null }
+          } else {
+            // Returning to a shooting day — assign the next available number
+            const maxNum = Math.max(
+              0,
+              ...s.shootDays
+                .filter(x => x.id !== id && !x.isNonShootDay)
+                .map(x => x.dayNumber ?? 0)
+            )
+            return { ...d, isNonShootDay: false, dayNumber: maxNum + 1 }
+          }
+        }
+
+        return { ...d, [field]: value }
+      }),
     }))
   }
 
