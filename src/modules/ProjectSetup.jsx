@@ -62,14 +62,31 @@ const SYMBOL_TO_CODE = {
 // ─── CastMemberRow — local state to avoid focus loss ─────────────────────────
 
 function CastMemberRow({ member, index, total, onUpdate, onDelete, onMoveUp, onMoveDown }) {
+  const [lNum,  setLNum]  = useState(member.castNumber ?? '')
   const [lName, setLName] = useState(member.name)
   const [lRole, setLRole] = useState(member.role)
 
-  useEffect(() => setLName(member.name), [member.name])
-  useEffect(() => setLRole(member.role), [member.role])
+  useEffect(() => setLNum(member.castNumber ?? ''),  [member.castNumber])
+  useEffect(() => setLName(member.name),             [member.name])
+  useEffect(() => setLRole(member.role),             [member.role])
 
   return (
     <div className="cast-member-row">
+      <input
+        className="field-input"
+        type="number"
+        min="1"
+        value={lNum}
+        placeholder="#"
+        title="Cast ID number — shown in schedule and daily info"
+        onChange={e => setLNum(e.target.value)}
+        onBlur={() => {
+          const n = parseInt(lNum, 10)
+          const val = isNaN(n) ? null : n
+          if (val !== member.castNumber) onUpdate(member.id, 'castNumber', val)
+        }}
+        style={{ width: 52, flexShrink: 0 }}
+      />
       <input
         className="field-input"
         value={lName}
@@ -288,64 +305,51 @@ export default function ProjectSetup({
         Each phase can be expanded or collapsed in that view.
       </p>
 
-      {/* ── Currency ─────────────────────────────────────────────────────────── */}
+      {/* ── Currency & Exchange Rates ─────────────────────────────────────────── */}
       <div className="setup-card">
         <div className="setup-phase-header">
           <span className="setup-phase-icon">💱</span>
-          <span className="setup-phase-label" style={{ color: '#374151' }}>Currency</span>
+          <span className="setup-phase-label" style={{ color: '#374151' }}>Currency &amp; Exchange Rates</span>
         </div>
-        <div className="setup-date-row">
+
+        <div className="setup-date-row" style={{ marginBottom: 16 }}>
           <div className="field-group">
-            <label className="field-label">Display currency</label>
+            <label className="field-label">Base currency</label>
             <select
               className="field-input"
               value={production.currency ?? '£'}
               onChange={e => onUpdate('currency', e.target.value)}
-              style={{ width: 160 }}
+              style={{ width: 200 }}
             >
               {[
-                { symbol: '£',  label: '£  GBP — British Pound' },
-                { symbol: '$',  label: '$  USD — US Dollar' },
-                { symbol: '€',  label: '€  EUR — Euro' },
-                { symbol: 'kr', label: 'kr  SEK / NOK / DKK' },
-                { symbol: '¥',  label: '¥  JPY — Japanese Yen' },
-                { symbol: 'A$', label: 'A$  AUD — Australian Dollar' },
-                { symbol: 'C$', label: 'C$  CAD — Canadian Dollar' },
+                { symbol: '£',   label: '£  GBP — British Pound' },
+                { symbol: '$',   label: '$  USD — US Dollar' },
+                { symbol: '€',   label: '€  EUR — Euro' },
+                { symbol: 'kr',  label: 'kr  SEK / NOK / DKK' },
+                { symbol: '¥',   label: '¥  JPY — Japanese Yen' },
+                { symbol: 'A$',  label: 'A$  AUD — Australian Dollar' },
+                { symbol: 'C$',  label: 'C$  CAD — Canadian Dollar' },
                 { symbol: 'CHF', label: 'CHF  Swiss Franc' },
-                { symbol: 'zł', label: 'zł  PLN — Polish Złoty' },
-                { symbol: 'Kč', label: 'Kč  CZK — Czech Koruna' },
+                { symbol: 'zł',  label: 'zł  PLN — Polish Złoty' },
+                { symbol: 'Kč',  label: 'Kč  CZK — Czech Koruna' },
               ].map(c => (
                 <option key={c.symbol} value={c.symbol}>{c.label}</option>
               ))}
             </select>
           </div>
-        </div>
-        <p className="setup-card-hint">
-          Symbol used throughout Cost Tracking. Rates are entered in this currency.
-        </p>
-      </div>
-
-      {/* ── Exchange Rates ────────────────────────────────────────────────────── */}
-      <div className="setup-card">
-        <div className="setup-phase-header">
-          <span className="setup-phase-icon">📊</span>
-          <span className="setup-phase-label" style={{ color: '#374151' }}>Exchange Rates</span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleFetchRates}
-            disabled={fxLoading}
-          >
-            {fxLoading ? 'Fetching…' : 'Fetch live rates'}
-          </button>
-          {fxError && <span className="setup-gen-error">Error: {fxError}</span>}
-          {!fxError && !fxLoading && Object.keys(production.exchangeRates ?? {}).length > 0 && (
-            <span style={{ fontSize: 11, color: '#9ca3af' }}>
-              Rates loaded — edit below if needed
-            </span>
-          )}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleFetchRates}
+              disabled={fxLoading}
+            >
+              {fxLoading ? 'Fetching…' : '↻ Fetch live rates'}
+            </button>
+            {fxError && <span className="setup-gen-error">Error: {fxError}</span>}
+            {!fxError && !fxLoading && Object.keys(production.exchangeRates ?? {}).length > 0 && (
+              <span style={{ fontSize: 11, color: '#16a34a' }}>✓ Rates loaded</span>
+            )}
+          </div>
         </div>
 
         <div className="fx-rate-grid">
@@ -373,7 +377,7 @@ export default function ProjectSetup({
         </div>
 
         <p className="setup-card-hint">
-          Costs are entered in your base currency. Use these rates to view the budget in another currency.
+          All costs are entered in your base currency. Fetch live rates or enter manually to view the budget in another currency.
         </p>
       </div>
 

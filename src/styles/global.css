@@ -2526,3 +2526,58 @@ textarea.field-input {
   font-size: 12px;
   margin-top: 4px;
 }
+
+/* ── Cast number badge in dropdown ──────────────────────────────────────────── */
+.cast-dropdown-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  background: #374151;
+  color: #fff;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ── Gantt prep day column ───────────────────────────────────────────────────── */
+.gantt-prep-col {
+  background: #fffbf0 !important;
+  border-left: 2px solid #f59e0b !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  padding: 4px 2px !important;
+  text-align: center;
+}
+
+.gantt-prep-col .gantt-badge-p {
+  display: block;
+  margin: 0 auto 2px;
+}
+
+/* Prep booking cell */
+.gantt-cell.cell-prep {
+  background: #fffbf0;
+  border-left: 1px solid #fde68a;
+}
+
+/* ── CallSheet prep unit section ─────────────────────────────────────────────── */
+.cs-section-prep {
+  border-left: 3px solid #f59e0b;
+  padding-left: 8px;
+}
+
+.cs-prep-badge {
+  display: inline-block;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  vertical-align: middle;
+}

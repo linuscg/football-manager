@@ -60,7 +60,7 @@ function formatNoticeDate(dateStr) {
 
 // ─── Column spec builder ──────────────────────────────────────────────────────
 
-function buildColSpecs(production, expandedPhases, dateMap, today) {
+function buildColSpecs(production, expandedPhases, dateMap, today, prepDaysByDate = {}) {
   const specs = []
   for (const phase of PHASES) {
     const start = production[phase.startKey]
@@ -75,7 +75,18 @@ function buildColSpecs(production, expandedPhases, dateMap, today) {
           phaseId: phase.id, phaseColor: phase.color,
           isToday: date === today, isWeekend,
           shootDay: dateMap[date] ?? null,
+          dayId: null, isPrepDay: false,
         })
+        // Insert a column for each prep unit on this date
+        for (const prepDay of prepDaysByDate[date] ?? []) {
+          specs.push({
+            type: 'day', date,
+            phaseId: phase.id, phaseColor: phase.color,
+            isToday: date === today, isWeekend,
+            shootDay: prepDay,
+            dayId: prepDay.id, isPrepDay: true,
+          })
+        }
       }
     } else {
       specs.push({
@@ -267,31 +278,35 @@ function ResourceRow({
             )
           }
 
-          const booking    = bMap[`${resource.id}:${spec.date}`]
+          const bKey       = spec.dayId ? `${resource.id}:${spec.dayId}` : `${resource.id}:${spec.date}`
+          const booking    = bMap[bKey]
           const status     = booking?.status ?? null
           const isShootDay = shootDateSet.has(spec.date)
 
           const cls = [
             'gantt-cell',
             status ?? '',
-            spec.shootDay?.isNonShootDay ? 'cell-nonshoot' : '',
+            spec.isPrepDay            ? 'cell-prep'     : '',
+            spec.shootDay?.isNonShootDay && !spec.isPrepDay ? 'cell-nonshoot' : '',
             spec.isWeekend ? 'cell-weekend'  : '',
             spec.isToday   ? 'cell-today'    : '',
-            !isShootDay    ? 'cell-no-shoot' : '',
+            !isShootDay && !spec.isPrepDay ? 'cell-no-shoot' : '',
           ].filter(Boolean).join(' ')
 
           return (
             <td
-              key={spec.date}
+              key={spec.dayId ?? spec.date}
               className={cls}
-              onMouseDown={e => { e.preventDefault(); onCellMouseDown(resource.id, spec.date) }}
-              onMouseEnter={() => onCellMouseEnter(resource.id, spec.date)}
+              onMouseDown={e => { e.preventDefault(); onCellMouseDown(resource.id, spec.date, spec.dayId) }}
+              onMouseEnter={() => onCellMouseEnter(resource.id, spec.date, spec.dayId)}
               title={
-                status
-                  ? `${status.charAt(0).toUpperCase() + status.slice(1)}${isShootDay ? ' — drag to paint more' : ''}`
-                  : isShootDay
-                    ? 'Click or drag to paint'
-                    : 'Click to mark (not a shoot day — drag skips this)'
+                spec.isPrepDay
+                  ? (status ? `Prep: ${status}` : 'Prep unit — click to assign')
+                  : status
+                    ? `${status.charAt(0).toUpperCase() + status.slice(1)}${isShootDay ? ' — drag to paint more' : ''}`
+                    : isShootDay
+                      ? 'Click or drag to paint'
+                      : 'Click to mark (not a shoot day — drag skips this)'
               }
             >
               {status && <span className="gantt-cell-icon">
@@ -523,22 +538,38 @@ export default function CrewGantt({ production, shootDays }) {
 
   const hasPhases = PHASES.some(p => production[p.startKey] && production[p.endKey])
 
-  // date → shootDay map (for column labels)
+  // date → main shootDay map (for column labels)
   const dateMap = {}
-  for (const sd of shootDays) { if (sd.date) dateMap[sd.date] = sd }
+  for (const sd of shootDays) {
+    if (sd.date && sd.dayCategory !== 'prep') dateMap[sd.date] = sd
+  }
 
-  // Set of shoot-day dates that are NOT non-shoot (paint is allowed only here)
+  // date → [prepDay, ...] map
+  const prepDaysByDate = {}
+  for (const sd of shootDays) {
+    if (sd.dayCategory === 'prep' && sd.date) {
+      if (!prepDaysByDate[sd.date]) prepDaysByDate[sd.date] = []
+      prepDaysByDate[sd.date].push(sd)
+    }
+  }
+
+  // Set of shoot-day dates that are NOT non-shoot (drag-paint skips others)
   const shootDateSet = new Set(
     shootDays.filter(sd => !sd.isNonShootDay).map(sd => sd.date)
   )
 
   const colSpecs = hasPhases
-    ? buildColSpecs(production, expandedPhases, dateMap, today)
+    ? buildColSpecs(production, expandedPhases, dateMap, today, prepDaysByDate)
     : []
 
-  // booking lookup: `${resourceId}:${dateStr}` → booking
+  // booking lookup:
+  //   prep bookings  → `${resourceId}:${dayId}`
+  //   main bookings  → `${resourceId}:${dateStr}`
   const bMap = {}
-  for (const b of bookings) bMap[`${b.resourceId}:${b.date}`] = b
+  for (const b of bookings) {
+    const key = b.dayId ? `${b.resourceId}:${b.dayId}` : `${b.resourceId}:${b.date}`
+    bMap[key] = b
+  }
 
   // ── Autocomplete suggestions from existing values ─────────────────────────
 
@@ -610,27 +641,27 @@ export default function CrewGantt({ production, shootDays }) {
   // mouseenter during drag only paints shoot days; non-shoot days are skipped
   // (they can still be painted by a discrete single click / mousedown).
 
-  function handleCellMouseDown(resourceId, date) {
+  function handleCellMouseDown(resourceId, date, dayId = null) {
     isDraggingRef.current = true
     paintedInDrag.current = new Set()
     setIsDragging(true)
 
-    // Determine what this drag session will apply
-    const key      = `${resourceId}:${date}`
+    const key      = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
     const existing = bMap[key]
     dragActionRef.current = (existing?.status === paintMode) ? null : paintMode
 
     paintedInDrag.current.add(key)
-    setBooking(resourceId, date, dragActionRef.current)
+    setBooking(resourceId, date, dragActionRef.current, dayId)
   }
 
-  function handleCellMouseEnter(resourceId, date) {
+  function handleCellMouseEnter(resourceId, date, dayId = null) {
     if (!isDraggingRef.current) return
-    if (!shootDateSet.has(date)) return          // drag skips non-shoot days
-    const key = `${resourceId}:${date}`
+    // For prep columns always allow drag; for main columns skip non-shoot dates
+    if (!dayId && !shootDateSet.has(date)) return
+    const key = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
     if (paintedInDrag.current.has(key)) return
     paintedInDrag.current.add(key)
-    setBooking(resourceId, date, dragActionRef.current)
+    setBooking(resourceId, date, dragActionRef.current, dayId)
   }
 
   // Stop drag on mouseup anywhere in the window
@@ -920,10 +951,22 @@ export default function CrewGantt({ production, shootDays }) {
                   const { date: dStr, wday } = formatColHeader(spec.date)
                   const sd = spec.shootDay
                   const isShoot = shootDateSet.has(spec.date)
-                  // Check for prep / splinter days on this date
-                  const daysOnDate = shootDays.filter(d => d.date === spec.date)
-                  const hasPrep     = daysOnDate.some(d => d.dayCategory === 'prep')
-                  const hasSplinter = daysOnDate.some(d => d.dayCategory === 'splinter')
+
+                  // Prep unit column — compact amber header
+                  if (spec.isPrepDay) {
+                    return (
+                      <th key={`prep-${spec.dayId}`}
+                          className={['gantt-day-th gantt-prep-col', spec.isToday ? 'is-today' : ''].filter(Boolean).join(' ')}
+                          style={{ '--phase-color': spec.phaseColor }}
+                          title={`Prep unit — ${spec.date}${sd?.description ? ': ' + sd.description : ''}`}>
+                        <span className="gantt-badge-p">P</span>
+                        <span className="gantt-day-date" style={{ fontSize: 9 }}>{dStr}</span>
+                      </th>
+                    )
+                  }
+
+                  // Check for splinter days on this date (still shown as badge on main column)
+                  const hasSplinter = shootDays.some(d => d.date === spec.date && d.dayCategory === 'splinter')
                   return (
                     <th key={spec.date}
                         className={[
@@ -940,10 +983,9 @@ export default function CrewGantt({ production, shootDays }) {
                       </span>
                       <span className="gantt-day-date">{dStr}</span>
                       <span className="gantt-day-wday">{wday}</span>
-                      {(hasPrep || hasSplinter) && (
+                      {hasSplinter && (
                         <span className="gantt-day-badges">
-                          {hasPrep     && <span className="gantt-badge-p">P</span>}
-                          {hasSplinter && <span className="gantt-badge-s">S</span>}
+                          <span className="gantt-badge-s">S</span>
                         </span>
                       )}
                     </th>

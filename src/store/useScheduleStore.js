@@ -86,10 +86,11 @@ function mapProductionSummary(row) {
 
 function mapCastMember(row) {
   return {
-    id:        row.id,
-    name:      row.name       ?? '',
-    role:      row.role       ?? '',
-    sortOrder: row.sort_order ?? 0,
+    id:          row.id,
+    name:        row.name        ?? '',
+    role:        row.role        ?? '',
+    sortOrder:   row.sort_order  ?? 0,
+    castNumber:  row.cast_number ?? null,
   }
 }
 
@@ -374,10 +375,11 @@ export function useScheduleStore() {
     const newId = crypto.randomUUID()
     const newSortOrder = days.length
 
+    // Prep days are ALWAYS non-shooting days
     const newDay = {
       id: newId, dayNumber: null, date: parentDay.date,
       location: '', locations: [''], unitBase: '', generalCall: '', dayType: '',
-      isNonShootDay: false, description: '', notes: '',
+      isNonShootDay: true, description: '', notes: '',
       sortOrder: newSortOrder, scenes: [], dayCategory: 'prep', extras: {},
     }
     optimistic(s => ({ ...s, shootDays: [...s.shootDays, newDay] }))
@@ -387,7 +389,7 @@ export function useScheduleStore() {
         id: newId, production_id: prodId,
         day_number: null, date: parentDay.date,
         locations: [], location: null,
-        is_non_shoot_day: false, sort_order: newSortOrder,
+        is_non_shoot_day: true, sort_order: newSortOrder,
         day_category: 'prep',
       })
     )
@@ -627,10 +629,14 @@ export function useScheduleStore() {
     const prodId = getCurrentProductionId()
     const newId = crypto.randomUUID()
     const sortOrder = store.castMembers.length
-    const newMember = { id: newId, name: '', role: '', sortOrder }
+    // Auto-assign the next available cast number
+    const maxNum = store.castMembers.reduce((m, c) => Math.max(m, c.castNumber ?? 0), 0)
+    const castNumber = maxNum + 1
+    const newMember = { id: newId, name: '', role: '', sortOrder, castNumber }
     optimistic(s => ({ ...s, castMembers: [...s.castMembers, newMember] }))
     dbWrite(supabase.from('cast_members').insert({
       id: newId, production_id: prodId, name: '', role: '', sort_order: sortOrder,
+      cast_number: castNumber,
     }))
   }
 
@@ -644,7 +650,9 @@ export function useScheduleStore() {
       ...s,
       castMembers: s.castMembers.map(c => c.id === id ? { ...c, [field]: value } : c),
     }))
-    const col = field === 'sortOrder' ? 'sort_order' : field
+    const col = field === 'sortOrder'   ? 'sort_order'
+              : field === 'castNumber'  ? 'cast_number'
+              : field
     dbWrite(supabase.from('cast_members').update({ [col]: value }).eq('id', id))
   }
 

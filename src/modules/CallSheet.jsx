@@ -80,7 +80,7 @@ function CopyBtn({ getText }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CallSheet({ store, castMembers = [] }) {
-  const { shootDays, production } = store
+  const { shootDays, production } = store  // shootDays needed for prep unit lookup
   const { resources, bookings } = useCrewStore()
 
   // Only real shoot days (not non-shoot days)
@@ -104,11 +104,17 @@ export default function CallSheet({ store, castMembers = [] }) {
     return calcWrapTime(day.generalCall, production.workHours ?? 10, lunchMinutes)
   }, [day, production])
 
-  // All booked resources for this day's date
+  const statusOrder = { booked: 0, hold: 1, unavailable: 2 }
+  function sortByStatusThenName(a, b) {
+    return (statusOrder[a.bookingStatus] - statusOrder[b.bookingStatus]) ||
+           a.name.localeCompare(b.name)
+  }
+
+  // Main unit bookings (no dayId = not prep-specific)
   const dayBookings = useMemo(() => {
     if (!day) return []
     return bookings
-      .filter(b => b.date === day.date && b.status !== 'cancelled')
+      .filter(b => b.date === day.date && !b.dayId && b.status !== 'cancelled')
       .map(b => {
         const resource = resources.find(r => r.id === b.resourceId)
         return resource ? { ...resource, bookingStatus: b.status } : null
@@ -116,11 +122,22 @@ export default function CallSheet({ store, castMembers = [] }) {
       .filter(Boolean)
   }, [day, bookings, resources])
 
-  const statusOrder = { booked: 0, hold: 1, unavailable: 2 }
-  function sortByStatusThenName(a, b) {
-    return (statusOrder[a.bookingStatus] - statusOrder[b.bookingStatus]) ||
-           a.name.localeCompare(b.name)
-  }
+  // Prep unit bookings for the same date (keyed by prep day dayId)
+  const prepUnitGroups = useMemo(() => {
+    if (!day) return []
+    const prepDays = shootDays.filter(d => d.date === day.date && d.dayCategory === 'prep')
+    return prepDays.map(prepDay => {
+      const items = bookings
+        .filter(b => b.dayId === prepDay.id && b.status !== 'cancelled')
+        .map(b => {
+          const resource = resources.find(r => r.id === b.resourceId)
+          return resource ? { ...resource, bookingStatus: b.status } : null
+        })
+        .filter(Boolean)
+        .sort(sortByStatusThenName)
+      return { prepDay, items }
+    }).filter(g => g.items.length > 0)
+  }, [day, shootDays, bookings, resources])
 
   // Crew grouped by department
   const crewGroups = useMemo(() => {
@@ -178,13 +195,14 @@ export default function CallSheet({ store, castMembers = [] }) {
       .filter(e => e.items.length > 0)
   }, [day])
 
-  // Cast for each scene: resolve ids to member objects
-  function scenecastNames(scene) {
+  // Cast for each scene: show cast numbers (or names as fallback)
+  function sceneCastDisplay(scene) {
     const ids = scene.castMemberIds ?? []
     if (!ids.length) return null
     return castMembers
       .filter(c => ids.includes(c.id))
-      .map(c => c.name || '(unnamed)')
+      .sort((a, b) => (a.castNumber ?? 999) - (b.castNumber ?? 999))
+      .map(c => c.castNumber != null ? String(c.castNumber) : (c.name || '?'))
       .join(', ')
   }
 
@@ -330,7 +348,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                   </thead>
                   <tbody>
                     {day.scenes.map(scene => {
-                      const castStr = scenecastNames(scene)
+                      const castStr = sceneCastDisplay(scene)
                       return (
                         <tr key={scene.id} className="cs-tr">
                           <td className="cs-td cs-td-sc">{scene.sceneNumber || '—'}</td>
@@ -455,6 +473,74 @@ export default function CallSheet({ store, castMembers = [] }) {
               </div>
             )}
 
+            {/* ── Prep Unit(s) ────────────────────────────────────────────── */}
+            {prepUnitGroups.map(({ prepDay, items }) => {
+              const prepCrew  = items.filter(r => r.type === 'crew')
+              const prepEquip = items.filter(r => r.type === 'equipment')
+              const prepLoc   = (prepDay.locations ?? []).filter(Boolean)[0] || prepDay.description || ''
+              return (
+                <div key={prepDay.id} className="cs-section cs-section-prep">
+                  <div className="cs-section-title">
+                    <span className="cs-prep-badge">PREP UNIT</span>
+                    {prepLoc && <span style={{ fontWeight: 400, fontSize: 12, color: '#6b7280', marginLeft: 8 }}>{prepLoc}</span>}
+                    <span className="cs-section-count">{items.length}</span>
+                  </div>
+                  {prepCrew.length > 0 && (
+                    <div className="cs-group">
+                      <div className="cs-group-header">Crew</div>
+                      <table className="cs-table">
+                        <thead><tr>
+                          <th className="cs-th cs-th-name">Name</th>
+                          <th className="cs-th">Role</th>
+                          <th className="cs-th">Department</th>
+                          <th className="cs-th cs-th-status">Status</th>
+                        </tr></thead>
+                        <tbody>
+                          {prepCrew.sort(sortByStatusThenName).map(r => (
+                            <tr key={r.id} className="cs-tr">
+                              <td className="cs-td cs-td-name">{r.name}</td>
+                              <td className="cs-td cs-td-role">{r.role || '—'}</td>
+                              <td className="cs-td cs-td-role">{r.department || '—'}</td>
+                              <td className="cs-td cs-td-status">
+                                <span className={`cs-status-badge ${r.bookingStatus}`}>
+                                  {STATUS_ICON[r.bookingStatus]} {STATUS_LABEL[r.bookingStatus]}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {prepEquip.length > 0 && (
+                    <div className="cs-group">
+                      <div className="cs-group-header">Equipment</div>
+                      <table className="cs-table">
+                        <thead><tr>
+                          <th className="cs-th cs-th-name">Name</th>
+                          <th className="cs-th">Category</th>
+                          <th className="cs-th cs-th-status">Status</th>
+                        </tr></thead>
+                        <tbody>
+                          {prepEquip.sort(sortByStatusThenName).map(r => (
+                            <tr key={r.id} className="cs-tr">
+                              <td className="cs-td cs-td-name">{r.name}</td>
+                              <td className="cs-td cs-td-role">{r.category || '—'}</td>
+                              <td className="cs-td cs-td-status">
+                                <span className={`cs-status-badge ${r.bookingStatus}`}>
+                                  {STATUS_ICON[r.bookingStatus]} {STATUS_LABEL[r.bookingStatus]}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
             {/* ── Notes ───────────────────────────────────────────────────── */}
             {day.notes && (
               <div className="cs-section">
@@ -468,7 +554,7 @@ export default function CallSheet({ store, castMembers = [] }) {
 
             {/* ── Truly empty state ───────────────────────────────────────── */}
             {day.scenes.length === 0 && crewGroups.length === 0 &&
-             equipGroups.length === 0 && !day.notes && extrasWithEntries.length === 0 && (
+             equipGroups.length === 0 && prepUnitGroups.length === 0 && !day.notes && extrasWithEntries.length === 0 && (
               <div className="cs-empty">
                 No scenes, crew, or equipment booked for this day yet.
               </div>

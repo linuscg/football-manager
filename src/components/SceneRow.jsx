@@ -97,10 +97,15 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
         <button
           className="cast-summary-btn"
           onClick={() => setCastOpen(o => !o)}
-          title={selectedCast.length > 0 ? selectedCast.map(c => c.name).join(', ') : 'Assign cast'}
+          title={selectedCast.length > 0
+            ? selectedCast.map(c => [c.castNumber ? `[${c.castNumber}]` : null, c.name].filter(Boolean).join(' ')).join(', ')
+            : 'Assign cast'}
         >
           {selectedCast.length > 0
-            ? `${selectedCast.length} cast`
+            ? selectedCast
+                .slice().sort((a, b) => (a.castNumber ?? 999) - (b.castNumber ?? 999))
+                .map(c => c.castNumber != null ? String(c.castNumber) : (c.name || '?'))
+                .join(', ')
             : <span style={{ color: '#d1d5db' }}>Cast</span>}
         </button>
         {castOpen && (
@@ -115,6 +120,9 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
                     checked={selectedIds.includes(c.id)}
                     onChange={() => toggleCastMember(c.id)}
                   />
+                  {c.castNumber != null && (
+                    <span className="cast-dropdown-num">{c.castNumber}</span>
+                  )}
                   <span className="cast-dropdown-name">{c.name || '(unnamed)'}</span>
                   {c.role && <span className="cast-dropdown-role">{c.role}</span>}
                 </label>

@@ -32,6 +32,7 @@ function mapBooking(row) {
     id:         row.id,
     resourceId: row.resource_id,
     date:       row.booking_date,
+    dayId:      row.day_id ?? null,
     status:     row.status ?? 'booked',
   }
 }
@@ -224,8 +225,11 @@ export function useCrewStore() {
     }
   }
 
-  function setBooking(resourceId, dateStr, status) {
-    const existing = bookings.find(b => b.resourceId === resourceId && b.date === dateStr)
+  function setBooking(resourceId, dateStr, status, dayId = null) {
+    // Prep day bookings are keyed by dayId; main bookings by (resourceId, date, no dayId)
+    const existing = dayId
+      ? bookings.find(b => b.resourceId === resourceId && b.dayId === dayId)
+      : bookings.find(b => b.resourceId === resourceId && b.date === dateStr && !b.dayId)
 
     if (status === null) {
       if (!existing) return
@@ -239,9 +243,10 @@ export function useCrewStore() {
         .then(({ error: err }) => { if (err) loadAll() })
     } else {
       const newId = crypto.randomUUID()
-      optB(bs => [...bs, { id: newId, resourceId, date: dateStr, status }])
+      optB(bs => [...bs, { id: newId, resourceId, date: dateStr, dayId, status }])
       supabase.from('resource_bookings').insert({
-        id: newId, resource_id: resourceId, booking_date: dateStr, status,
+        id: newId, resource_id: resourceId, booking_date: dateStr,
+        day_id: dayId ?? null, status,
       }).then(({ error: err }) => { if (err) loadAll() })
     }
   }

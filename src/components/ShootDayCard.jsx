@@ -269,7 +269,12 @@ export default function ShootDayCard({
 
         <div className="day-summary">
           <span className="day-date-display">{formatDateDisplay(day.date)}</span>
-          {day.isNonShootDay ? (
+          {isPrep ? (
+            <span className="day-location-display">
+              {(day.locations ?? []).filter(Boolean)[0] || day.description ||
+               <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>Prep unit</span>}
+            </span>
+          ) : day.isNonShootDay ? (
             <span className="day-location-display">
               {day.description || <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>Non-shooting</span>}
             </span>
@@ -287,7 +292,7 @@ export default function ShootDayCard({
           )}
         </div>
 
-        {day.isNonShootDay && (
+        {day.isNonShootDay && !isPrep && (
           <span className="non-shoot-badge">Non-shooting</span>
         )}
 
@@ -352,7 +357,8 @@ export default function ShootDayCard({
               />
             </div>
 
-            {day.isNonShootDay && (
+            {/* Non-shoot main days: description only */}
+            {day.isNonShootDay && !isPrep && (
               <div className="field-group">
                 <label className="field-label">Description</label>
                 <input
@@ -364,6 +370,58 @@ export default function ShootDayCard({
                   onChange={e => onUpdate(day.id, 'description', e.target.value)}
                 />
               </div>
+            )}
+
+            {/* Prep day fields: location(s) + description */}
+            {isPrep && (
+              <>
+                <div className="field-group field-full">
+                  <label className="field-label">Location(s)</label>
+                  {(day.locations ?? [day.location ?? '']).map((loc, i) => (
+                    <div key={i} className="location-row">
+                      <input
+                        className="field-input"
+                        type="text"
+                        value={loc}
+                        placeholder={i === 0 ? 'Stage 4A, prep area…' : 'Additional location…'}
+                        onChange={e => {
+                          const next = [...(day.locations ?? [day.location ?? ''])]
+                          next[i] = e.target.value
+                          onUpdate(day.id, 'locations', next)
+                        }}
+                      />
+                      {(day.locations ?? []).length > 1 && (
+                        <button
+                          className="btn-icon danger location-remove"
+                          title="Remove location"
+                          onClick={() => {
+                            const next = [...day.locations]
+                            next.splice(i, 1)
+                            onUpdate(day.id, 'locations', next)
+                          }}
+                        >✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    className="btn btn-secondary btn-sm btn-add-location"
+                    onClick={() => {
+                      const current = day.locations ?? [day.location ?? '']
+                      onUpdate(day.id, 'locations', [...current, ''])
+                    }}
+                  >+ Add location</button>
+                </div>
+                <div className="field-group field-full">
+                  <label className="field-label">Description</label>
+                  <input
+                    className="field-input"
+                    type="text"
+                    value={day.description}
+                    placeholder="e.g. Camera tests, costume fittings, rigging…"
+                    onChange={e => onUpdate(day.id, 'description', e.target.value)}
+                  />
+                </div>
+              </>
             )}
 
             {!day.isNonShootDay && (
@@ -595,16 +653,18 @@ export default function ShootDayCard({
         </div>
       )}
 
-      {/* ── Non-shoot toggle (always visible at the bottom) ────────────────── */}
-      <div
-        className="toggle-row"
-        onClick={() => onUpdate(day.id, 'isNonShootDay', !day.isNonShootDay)}
-      >
-        <div className={`toggle-track${day.isNonShootDay ? ' on' : ''}`}>
-          <div className="toggle-thumb" />
+      {/* ── Non-shoot toggle — hidden for prep days (always non-shoot) ─────── */}
+      {!isPrep && (
+        <div
+          className="toggle-row"
+          onClick={() => onUpdate(day.id, 'isNonShootDay', !day.isNonShootDay)}
+        >
+          <div className={`toggle-track${day.isNonShootDay ? ' on' : ''}`}>
+            <div className="toggle-thumb" />
+          </div>
+          <span className="toggle-label">Non-shooting day</span>
         </div>
-        <span className="toggle-label">Non-shooting day</span>
-      </div>
+      )}
     </div>
   )
 }
