@@ -1,0 +1,83 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+
+let _productionId = null
+
+function mapItem(row) {
+  return {
+    id:        row.id,
+    category:  row.category   ?? 'Other',
+    name:      row.name       ?? '',
+    amount:    row.amount     ?? 0,
+    notes:     row.notes      ?? '',
+    sortOrder: row.sort_order ?? 0,
+  }
+}
+
+export function useBudgetStore() {
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
+  const [items,   setItems]   = useState([])
+
+  async function loadAll() {
+    try {
+      if (!_productionId) {
+        const { data: prods, error: prodErr } = await supabase
+          .from('production').select('id').limit(1)
+        if (prodErr) throw prodErr
+        if (!prods?.length) throw new Error('No production row found')
+        _productionId = prods[0].id
+      }
+
+      const { data, error: err } = await supabase
+        .from('budget_items')
+        .select('*')
+        .eq('production_id', _productionId)
+        .order('sort_order', { ascending: true })
+      if (err) throw err
+
+      setItems((data ?? []).map(mapItem))
+      setError(null)
+    } catch (err) {
+      console.error('[budget store] loadAll:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadAll()
+    const channel = supabase
+      .channel('budget_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_items' }, loadAll)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function addItem() {
+    const newId    = crypto.randomUUID()
+    const sortOrder = items.length
+    const newItem  = { id: newId, category: 'Other', name: 'New item', amount: 0, notes: '', sortOrder }
+    setItems(is => [...is, newItem])
+    supabase.from('budget_items').insert({
+      id: newId, production_id: _productionId,
+      category: 'Other', name: 'New item', amount: 0, sort_order: sortOrder,
+    }).then(({ error: err }) => { if (err) { console.error('[budget store] insert:', err); loadAll() } })
+    return newId
+  }
+
+  function deleteItem(id) {
+    setItems(is => is.filter(i => i.id !== id))
+    supabase.from('budget_items').delete().eq('id', id)
+      .then(({ error: err }) => { if (err) loadAll() })
+  }
+
+  function updateItem(id, field, value) {
+    setItems(is => is.map(i => i.id === id ? { ...i, [field]: value } : i))
+    supabase.from('budget_items').update({ [field]: value }).eq('id', id)
+      .then(({ error: err }) => { if (err) loadAll() })
+  }
+
+  return { loading, error, items, addItem, deleteItem, updateItem }
+}

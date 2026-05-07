@@ -1,36 +1,47 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { markIdsNotified } from '../lib/ganttNotified'
 
 // ─── Row mappers (snake_case DB → camelCase React) ────────────────────────────
 
 function mapDay(row, scenes = []) {
   return {
-    id: row.id,
-    dayNumber: row.day_number ?? null,
-    date: row.date ?? '',
-    location: row.location ?? '',
-    unitBase: row.unit_base ?? '',
-    generalCall: row.general_call ?? '',
+    id:          row.id,
+    dayNumber:   row.day_number     ?? null,
+    date:        row.date           ?? '',
+    location:    row.location       ?? '',
+    unitBase:    row.unit_base      ?? '',
+    generalCall: row.general_call   ?? '',
     isNonShootDay: row.is_non_shoot_day ?? false,
-    description: row.description ?? '',
-    notes: row.notes ?? '',
-    sortOrder: row.sort_order ?? 0,
-    scenes: scenes
-      .map(mapScene)
-      .sort((a, b) => a.sortOrder - b.sortOrder),
+    description: row.description    ?? '',
+    notes:       row.notes          ?? '',
+    sortOrder:   row.sort_order     ?? 0,
+    scenes:      scenes.map(mapScene).sort((a, b) => a.sortOrder - b.sortOrder),
   }
 }
 
 function mapScene(row) {
   return {
-    id: row.id,
+    id:          row.id,
     sceneNumber: row.scene_number ?? '',
-    intExt: row.int_ext ?? 'INT',
-    location: row.location ?? '',
-    dayNight: row.day_night ?? 'DAY',
-    description: row.description ?? '',
-    pages: row.pages ?? '',
-    sortOrder: row.sort_order ?? 0,
+    intExt:      row.int_ext      ?? 'INT',
+    location:    row.location     ?? '',
+    dayNight:    row.day_night    ?? 'DAY',
+    description: row.description  ?? '',
+    pages:       row.pages        ?? '',
+    sortOrder:   row.sort_order   ?? 0,
+  }
+}
+
+function mapProduction(row) {
+  return {
+    name:           row.name            ?? 'Untitled Production',
+    prepStartDate:  row.prep_start_date  ?? '',
+    prepEndDate:    row.prep_end_date    ?? '',
+    shootStartDate: row.shoot_start_date ?? '',
+    shootEndDate:   row.shoot_end_date   ?? '',
+    wrapStartDate:  row.wrap_start_date  ?? '',
+    wrapEndDate:    row.wrap_end_date    ?? '',
   }
 }
 
@@ -54,6 +65,16 @@ const SCENE_FIELD_MAP = {
   pages:       'pages',
 }
 
+const PRODUCTION_FIELD_MAP = {
+  name:           'name',
+  prepStartDate:  'prep_start_date',
+  prepEndDate:    'prep_end_date',
+  shootStartDate: 'shoot_start_date',
+  shootEndDate:   'shoot_end_date',
+  wrapStartDate:  'wrap_start_date',
+  wrapEndDate:    'wrap_end_date',
+}
+
 // Treat empty strings as null for date/time DB columns
 function dbVal(value) {
   return value === '' ? null : value
@@ -66,9 +87,13 @@ let _productionId = null
 
 export function useScheduleStore() {
   const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(null)
-  const [store, setStore]     = useState({
-    production: { name: '', prepStartDate: '' },
+  const [error,   setError]   = useState(null)
+  const [store,   setStore]   = useState({
+    production: {
+      name: '', prepStartDate: '', prepEndDate: '',
+      shootStartDate: '', shootEndDate: '',
+      wrapStartDate:  '', wrapEndDate:  '',
+    },
     shootDays: [],
   })
 
@@ -76,19 +101,15 @@ export function useScheduleStore() {
 
   async function loadAll() {
     try {
-      // Get the first production row (create one if the table is empty)
       let { data: prods, error: prodErr } = await supabase
-        .from('production')
-        .select('*')
-        .limit(1)
+        .from('production').select('*').limit(1)
       if (prodErr) throw prodErr
 
       if (!prods.length) {
         const { data: created, error: createErr } = await supabase
           .from('production')
           .insert({ name: 'Untitled Production' })
-          .select()
-          .single()
+          .select().single()
         if (createErr) throw createErr
         prods = [created]
       }
@@ -96,7 +117,6 @@ export function useScheduleStore() {
       const prod = prods[0]
       _productionId = prod.id
 
-      // Shoot days ordered by sort_order
       const { data: days, error: daysErr } = await supabase
         .from('shoot_days')
         .select('*')
@@ -104,18 +124,15 @@ export function useScheduleStore() {
         .order('sort_order', { ascending: true })
       if (daysErr) throw daysErr
 
-      // All scenes for those days
       const dayIds = (days ?? []).map(d => d.id)
       const { data: scenes, error: scenesErr } = dayIds.length
         ? await supabase
-            .from('scenes')
-            .select('*')
+            .from('scenes').select('*')
             .in('day_id', dayIds)
             .order('sort_order', { ascending: true })
         : { data: [], error: null }
       if (scenesErr) throw scenesErr
 
-      // Group scenes by day_id
       const byDay = {}
       for (const sc of scenes ?? []) {
         if (!byDay[sc.day_id]) byDay[sc.day_id] = []
@@ -123,11 +140,8 @@ export function useScheduleStore() {
       }
 
       setStore({
-        production: {
-          name: prod.name ?? 'Untitled Production',
-          prepStartDate: prod.prep_start_date ?? '',
-        },
-        shootDays: (days ?? []).map(d => mapDay(d, byDay[d.id] ?? [])),
+        production: mapProduction(prod),
+        shootDays:  (days ?? []).map(d => mapDay(d, byDay[d.id] ?? [])),
       })
       setError(null)
     } catch (err) {
@@ -138,63 +152,44 @@ export function useScheduleStore() {
     }
   }
 
-  // ── Real-time: reload whenever any other client changes the DB ───────────
+  // ── Real-time ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
     loadAll()
-
     const channel = supabase
       .channel('fm_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shoot_days' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scenes' },     loadAll)
       .subscribe()
-
     return () => supabase.removeChannel(channel)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
-  function optimistic(updater) {
-    setStore(s => updater(s))
-  }
+  function optimistic(updater) { setStore(s => updater(s)) }
 
   async function dbWrite(promise) {
     const { error: err } = await promise
-    if (err) {
-      console.error('[store] write error:', err)
-      loadAll() // revert by reloading
-    }
+    if (err) { console.error('[store] write error:', err); loadAll() }
   }
 
-  // ── Production ───────────────────────────────────────────────────────────
+  // ── Production ─────────────────────────────────────────────────────────────
 
-  function setProductionName(name) {
-    optimistic(s => ({ ...s, production: { ...s.production, name } }))
-    dbWrite(supabase.from('production').update({ name }).eq('id', _productionId))
+  // Generic updater for any production field
+  function updateProduction(field, value) {
+    optimistic(s => ({ ...s, production: { ...s.production, [field]: value } }))
+    const col = PRODUCTION_FIELD_MAP[field] ?? field
+    dbWrite(supabase.from('production').update({ [col]: dbVal(value) }).eq('id', _productionId))
   }
 
-  function setPrepStartDate(prepStartDate) {
-    optimistic(s => ({ ...s, production: { ...s.production, prepStartDate } }))
-    dbWrite(
-      supabase
-        .from('production')
-        .update({ prep_start_date: dbVal(prepStartDate) })
-        .eq('id', _productionId)
-    )
-  }
-
-  // ── Shoot days ───────────────────────────────────────────────────────────
+  // ── Shoot days ─────────────────────────────────────────────────────────────
 
   function addShootDay() {
     const days = store.shootDays
-
-    // Only shooting days get day numbers
     const shootingDays = days.filter(d => !d.isNonShootDay)
     const lastDayNum = shootingDays.length
-      ? Math.max(...shootingDays.map(d => d.dayNumber ?? 0))
-      : 0
+      ? Math.max(...shootingDays.map(d => d.dayNumber ?? 0)) : 0
 
-    // Auto-advance date using local arithmetic (no UTC conversion)
     const sorted = days.filter(d => d.date).sort((a, b) => (a.date < b.date ? -1 : 1))
     let nextDate = null
     if (sorted.length) {
@@ -210,26 +205,21 @@ export function useScheduleStore() {
     const newSortOrder = days.length
     const newDayNumber = lastDayNum + 1
 
-    // Optimistic insert
     const newDay = {
       id: newId, dayNumber: newDayNumber, date: nextDate ?? '',
       location: '', unitBase: '', generalCall: '',
-      isNonShootDay: false, description: '', notes: '', sortOrder: newSortOrder, scenes: [],
+      isNonShootDay: false, description: '', notes: '',
+      sortOrder: newSortOrder, scenes: [],
     }
     optimistic(s => ({ ...s, shootDays: [...s.shootDays, newDay] }))
 
-    // Persist
     dbWrite(
       supabase.from('shoot_days').insert({
-        id:              newId,
-        production_id:   _productionId,
-        day_number:      newDayNumber,
-        date:            nextDate,
-        is_non_shoot_day: false,
-        sort_order:      newSortOrder,
+        id: newId, production_id: _productionId,
+        day_number: newDayNumber, date: nextDate,
+        is_non_shoot_day: false, sort_order: newSortOrder,
       })
     )
-
     return newId
   }
 
@@ -239,7 +229,6 @@ export function useScheduleStore() {
   }
 
   function updateShootDay(id, field, value) {
-    // Compute new day-number before the optimistic update mutates the state
     let newDayNumber = null
     if (field === 'isNonShootDay' && value === false) {
       const maxNum = Math.max(
@@ -257,24 +246,22 @@ export function useScheduleStore() {
         if (d.id !== id) return d
         if (field === 'isNonShootDay') {
           return value === true
-            ? { ...d, isNonShootDay: true, dayNumber: null }
+            ? { ...d, isNonShootDay: true,  dayNumber: null }
             : { ...d, isNonShootDay: false, dayNumber: newDayNumber }
         }
         return { ...d, [field]: value }
       }),
     }))
 
-    // Build DB update
     let patch = {}
     if (field === 'isNonShootDay') {
       patch = value === true
-        ? { is_non_shoot_day: true, day_number: null }
+        ? { is_non_shoot_day: true,  day_number: null }
         : { is_non_shoot_day: false, day_number: newDayNumber }
     } else {
       const col = DAY_FIELD_MAP[field] ?? field
       patch = { [col]: dbVal(value) }
     }
-
     dbWrite(supabase.from('shoot_days').update(patch).eq('id', id))
   }
 
@@ -314,25 +301,22 @@ export function useScheduleStore() {
     _reorder(days)
   }
 
-  // ── Scenes ───────────────────────────────────────────────────────────────
+  // ── Scenes ─────────────────────────────────────────────────────────────────
 
   function addScene(dayId) {
     const day = store.shootDays.find(d => d.id === dayId)
     const sortOrder = day?.scenes.length ?? 0
     const newId = crypto.randomUUID()
-
     const newScene = {
       id: newId, sceneNumber: '', intExt: 'INT', location: '',
       dayNight: 'DAY', description: '', pages: '', sortOrder,
     }
-
     optimistic(s => ({
       ...s,
       shootDays: s.shootDays.map(d =>
         d.id === dayId ? { ...d, scenes: [...d.scenes, newScene] } : d
       ),
     }))
-
     dbWrite(
       supabase.from('scenes').insert({ id: newId, day_id: dayId, sort_order: sortOrder })
     )
@@ -342,7 +326,9 @@ export function useScheduleStore() {
     optimistic(s => ({
       ...s,
       shootDays: s.shootDays.map(d =>
-        d.id === dayId ? { ...d, scenes: d.scenes.filter(sc => sc.id !== sceneId) } : d
+        d.id === dayId
+          ? { ...d, scenes: d.scenes.filter(sc => sc.id !== sceneId) }
+          : d
       ),
     }))
     dbWrite(supabase.from('scenes').delete().eq('id', sceneId))
@@ -361,22 +347,82 @@ export function useScheduleStore() {
     dbWrite(supabase.from('scenes').update({ [col]: dbVal(value) }).eq('id', sceneId))
   }
 
-  // ── Public API ───────────────────────────────────────────────────────────
+  // ── Generate weekday shoot days from a date range ─────────────────────────
+  //
+  // Creates one shoot day per weekday (Mon–Fri) between startDate and endDate,
+  // skipping dates that already exist in the schedule. Returns { count }.
+
+  async function generateShootDays(startDate, endDate) {
+    if (!startDate || !endDate) return { count: 0 }
+
+    // Build weekday list
+    const weekdays = []
+    const cur = new Date(startDate + 'T00:00:00')
+    const end = new Date(endDate   + 'T00:00:00')
+    while (cur <= end) {
+      const dow = cur.getDay()
+      if (dow !== 0 && dow !== 6) {
+        weekdays.push([
+          cur.getFullYear(),
+          String(cur.getMonth() + 1).padStart(2, '0'),
+          String(cur.getDate()).padStart(2, '0'),
+        ].join('-'))
+      }
+      cur.setDate(cur.getDate() + 1)
+    }
+
+    // Exclude dates already in schedule
+    const existingDates = new Set(store.shootDays.map(d => d.date))
+    const newDates = weekdays.filter(d => !existingDates.has(d))
+    if (newDates.length === 0) return { count: 0 }
+
+    // Compute offsets
+    const shootingOnly = store.shootDays.filter(d => !d.isNonShootDay)
+    const maxDayNum  = shootingOnly.length ? Math.max(...shootingOnly.map(d => d.dayNumber ?? 0)) : 0
+    const maxSort    = store.shootDays.length ? Math.max(...store.shootDays.map(d => d.sortOrder ?? 0)) : -1
+
+    const newDays = newDates.map((date, i) => ({
+      id:            crypto.randomUUID(),
+      dayNumber:     maxDayNum + i + 1,
+      date,
+      location:      '', unitBase: '', generalCall: '',
+      isNonShootDay: false, description: '', notes: '',
+      sortOrder:     maxSort + i + 1,
+      scenes:        [],
+    }))
+
+    // Optimistic UI
+    optimistic(s => ({ ...s, shootDays: [...s.shootDays, ...newDays] }))
+
+    // DB writes in parallel
+    const results = await Promise.all(
+      newDays.map(day =>
+        supabase.from('shoot_days').insert({
+          id:               day.id,
+          production_id:    _productionId,
+          day_number:       day.dayNumber,
+          date:             day.date,
+          is_non_shoot_day: false,
+          sort_order:       day.sortOrder,
+        })
+      )
+    )
+    if (results.some(r => r.error)) { loadAll(); return { count: 0 } }
+
+    // Mark generated days as already-seen so the Gantt won't flag them as "new"
+    markIdsNotified(newDays.map(d => d.id))
+
+    return { count: newDays.length }
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
-    loading,
-    error,
-    store,
-    setProductionName,
-    setPrepStartDate,
-    addShootDay,
-    deleteShootDay,
-    updateShootDay,
-    moveDayUp,
-    moveDayDown,
-    reorderDays,
-    addScene,
-    deleteScene,
-    updateScene,
+    loading, error, store,
+    updateProduction,
+    generateShootDays,
+    addShootDay, deleteShootDay, updateShootDay,
+    moveDayUp, moveDayDown, reorderDays,
+    addScene, deleteScene, updateScene,
   }
 }

@@ -12,6 +12,9 @@ function formatDateDisplay(dateStr) {
   })
 }
 
+const STATUS_LABEL = { booked: 'Confirmed', hold: 'On Hold', unavailable: 'Unavailable' }
+const STATUS_ICON  = { booked: '✓',         hold: 'H',         unavailable: '✕' }
+
 export default function ShootDayCard({
   day,
   index,
@@ -25,9 +28,11 @@ export default function ShootDayCard({
   onAddScene,
   onDeleteScene,
   onUpdateScene,
+  additionals = [],
 }) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
-  const [isDragOver, setIsDragOver] = useState(false)
+  const [expanded,         setExpanded]         = useState(defaultExpanded)
+  const [additionalsOpen,  setAdditionalsOpen]  = useState(false)
+  const [isDragOver,       setIsDragOver]       = useState(false)
   const cardRef = useRef(null)
 
   // ── Drag-and-drop ─────────────────────────────────────────────────────────
@@ -273,6 +278,71 @@ export default function ShootDayCard({
                   onDelete={onDeleteScene}
                 />
               ))}
+            </div>
+          )}
+
+          {/* ── Additionals ──────────────────────────────────────────────────── */}
+          {!day.isNonShootDay && (
+            <div className="additionals-section">
+              <div
+                className="additionals-header"
+                onClick={() => setAdditionalsOpen(o => !o)}
+              >
+                <span className="scenes-label">Additionals</span>
+                {additionals.length > 0 && (
+                  <span className="additionals-count">{additionals.length}</span>
+                )}
+                <span className={`chevron${additionalsOpen ? ' open' : ''}`}>▶</span>
+              </div>
+
+              {additionalsOpen && (
+                <div className="additionals-body">
+                  {additionals.length === 0 ? (
+                    <p className="scenes-empty">
+                      No crew or equipment booked for this day yet.
+                    </p>
+                  ) : (() => {
+                    const crewItems  = additionals.filter(i => i.type === 'crew')
+                    const equipItems = additionals.filter(i => i.type === 'equipment')
+                    return (
+                      <>
+                        {crewItems.length > 0 && (
+                          <>
+                            <div className="additionals-sub-header">Crew</div>
+                            {crewItems.map(item => (
+                              <div key={item.id} className="additional-row">
+                                <span className={`additional-status-dot ${item.bookingStatus}`} />
+                                <span className="additional-name">{item.name}</span>
+                                <span className="additional-role">
+                                  {[item.role, item.department].filter(Boolean).join(' · ')}
+                                </span>
+                                <span className={`additional-badge ${item.bookingStatus}`}>
+                                  {STATUS_ICON[item.bookingStatus]} {STATUS_LABEL[item.bookingStatus]}
+                                </span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {equipItems.length > 0 && (
+                          <>
+                            <div className="additionals-sub-header">Equipment</div>
+                            {equipItems.map(item => (
+                              <div key={item.id} className="additional-row">
+                                <span className={`additional-status-dot ${item.bookingStatus}`} />
+                                <span className="additional-name">{item.name}</span>
+                                <span className="additional-role">{item.category}</span>
+                                <span className={`additional-badge ${item.bookingStatus}`}>
+                                  {STATUS_ICON[item.bookingStatus]} {STATUS_LABEL[item.bookingStatus]}
+                                </span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </>
+                    )
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </div>

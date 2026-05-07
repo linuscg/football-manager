@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 # keep .env.example but never commit real secrets
+.env
 .env.local
 .env.*.local
 

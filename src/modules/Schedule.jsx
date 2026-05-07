@@ -1,8 +1,27 @@
 import { useState, useRef, useEffect } from 'react'
 import ShootDayCard from '../components/ShootDayCard'
+import { useCrewStore } from '../store/useCrewStore'
 
 export default function Schedule({ store, actions }) {
   const { shootDays } = store
+  const { resources, bookings } = useCrewStore()
+
+  // Build date → sorted list of booked crew/equipment for that day
+  const additionalsByDate = {}
+  for (const b of bookings) {
+    const resource = resources.find(r => r.id === b.resourceId)
+    if (!resource) continue
+    if (!additionalsByDate[b.date]) additionalsByDate[b.date] = []
+    additionalsByDate[b.date].push({ ...resource, bookingStatus: b.status })
+  }
+  // Sort each date's list: booked → hold → unavailable, then alphabetically
+  const statusOrder = { booked: 0, hold: 1, unavailable: 2 }
+  for (const list of Object.values(additionalsByDate)) {
+    list.sort((a, b) =>
+      (statusOrder[a.bookingStatus] - statusOrder[b.bookingStatus]) ||
+      a.name.localeCompare(b.name)
+    )
+  }
   // Track the id of the most recently added day so we can auto-expand it.
   const [newestId, setNewestId] = useState(null)
   const listBottomRef = useRef(null)
@@ -53,6 +72,7 @@ export default function Schedule({ store, actions }) {
               onAddScene={actions.addScene}
               onDeleteScene={actions.deleteScene}
               onUpdateScene={actions.updateScene}
+              additionals={additionalsByDate[day.date] ?? []}
             />
           ))}
           <div ref={listBottomRef} />
