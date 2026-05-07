@@ -181,7 +181,7 @@ export function useScheduleStore() {
       let { data: prods, error: prodErr } = await supabase
         .from('production')
         .select('id, name')
-        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
       if (prodErr) throw prodErr
 
       if (!prods?.length) {
