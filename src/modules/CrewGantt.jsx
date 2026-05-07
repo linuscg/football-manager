@@ -95,6 +95,7 @@ function ResourceRow({
   shootDateSet, paintMode, isDragging,
   onCellMouseDown, onCellMouseEnter,
   onUpdate, onDelete, onMoveUp, onMoveDown, onPhaseToggle,
+  deptSuggestions, catSuggestions,
 }) {
   const [expanded,       setExpanded]       = useState(false)
   const [lName,          setLName]          = useState(resource.name)
@@ -153,22 +154,34 @@ function ResourceRow({
                   onBlur={() => commit('role', lRole, resource.role)}
                 />
               ) : (
-                <input
-                  className="gantt-input gantt-input-role"
-                  value={lCat}
-                  placeholder="Category"
-                  onChange={e => setLCat(e.target.value)}
-                  onBlur={() => commit('category', lCat, resource.category)}
-                />
+                <>
+                  <input
+                    className="gantt-input gantt-input-role"
+                    value={lCat}
+                    placeholder="Category"
+                    list={`cat-${resource.id}`}
+                    onChange={e => setLCat(e.target.value)}
+                    onBlur={() => commit('category', lCat, resource.category)}
+                  />
+                  <datalist id={`cat-${resource.id}`}>
+                    {catSuggestions.map(s => <option key={s} value={s} />)}
+                  </datalist>
+                </>
               )}
               {activeTab === 'crew' && (
-                <input
-                  className="gantt-input gantt-input-dept"
-                  value={lDept}
-                  placeholder="Department"
-                  onChange={e => setLDept(e.target.value)}
-                  onBlur={() => commit('department', lDept, resource.department)}
-                />
+                <>
+                  <input
+                    className="gantt-input gantt-input-dept"
+                    value={lDept}
+                    placeholder="Department"
+                    list={`dept-${resource.id}`}
+                    onChange={e => setLDept(e.target.value)}
+                    onBlur={() => commit('department', lDept, resource.department)}
+                  />
+                  <datalist id={`dept-${resource.id}`}>
+                    {deptSuggestions.map(s => <option key={s} value={s} />)}
+                  </datalist>
+                </>
               )}
             </div>
             <div className="gantt-name-actions">
@@ -351,8 +364,8 @@ function ResourceRow({
                 </>
               )}
 
-              {/* Notes — all resources, full width */}
-              <div className="details-group details-group-full">
+              {/* Notes — all resources */}
+              <div className="details-group">
                 <label className="details-label">Notes</label>
                 <textarea
                   className="details-input details-textarea"
@@ -435,6 +448,18 @@ export default function CrewGantt({ production, shootDays }) {
   // booking lookup: `${resourceId}:${dateStr}` → booking
   const bMap = {}
   for (const b of bookings) bMap[`${b.resourceId}:${b.date}`] = b
+
+  // ── Autocomplete suggestions from existing values ─────────────────────────
+
+  const deptSuggestions = [...new Set(
+    resources.filter(r => r.type === 'crew' && r.department.trim())
+             .map(r => r.department.trim())
+  )].sort()
+
+  const catSuggestions = [...new Set(
+    resources.filter(r => r.type === 'equipment' && r.category.trim())
+             .map(r => r.category.trim())
+  )].sort()
 
   // ── Filter + group resources ───────────────────────────────────────────────
 
@@ -762,6 +787,8 @@ export default function CrewGantt({ production, shootDays }) {
                         onMoveUp={moveResourceUp}
                         onMoveDown={moveResourceDown}
                         onPhaseToggle={togglePhase}
+                        deptSuggestions={deptSuggestions}
+                        catSuggestions={catSuggestions}
                       />
                     ))}
                   </Fragment>

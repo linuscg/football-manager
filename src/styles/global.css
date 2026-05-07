@@ -1340,17 +1340,9 @@ textarea.field-input {
 .details-input[type="text"]  { width: 150px; }
 .details-input-po            { width: 110px; }
 
-.details-group-full {
-  width: 100%;
-  flex-basis: 100%;
-  margin-top: 4px;
-}
-.details-group-full .details-label { min-width: 38px; }
-
 .details-textarea {
-  width: 100%;
-  height: auto;
-  min-height: 44px;
+  width: 200px;
+  height: 44px;
   padding: 4px 7px;
   resize: vertical;
   line-height: 1.5;
