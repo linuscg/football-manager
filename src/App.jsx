@@ -3,6 +3,8 @@ import Schedule from './modules/Schedule'
 
 export default function App() {
   const {
+    loading,
+    error,
     store,
     setProductionName,
     setPrepStartDate,
@@ -28,6 +30,19 @@ export default function App() {
     deleteScene,
     updateScene,
   }
+
+  if (loading) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', color:'#9ca3af', fontSize:14 }}>
+      Loading…
+    </div>
+  )
+
+  if (error) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', color:'#dc2626', fontSize:14, flexDirection:'column', gap:8 }}>
+      <strong>Could not connect to database</strong>
+      <span style={{ color:'#9ca3af' }}>{error}</span>
+    </div>
+  )
 
   return (
     <div className="app-shell">
