@@ -90,13 +90,23 @@ function buildColSpecs(production, expandedPhases, dateMap, today) {
 
 // ─── ResourceRow — isolated so local text state never loses focus ─────────────
 
+// Derive unique sorted values for a given field from a resource list
+function uniq(arr) { return [...new Set(arr.filter(Boolean))].sort() }
+
 function ResourceRow({
   resource, activeTab, colSpecs, bMap,
   shootDateSet, paintMode, isDragging,
   onCellMouseDown, onCellMouseEnter,
   onUpdate, onDelete, onMoveUp, onMoveDown, onPhaseToggle,
-  deptSuggestions, catSuggestions,
+  typeResources,
 }) {
+  // Build suggestions from all other resources of the same type
+  const others = typeResources.filter(r => r.id !== resource.id)
+  const nameSuggestions  = uniq(others.map(r => r.name))
+  const roleSuggestions  = uniq(others.map(r => r.role))
+  const deptSuggestions  = uniq(others.map(r => r.department))
+  const catSuggestions   = uniq(others.map(r => r.category))
+  const vendorSuggestions = uniq(others.map(r => r.vendor))
   const [expanded,       setExpanded]       = useState(false)
   const [lName,          setLName]          = useState(resource.name)
   const [lRole,          setLRole]          = useState(resource.role)
@@ -124,6 +134,37 @@ function ResourceRow({
     if (local !== original) onUpdate(resource.id, field, local)
   }
 
+  // When a name is chosen that matches an existing resource, auto-fill blank fields
+  function handleNameBlur() {
+    commit('name', lName, resource.name)
+    if (!lName.trim()) return
+    const match = typeResources.find(
+      r => r.id !== resource.id &&
+           r.name.trim().toLowerCase() === lName.trim().toLowerCase()
+    )
+    if (!match) return
+    const fills = [
+      ['role',         lRole,         match.role,         setLRole],
+      ['department',   lDept,         match.department,   setLDept],
+      ['category',     lCat,          match.category,     setLCat],
+      ['contactEmail', lContactEmail, match.contactEmail, setLContactEmail],
+      ['contactPhone', lContactPhone, match.contactPhone, setLContactPhone],
+      ['vendor',       lVendor,       match.vendor,       setLVendor],
+      ['poNumber',     lPoNumber,     match.poNumber,     setLPoNumber],
+      ['notes',        lNotes,        match.notes,        setLNotes],
+    ]
+    for (const [field, current, value, setter] of fills) {
+      if (!current && value) { setter(value); onUpdate(resource.id, field, value) }
+    }
+    // Copy cost settings if not yet set
+    if (!lCostAmount && match.costAmount) {
+      setLCostAmount(match.costAmount)
+      onUpdate(resource.id, 'costAmount',  match.costAmount)
+      onUpdate(resource.id, 'costType',    match.costType)
+      onUpdate(resource.id, 'weekType',    match.weekType)
+    }
+  }
+
   return (
     <Fragment>
       <tr className="gantt-resource-row">
@@ -142,17 +183,28 @@ function ResourceRow({
                 className="gantt-input gantt-input-name"
                 value={lName}
                 placeholder={activeTab === 'crew' ? 'Name' : 'Item name'}
+                list={`name-${resource.id}`}
                 onChange={e => setLName(e.target.value)}
-                onBlur={() => commit('name', lName, resource.name)}
+                onBlur={handleNameBlur}
               />
+              <datalist id={`name-${resource.id}`}>
+                {nameSuggestions.map(s => <option key={s} value={s} />)}
+              </datalist>
+
               {activeTab === 'crew' ? (
-                <input
-                  className="gantt-input gantt-input-role"
-                  value={lRole}
-                  placeholder="Role"
-                  onChange={e => setLRole(e.target.value)}
-                  onBlur={() => commit('role', lRole, resource.role)}
-                />
+                <>
+                  <input
+                    className="gantt-input gantt-input-role"
+                    value={lRole}
+                    placeholder="Role"
+                    list={`role-${resource.id}`}
+                    onChange={e => setLRole(e.target.value)}
+                    onBlur={() => commit('role', lRole, resource.role)}
+                  />
+                  <datalist id={`role-${resource.id}`}>
+                    {roleSuggestions.map(s => <option key={s} value={s} />)}
+                  </datalist>
+                </>
               ) : (
                 <>
                   <input
@@ -328,9 +380,13 @@ function ResourceRow({
                         type="text"
                         value={lVendor}
                         placeholder="Vendor company"
+                        list={`vendor-${resource.id}`}
                         onChange={e => setLVendor(e.target.value)}
                         onBlur={() => commit('vendor', lVendor, resource.vendor)}
                       />
+                      <datalist id={`vendor-${resource.id}`}>
+                        {vendorSuggestions.map(s => <option key={s} value={s} />)}
+                      </datalist>
                     </div>
                   )}
                 </>
@@ -346,9 +402,13 @@ function ResourceRow({
                       type="text"
                       value={lVendor}
                       placeholder="Supplier name"
+                      list={`vendor-${resource.id}`}
                       onChange={e => setLVendor(e.target.value)}
                       onBlur={() => commit('vendor', lVendor, resource.vendor)}
                     />
+                    <datalist id={`vendor-${resource.id}`}>
+                      {vendorSuggestions.map(s => <option key={s} value={s} />)}
+                    </datalist>
                   </div>
                   <div className="details-group">
                     <label className="details-label">PO #</label>
@@ -451,15 +511,9 @@ export default function CrewGantt({ production, shootDays }) {
 
   // ── Autocomplete suggestions from existing values ─────────────────────────
 
-  const deptSuggestions = [...new Set(
-    resources.filter(r => r.type === 'crew' && r.department.trim())
-             .map(r => r.department.trim())
-  )].sort()
-
-  const catSuggestions = [...new Set(
-    resources.filter(r => r.type === 'equipment' && r.category.trim())
-             .map(r => r.category.trim())
-  )].sort()
+  // All resources of each type — passed to rows for suggestions + name autofill
+  const crewResources  = resources.filter(r => r.type === 'crew')
+  const equipResources = resources.filter(r => r.type === 'equipment')
 
   // ── Filter + group resources ───────────────────────────────────────────────
 
@@ -787,8 +841,7 @@ export default function CrewGantt({ production, shootDays }) {
                         onMoveUp={moveResourceUp}
                         onMoveDown={moveResourceDown}
                         onPhaseToggle={togglePhase}
-                        deptSuggestions={deptSuggestions}
-                        catSuggestions={catSuggestions}
+                        typeResources={activeTab === 'crew' ? crewResources : equipResources}
                       />
                     ))}
                   </Fragment>

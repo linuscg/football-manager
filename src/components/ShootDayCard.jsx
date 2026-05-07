@@ -1,6 +1,21 @@
 import { useState, useRef } from 'react'
 import SceneRow from './SceneRow'
 
+const DAY_TYPES = [
+  { value: 'SWD',  label: 'SWD — Standard' },
+  { value: 'CWD',  label: 'CWD — Continuous' },
+  { value: 'SCWD', label: 'SCWD — Semi-Continuous' },
+]
+
+function calcWrapTime(generalCall, workHours, lunchMinutes) {
+  if (!generalCall) return null
+  const [h, m] = generalCall.split(':').map(Number)
+  const total = h * 60 + m + Math.round(workHours * 60) + (lunchMinutes ?? 0)
+  const wh = Math.floor(total / 60) % 24
+  const wm = total % 60
+  return `${String(wh).padStart(2, '0')}:${String(wm).padStart(2, '0')}`
+}
+
 function formatDateDisplay(dateStr) {
   if (!dateStr) return '—'
   const d = new Date(dateStr + 'T00:00:00')
@@ -29,7 +44,14 @@ export default function ShootDayCard({
   onDeleteScene,
   onUpdateScene,
   additionals = [],
+  production = {},
 }) {
+  // Resolve which day type applies and calculate wrap time
+  const effectiveDayType = day.dayType || production.defaultDayType || 'SWD'
+  const lunchMinutes = effectiveDayType === 'CWD'  ? (production.cwdLunch  ?? 0)
+                     : effectiveDayType === 'SCWD' ? (production.scwdLunch ?? 30)
+                     :                               (production.swdLunch  ?? 60)
+  const wrapTime = calcWrapTime(day.generalCall, production.workHours ?? 10, lunchMinutes)
   const [expanded,         setExpanded]         = useState(defaultExpanded)
   const [additionalsOpen,  setAdditionalsOpen]  = useState(false)
   const [isDragOver,       setIsDragOver]       = useState(false)
@@ -214,6 +236,32 @@ export default function ShootDayCard({
                     onChange={e => onUpdate(day.id, 'generalCall', e.target.value)}
                   />
                 </div>
+
+                <div className="field-group">
+                  <label className="field-label">Day Type</label>
+                  <select
+                    className="field-input"
+                    value={day.dayType}
+                    onChange={e => onUpdate(day.id, 'dayType', e.target.value)}
+                  >
+                    <option value="">Default ({production.defaultDayType || 'SWD'})</option>
+                    {DAY_TYPES.map(dt => (
+                      <option key={dt.value} value={dt.value}>{dt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {wrapTime && (
+                  <div className="field-group">
+                    <label className="field-label">Est. Wrap</label>
+                    <div className="field-wrap-time">
+                      {wrapTime}
+                      <span className="field-wrap-hint">
+                        {production.workHours ?? 10}h + {lunchMinutes}min lunch
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="field-group">
                   <label className="field-label">Location</label>

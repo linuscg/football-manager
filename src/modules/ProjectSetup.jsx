@@ -194,6 +194,71 @@ export default function ProjectSetup({ production, onUpdate, onGenerate, shootDa
         Phase date ranges populate the columns in <strong>Crew &amp; Equipment</strong>.
         Each phase can be expanded or collapsed in that view.
       </p>
+
+      {/* ── Day Length ───────────────────────────────────────────────────────── */}
+      <div className="setup-card">
+        <div className="setup-phase-header">
+          <span className="setup-phase-icon">⏱</span>
+          <span className="setup-phase-label" style={{ color: '#374151' }}>Day Length</span>
+        </div>
+
+        <div className="setup-date-row" style={{ flexWrap: 'wrap', gap: '12px 24px' }}>
+          <div className="field-group">
+            <label className="field-label">Work hours / day</label>
+            <input
+              className="field-input"
+              type="number"
+              min="1"
+              max="24"
+              step="0.5"
+              value={production.workHours}
+              onChange={e => onUpdate('workHours', parseFloat(e.target.value) || 10)}
+              style={{ width: 80 }}
+            />
+          </div>
+
+          <div className="field-group">
+            <label className="field-label">Default day type</label>
+            <select
+              className="field-input"
+              value={production.defaultDayType}
+              onChange={e => onUpdate('defaultDayType', e.target.value)}
+              style={{ width: 120 }}
+            >
+              <option value="SWD">SWD</option>
+              <option value="CWD">CWD</option>
+              <option value="SCWD">SCWD</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="setup-card-label" style={{ marginTop: 16, marginBottom: 8 }}>Lunch breaks (minutes)</div>
+        <div className="setup-date-row" style={{ flexWrap: 'wrap', gap: '12px 24px' }}>
+          {[
+            { key: 'swdLunch',  label: 'SWD — Standard' },
+            { key: 'cwdLunch',  label: 'CWD — Continuous' },
+            { key: 'scwdLunch', label: 'SCWD — Semi-Continuous' },
+          ].map(({ key, label }) => (
+            <div key={key} className="field-group">
+              <label className="field-label">{label}</label>
+              <input
+                className="field-input"
+                type="number"
+                min="0"
+                max="120"
+                step="5"
+                value={production[key]}
+                onChange={e => onUpdate(key, parseInt(e.target.value, 10) || 0)}
+                style={{ width: 80 }}
+              />
+            </div>
+          ))}
+        </div>
+        <p className="setup-card-hint">
+          Wrap time = General Call + work hours + lunch. Set per day in Schedule,
+          or leave blank to use the default day type above.
+        </p>
+      </div>
     </div>
   )
 }

@@ -3,7 +3,7 @@ import ShootDayCard from '../components/ShootDayCard'
 import { useCrewStore } from '../store/useCrewStore'
 
 export default function Schedule({ store, actions }) {
-  const { shootDays } = store
+  const { shootDays, production } = store
   const { resources, bookings } = useCrewStore()
 
   // Build date → sorted list of booked crew/equipment for that day
@@ -73,6 +73,7 @@ export default function Schedule({ store, actions }) {
               onDeleteScene={actions.deleteScene}
               onUpdateScene={actions.updateScene}
               additionals={additionalsByDate[day.date] ?? []}
+              production={production}
             />
           ))}
           <div ref={listBottomRef} />

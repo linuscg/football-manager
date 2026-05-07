@@ -12,6 +12,7 @@ function mapDay(row, scenes = []) {
     location:    row.location       ?? '',
     unitBase:    row.unit_base      ?? '',
     generalCall: row.general_call   ?? '',
+    dayType:     row.day_type       ?? '',
     isNonShootDay: row.is_non_shoot_day ?? false,
     description: row.description    ?? '',
     notes:       row.notes          ?? '',
@@ -42,6 +43,12 @@ function mapProduction(row) {
     shootEndDate:   row.shoot_end_date   ?? '',
     wrapStartDate:  row.wrap_start_date  ?? '',
     wrapEndDate:    row.wrap_end_date    ?? '',
+    // Day length settings
+    defaultDayType: row.default_day_type ?? 'SWD',
+    workHours:      row.work_hours       ?? 10,
+    swdLunch:       row.swd_lunch        ?? 60,
+    cwdLunch:       row.cwd_lunch        ?? 0,
+    scwdLunch:      row.scwd_lunch       ?? 30,
   }
 }
 
@@ -52,6 +59,7 @@ const DAY_FIELD_MAP = {
   location:    'location',
   unitBase:    'unit_base',
   generalCall: 'general_call',
+  dayType:     'day_type',
   description: 'description',
   notes:       'notes',
 }
@@ -73,6 +81,11 @@ const PRODUCTION_FIELD_MAP = {
   shootEndDate:   'shoot_end_date',
   wrapStartDate:  'wrap_start_date',
   wrapEndDate:    'wrap_end_date',
+  defaultDayType: 'default_day_type',
+  workHours:      'work_hours',
+  swdLunch:       'swd_lunch',
+  cwdLunch:       'cwd_lunch',
+  scwdLunch:      'scwd_lunch',
 }
 
 // Treat empty strings as null for date/time DB columns
@@ -93,6 +106,8 @@ export function useScheduleStore() {
       name: '', prepStartDate: '', prepEndDate: '',
       shootStartDate: '', shootEndDate: '',
       wrapStartDate:  '', wrapEndDate:  '',
+      defaultDayType: 'SWD', workHours: 10,
+      swdLunch: 60, cwdLunch: 0, scwdLunch: 30,
     },
     shootDays: [],
   })
@@ -207,7 +222,7 @@ export function useScheduleStore() {
 
     const newDay = {
       id: newId, dayNumber: newDayNumber, date: nextDate ?? '',
-      location: '', unitBase: '', generalCall: '',
+      location: '', unitBase: '', generalCall: '', dayType: '',
       isNonShootDay: false, description: '', notes: '',
       sortOrder: newSortOrder, scenes: [],
     }
