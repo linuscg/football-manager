@@ -16,6 +16,7 @@ export default function ShootDayCard({
   day,
   index,
   totalDays,
+  defaultExpanded = false,
   onUpdate,
   onDelete,
   onMoveUp,
@@ -25,7 +26,7 @@ export default function ShootDayCard({
   onDeleteScene,
   onUpdateScene,
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const [isDragOver, setIsDragOver] = useState(false)
   const dragRef = useRef(null)
 

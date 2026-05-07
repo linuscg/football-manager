@@ -54,14 +54,18 @@ export function useScheduleStore() {
 
   // ─── Shoot Days ───────────────────────────────────────────────────────────
 
+  // Returns the id of the newly created day so callers can auto-expand it.
   function addShootDay() {
+    let newId = null
     updateStore(s => {
       const days = s.shootDays
       const lastDayNum = days.length
         ? Math.max(...days.map(d => d.dayNumber ?? 0))
         : 0
 
-      // Auto-advance date from the last day that has one
+      // Auto-advance date from the last dated day.
+      // Use local date arithmetic — toISOString() converts to UTC and will
+      // roll the date back by one in timezones ahead of UTC (e.g. Prague).
       const sorted = [...days].filter(d => d.date).sort((a, b) =>
         a.date < b.date ? -1 : 1
       )
@@ -69,11 +73,15 @@ export function useScheduleStore() {
       if (sorted.length) {
         const last = new Date(sorted[sorted.length - 1].date + 'T00:00:00')
         last.setDate(last.getDate() + 1)
-        nextDate = last.toISOString().split('T')[0]
+        const y = last.getFullYear()
+        const m = String(last.getMonth() + 1).padStart(2, '0')
+        const d = String(last.getDate()).padStart(2, '0')
+        nextDate = `${y}-${m}-${d}`
       }
 
+      newId = generateId()
       const newDay = {
-        id: generateId(),
+        id: newId,
         dayNumber: lastDayNum + 1,
         date: nextDate,
         location: '',
@@ -86,6 +94,7 @@ export function useScheduleStore() {
 
       return { ...s, shootDays: [...days, newDay] }
     })
+    return newId
   }
 
   function deleteShootDay(id) {
