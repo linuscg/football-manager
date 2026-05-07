@@ -1,32 +1,29 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-
-let _productionId = null
+import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 
 // ─── Row mappers ──────────────────────────────────────────────────────────────
 
 function mapResource(row) {
   return {
     id:            row.id,
-    type:          row.type           ?? 'crew',
-    name:          row.name           ?? '',
-    department:    row.department     ?? '',
-    role:          row.role           ?? '',
-    category:      row.category       ?? '',
-    notes:         row.notes          ?? '',
-    sortOrder:     row.sort_order     ?? 0,
-    // Cost
-    costAmount:    row.cost_amount    ?? '',
-    costType:      row.cost_type      ?? 'daily',
-    weekType:      row.week_type      ?? '5day',
-    // Crew-specific
-    contactEmail:  row.contact_email  ?? '',
-    contactPhone:  row.contact_phone  ?? '',
-    isVendorCrew:  row.is_vendor_crew ?? false,
-    // Shared (vendor = supplier for equipment, vendor company for crew)
-    vendor:        row.vendor         ?? '',
-    // Equipment-specific
-    poNumber:      row.po_number      ?? '',
+    type:          row.type            ?? 'crew',
+    name:          row.name            ?? '',
+    department:    row.department      ?? '',
+    role:          row.role            ?? '',
+    category:      row.category        ?? '',
+    notes:         row.notes           ?? '',
+    sortOrder:     row.sort_order      ?? 0,
+    costAmount:    row.cost_amount     ?? '',
+    costType:      row.cost_type       ?? 'daily',
+    weekType:      row.week_type       ?? '5day',
+    contactEmail:  row.contact_email   ?? '',
+    contactPhone:  row.contact_phone   ?? '',
+    isVendorCrew:  row.is_vendor_crew  ?? false,
+    vendor:        row.vendor          ?? '',
+    poNumber:      row.po_number       ?? '',
+    hireStartDate: row.hire_start_date ?? '',
+    hireEndDate:   row.hire_end_date   ?? '',
   }
 }
 
@@ -34,7 +31,7 @@ function mapBooking(row) {
   return {
     id:         row.id,
     resourceId: row.resource_id,
-    date:       row.booking_date,   // date string YYYY-MM-DD
+    date:       row.booking_date,
     status:     row.status ?? 'booked',
   }
 }
@@ -48,18 +45,13 @@ export function useCrewStore() {
   const [bookings,  setBookings]  = useState([])
 
   async function loadAll() {
-    try {
-      if (!_productionId) {
-        const { data: prods, error: prodErr } = await supabase
-          .from('production').select('id').limit(1)
-        if (prodErr) throw prodErr
-        if (!prods?.length) throw new Error('No production row found')
-        _productionId = prods[0].id
-      }
+    const prodId = getCurrentProductionId()
+    if (!prodId) return   // wait for production context to be set
 
+    try {
       const { data: recs, error: recErr } = await supabase
         .from('resources').select('*')
-        .eq('production_id', _productionId)
+        .eq('production_id', prodId)
         .order('sort_order', { ascending: true })
       if (recErr) throw recErr
 
@@ -82,12 +74,21 @@ export function useCrewStore() {
 
   useEffect(() => {
     loadAll()
+    const unsub = onProductionChange(() => {
+      setLoading(true)
+      setResources([])
+      setBookings([])
+      loadAll()
+    })
     const channel = supabase
       .channel('crew_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' },         loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_bookings' }, loadAll)
       .subscribe()
-    return () => supabase.removeChannel(channel)
+    return () => {
+      unsub()
+      supabase.removeChannel(channel)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function optR(fn) { setResources(rs => fn(rs)) }
@@ -100,17 +101,21 @@ export function useCrewStore() {
   // ── Resources ──────────────────────────────────────────────────────────────
 
   function addResource(type = 'crew') {
+    const prodId    = getCurrentProductionId()
     const newId     = crypto.randomUUID()
     const sortOrder = resources.length
     const newRes = {
       id: newId, type,
-      name:       type === 'crew' ? 'New Person' : 'New Item',
+      name: type === 'crew' ? 'New Person' : 'New Item',
       department: '', role: '', category: '', notes: '', sortOrder,
+      costAmount: '', costType: 'daily', weekType: '5day',
+      contactEmail: '', contactPhone: '', isVendorCrew: false,
+      vendor: '', poNumber: '', hireStartDate: '', hireEndDate: '',
     }
     optR(rs => [...rs, newRes])
     dbWrite(
       supabase.from('resources').insert({
-        id: newId, production_id: _productionId,
+        id: newId, production_id: prodId,
         type, name: newRes.name, sort_order: sortOrder,
       })
     )
@@ -124,25 +129,73 @@ export function useCrewStore() {
   }
 
   const FIELD_MAP = {
-    name: 'name', department: 'department',
-    role: 'role', category: 'category', notes: 'notes',
-    costAmount:   'cost_amount',
-    costType:     'cost_type',
-    weekType:     'week_type',
-    contactEmail: 'contact_email',
-    contactPhone: 'contact_phone',
-    isVendorCrew: 'is_vendor_crew',
-    vendor:       'vendor',
-    poNumber:     'po_number',
+    name:          'name',
+    department:    'department',
+    role:          'role',
+    category:      'category',
+    notes:         'notes',
+    costAmount:    'cost_amount',
+    costType:      'cost_type',
+    weekType:      'week_type',
+    contactEmail:  'contact_email',
+    contactPhone:  'contact_phone',
+    isVendorCrew:  'is_vendor_crew',
+    vendor:        'vendor',
+    poNumber:      'po_number',
+    hireStartDate: 'hire_start_date',
+    hireEndDate:   'hire_end_date',
   }
 
   function updateResource(id, field, value) {
     optR(rs => rs.map(r => r.id === id ? { ...r, [field]: value } : r))
     const col = FIELD_MAP[field] ?? field
-    dbWrite(supabase.from('resources').update({ [col]: value }).eq('id', id))
+    const dbValue = (field === 'hireStartDate' || field === 'hireEndDate')
+      ? (value || null)
+      : value
+    dbWrite(supabase.from('resources').update({ [col]: dbValue }).eq('id', id))
   }
 
-  // ── Bookings (keyed by date string, not day_id) ────────────────────────────
+  // ── Bulk import (CSV) ──────────────────────────────────────────────────────
+  // rows: array of plain objects already mapped to camelCase resource fields.
+  // Returns the number of resources actually created.
+
+  async function importResources(type, rows) {
+    const prodId    = getCurrentProductionId()
+    const sortStart = resources.filter(r => r.type === type).length
+
+    const inserts = rows.map((row, i) => ({
+      id:            crypto.randomUUID(),
+      production_id: prodId,
+      type,
+      sort_order:    sortStart + i,
+      name:          row.name          || '',
+      role:          row.role          || '',
+      department:    row.department    || '',
+      category:      row.category      || '',
+      contact_email: row.contactEmail  || '',
+      contact_phone: row.contactPhone  || '',
+      is_vendor_crew: Boolean(row.isVendorCrew),
+      vendor:        row.vendor        || '',
+      po_number:     row.poNumber      || '',
+      cost_amount:   row.costAmount    || null,
+      cost_type:     row.costType      || 'daily',
+      week_type:     row.weekType      || '5day',
+      notes:         row.notes         || '',
+    }))
+
+    // Optimistic update
+    optR(rs => [...rs, ...inserts.map(r => mapResource({ ...r, sort_order: r.sort_order }))])
+
+    const { error: err } = await supabase.from('resources').insert(inserts)
+    if (err) {
+      console.error('[crew store] importResources:', err)
+      loadAll()
+      return 0
+    }
+    return inserts.length
+  }
+
+  // ── Bookings ───────────────────────────────────────────────────────────────
 
   const CYCLE = ['booked', 'hold', 'unavailable', 'cancelled']
 
@@ -171,22 +224,16 @@ export function useCrewStore() {
     }
   }
 
-  // ── Direct-set booking (used by drag-paint; status=null clears) ───────────
-  //
-  // Unlike toggleBooking (which cycles), this sets an exact status or removes
-  // the booking entirely. Uses fire-and-forget DB writes for drag performance.
-
   function setBooking(resourceId, dateStr, status) {
     const existing = bookings.find(b => b.resourceId === resourceId && b.date === dateStr)
 
     if (status === null) {
-      // Clear
       if (!existing) return
       optB(bs => bs.filter(b => b.id !== existing.id))
       supabase.from('resource_bookings').delete().eq('id', existing.id)
         .then(({ error: err }) => { if (err) loadAll() })
     } else if (existing) {
-      if (existing.status === status) return // no-op
+      if (existing.status === status) return
       optB(bs => bs.map(b => b.id === existing.id ? { ...b, status } : b))
       supabase.from('resource_bookings').update({ status }).eq('id', existing.id)
         .then(({ error: err }) => { if (err) loadAll() })
@@ -231,6 +278,7 @@ export function useCrewStore() {
     loading, error,
     resources, bookings,
     addResource, deleteResource, updateResource,
+    importResources,
     toggleBooking, setBooking,
     moveResourceUp, moveResourceDown,
   }

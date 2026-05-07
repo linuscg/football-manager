@@ -1,16 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useCrewStore }   from '../store/useCrewStore'
 import { useBudgetStore } from '../store/useBudgetStore'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const CURRENCIES = [
-  { symbol: '£', label: '£  GBP' },
-  { symbol: '$', label: '$  USD' },
-  { symbol: '€', label: '€  EUR' },
-  { symbol: '¥', label: '¥  JPY' },
-  { symbol: 'kr', label: 'kr  SEK' },
-]
 
 const PHASES = [
   { id: 'prep',  label: 'Pre-Prod', startKey: 'prepStartDate',  endKey: 'prepEndDate',  color: '#7c3aed' },
@@ -19,10 +11,6 @@ const PHASES = [
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getStoredCurrency() {
-  return localStorage.getItem('fm_currency') ?? '£'
-}
 
 function fmt(amount, symbol) {
   if (!amount && amount !== 0) return '—'
@@ -156,17 +144,11 @@ function BudgetSection({ title, total, symbol, defaultOpen = true, children }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function Budget({ store }) {
+export default function Budget({ store, onUpdate }) {
   const { production } = store
+  const currency = production.currency ?? '£'
   const { resources, bookings } = useCrewStore()
   const { loading: bLoading, items: otherItems, addItem, deleteItem, updateItem } = useBudgetStore()
-
-  const [currency, setCurrency] = useState(getStoredCurrency)
-
-  function handleCurrencyChange(sym) {
-    setCurrency(sym)
-    localStorage.setItem('fm_currency', sym)
-  }
 
   // ── Auto-calculate costs from bookings ──────────────────────────────────────
 
@@ -249,16 +231,8 @@ export default function Budget({ store }) {
       <div className="budget-topbar">
         <h1 className="budget-title">Budget</h1>
         <div className="budget-currency-row">
-          <span className="budget-currency-label">Currency</span>
-          <select
-            className="budget-currency-select"
-            value={currency}
-            onChange={e => handleCurrencyChange(e.target.value)}
-          >
-            {CURRENCIES.map(c => (
-              <option key={c.symbol} value={c.symbol}>{c.label}</option>
-            ))}
-          </select>
+          <span className="budget-currency-sym">{currency}</span>
+          <span className="budget-currency-label">Currency set in Project Setup</span>
         </div>
       </div>
 

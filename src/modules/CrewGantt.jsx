@@ -118,17 +118,21 @@ function ResourceRow({
   const [lVendor,        setLVendor]        = useState(resource.vendor)
   const [lPoNumber,      setLPoNumber]      = useState(resource.poNumber)
   const [lNotes,         setLNotes]         = useState(resource.notes)
+  const [lHireStart,     setLHireStart]     = useState(resource.hireStartDate)
+  const [lHireEnd,       setLHireEnd]       = useState(resource.hireEndDate)
 
-  useEffect(() => setLName(resource.name),                 [resource.name])
-  useEffect(() => setLRole(resource.role),                 [resource.role])
-  useEffect(() => setLCat(resource.category),              [resource.category])
-  useEffect(() => setLDept(resource.department),           [resource.department])
-  useEffect(() => setLCostAmount(resource.costAmount),     [resource.costAmount])
-  useEffect(() => setLContactEmail(resource.contactEmail), [resource.contactEmail])
-  useEffect(() => setLContactPhone(resource.contactPhone), [resource.contactPhone])
-  useEffect(() => setLVendor(resource.vendor),             [resource.vendor])
-  useEffect(() => setLPoNumber(resource.poNumber),         [resource.poNumber])
-  useEffect(() => setLNotes(resource.notes),               [resource.notes])
+  useEffect(() => setLName(resource.name),                   [resource.name])
+  useEffect(() => setLRole(resource.role),                   [resource.role])
+  useEffect(() => setLCat(resource.category),                [resource.category])
+  useEffect(() => setLDept(resource.department),             [resource.department])
+  useEffect(() => setLCostAmount(resource.costAmount),       [resource.costAmount])
+  useEffect(() => setLContactEmail(resource.contactEmail),   [resource.contactEmail])
+  useEffect(() => setLContactPhone(resource.contactPhone),   [resource.contactPhone])
+  useEffect(() => setLVendor(resource.vendor),               [resource.vendor])
+  useEffect(() => setLPoNumber(resource.poNumber),           [resource.poNumber])
+  useEffect(() => setLNotes(resource.notes),                 [resource.notes])
+  useEffect(() => setLHireStart(resource.hireStartDate),     [resource.hireStartDate])
+  useEffect(() => setLHireEnd(resource.hireEndDate),         [resource.hireEndDate])
 
   function commit(field, local, original) {
     if (local !== original) onUpdate(resource.id, field, local)
@@ -149,9 +153,11 @@ function ResourceRow({
       ['category',     lCat,          match.category,     setLCat],
       ['contactEmail', lContactEmail, match.contactEmail, setLContactEmail],
       ['contactPhone', lContactPhone, match.contactPhone, setLContactPhone],
-      ['vendor',       lVendor,       match.vendor,       setLVendor],
-      ['poNumber',     lPoNumber,     match.poNumber,     setLPoNumber],
-      ['notes',        lNotes,        match.notes,        setLNotes],
+      ['vendor',        lVendor,     match.vendor,         setLVendor],
+      ['poNumber',      lPoNumber,   match.poNumber,       setLPoNumber],
+      ['notes',         lNotes,      match.notes,          setLNotes],
+      ['hireStartDate', lHireStart,  match.hireStartDate,  setLHireStart],
+      ['hireEndDate',   lHireEnd,    match.hireEndDate,    setLHireEnd],
     ]
     for (const [field, current, value, setter] of fills) {
       if (!current && value) { setter(value); onUpdate(resource.id, field, value) }
@@ -424,6 +430,27 @@ function ResourceRow({
                 </>
               )}
 
+              {/* Hire period */}
+              <div className="details-group">
+                <label className="details-label">Hire from</label>
+                <input
+                  className="details-input details-input-date"
+                  type="date"
+                  value={lHireStart}
+                  onChange={e => { setLHireStart(e.target.value); onUpdate(resource.id, 'hireStartDate', e.target.value) }}
+                />
+              </div>
+              <div className="details-group">
+                <label className="details-label">Hire to</label>
+                <input
+                  className="details-input details-input-date"
+                  type="date"
+                  value={lHireEnd}
+                  min={lHireStart || undefined}
+                  onChange={e => { setLHireEnd(e.target.value); onUpdate(resource.id, 'hireEndDate', e.target.value) }}
+                />
+              </div>
+
               {/* Notes — all resources */}
               <div className="details-group">
                 <label className="details-label">Notes</label>
@@ -464,9 +491,13 @@ export default function CrewGantt({ production, shootDays }) {
     loading, error,
     resources, bookings,
     addResource, deleteResource, updateResource,
+    importResources,
     setBooking,
     moveResourceUp, moveResourceDown,
   } = useCrewStore()
+
+  const importFileRef = useRef(null)
+  const [importMsg, setImportMsg] = useState(null)  // null | { count, type }
 
   const today = todayStr()
 
@@ -642,6 +673,89 @@ export default function CrewGantt({ production, shootDays }) {
     clearInterval(scrollInterval.current)
   }
 
+  // ── CSV import / export ────────────────────────────────────────────────────
+
+  const CREW_HEADERS  = ['Name','Role','Department','Email','Phone','Cost Amount','Cost Type (daily/weekly)','Week Type (5day/3day)','Vendor Crew (yes/no)','Vendor Company','Notes']
+  const EQUIP_HEADERS = ['Name','Category','Supplier','PO Number','Cost Amount','Cost Type (daily/weekly)','Notes']
+
+  function downloadTemplate() {
+    const headers = activeTab === 'crew' ? CREW_HEADERS : EQUIP_HEADERS
+    const example = activeTab === 'crew'
+      ? ['Jane Smith','Director of Photography','Camera','jane@example.com','+44 7700 900000','850','daily','5day','no','','']
+      : ['ARRI ALEXA 35','Camera','Panavision Ltd','PO-1234','1500','daily','']
+    const csv = [headers, example].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = activeTab === 'crew' ? 'crew_template.csv' : 'equipment_template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Very small CSV parser — handles double-quoted fields with commas inside.
+  function parseCSV(text) {
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
+    return lines.map(line => {
+      const fields = []
+      let cur = '', inQ = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') { inQ = !inQ }
+        else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
+        else cur += ch
+      }
+      fields.push(cur.trim())
+      return fields
+    })
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    const text = await file.text()
+    const rows  = parseCSV(text)
+    if (rows.length < 2) return   // header only
+
+    const [header, ...dataRows] = rows
+    const h = header.map(s => s.toLowerCase())
+
+    let mapped
+    if (activeTab === 'crew') {
+      mapped = dataRows.map(r => ({
+        name:          r[h.indexOf('name')]            ?? '',
+        role:          r[h.indexOf('role')]            ?? '',
+        department:    r[h.indexOf('department')]      ?? '',
+        contactEmail:  r[h.indexOf('email')]           ?? '',
+        contactPhone:  r[h.indexOf('phone')]           ?? '',
+        costAmount:    r[h.findIndex(x => x.includes('cost amount'))] ?? '',
+        costType:      (r[h.findIndex(x => x.includes('cost type'))] ?? '').toLowerCase().includes('week') ? 'weekly' : 'daily',
+        weekType:      (r[h.findIndex(x => x.includes('week type'))] ?? '').includes('3') ? '3day' : '5day',
+        isVendorCrew:  (r[h.findIndex(x => x.includes('vendor crew'))] ?? '').toLowerCase() === 'yes',
+        vendor:        r[h.findIndex(x => x.includes('vendor company'))] ?? '',
+        notes:         r[h.indexOf('notes')]           ?? '',
+      })).filter(r => r.name)
+    } else {
+      mapped = dataRows.map(r => ({
+        name:       r[h.indexOf('name')]           ?? '',
+        category:   r[h.indexOf('category')]       ?? '',
+        vendor:     r[h.indexOf('supplier')]       ?? '',
+        poNumber:   r[h.findIndex(x => x.includes('po'))] ?? '',
+        costAmount: r[h.findIndex(x => x.includes('cost amount'))] ?? '',
+        costType:   (r[h.findIndex(x => x.includes('cost type'))] ?? '').toLowerCase().includes('week') ? 'weekly' : 'daily',
+        notes:      r[h.indexOf('notes')]          ?? '',
+      })).filter(r => r.name)
+    }
+
+    if (!mapped.length) return
+
+    const count = await importResources(activeTab, mapped)
+    setImportMsg({ count, type: activeTab })
+    setTimeout(() => setImportMsg(null), 4000)
+  }
+
   if (loading) return <div className="gantt-state-msg">Loading…</div>
   if (error)   return <div className="gantt-state-msg gantt-state-error">Error: {error}</div>
 
@@ -691,10 +805,28 @@ export default function CrewGantt({ production, shootDays }) {
         </div>
 
         <div className="gantt-toolbar">
-          {/* Add resource */}
+          {/* Add / import resource */}
           <button className="btn btn-primary btn-sm" onClick={() => addResource(activeTab)}>
             + Add {typeLabel}
           </button>
+          <button className="btn btn-secondary btn-sm" onClick={downloadTemplate} title="Download CSV template">
+            ↓ Template
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => importFileRef.current?.click()} title="Import from CSV">
+            ↑ Import CSV
+          </button>
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".csv,text/csv"
+            style={{ display: 'none' }}
+            onChange={handleImportFile}
+          />
+          {importMsg && (
+            <span className="gantt-import-msg">
+              ✓ Imported {importMsg.count} {importMsg.type} row{importMsg.count !== 1 ? 's' : ''}
+            </span>
+          )}
 
           {/* Paint mode selector */}
           <div className="gantt-paint-bar">

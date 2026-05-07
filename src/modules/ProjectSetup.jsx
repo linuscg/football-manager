@@ -195,6 +195,43 @@ export default function ProjectSetup({ production, onUpdate, onGenerate, shootDa
         Each phase can be expanded or collapsed in that view.
       </p>
 
+      {/* ── Currency ─────────────────────────────────────────────────────────── */}
+      <div className="setup-card">
+        <div className="setup-phase-header">
+          <span className="setup-phase-icon">💱</span>
+          <span className="setup-phase-label" style={{ color: '#374151' }}>Currency</span>
+        </div>
+        <div className="setup-date-row">
+          <div className="field-group">
+            <label className="field-label">Display currency</label>
+            <select
+              className="field-input"
+              value={production.currency ?? '£'}
+              onChange={e => onUpdate('currency', e.target.value)}
+              style={{ width: 160 }}
+            >
+              {[
+                { symbol: '£',  label: '£  GBP — British Pound' },
+                { symbol: '$',  label: '$  USD — US Dollar' },
+                { symbol: '€',  label: '€  EUR — Euro' },
+                { symbol: 'kr', label: 'kr  SEK / NOK / DKK' },
+                { symbol: '¥',  label: '¥  JPY — Japanese Yen' },
+                { symbol: 'A$', label: 'A$  AUD — Australian Dollar' },
+                { symbol: 'C$', label: 'C$  CAD — Canadian Dollar' },
+                { symbol: 'CHF', label: 'CHF  Swiss Franc' },
+                { symbol: 'zł', label: 'zł  PLN — Polish Złoty' },
+                { symbol: 'Kč', label: 'Kč  CZK — Czech Koruna' },
+              ].map(c => (
+                <option key={c.symbol} value={c.symbol}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <p className="setup-card-hint">
+          Symbol used throughout Cost Tracking. Rates are entered in this currency.
+        </p>
+      </div>
+
       {/* ── Day Length ───────────────────────────────────────────────────────── */}
       <div className="setup-card">
         <div className="setup-phase-header">

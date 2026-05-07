@@ -22,6 +22,7 @@ function getInitialModule() {
 
 export default function App() {
   const [currentModule, setCurrentModule] = useState(getInitialModule)
+  const [prodMenuOpen,  setProdMenuOpen]  = useState(false)
 
   function navigate(id) {
     setCurrentModule(id)
@@ -30,6 +31,8 @@ export default function App() {
 
   const {
     loading, error, store,
+    productions, currentProductionId,
+    createProduction, deleteProduction, switchProduction,
     updateProduction,
     generateShootDays,
     addShootDay, deleteShootDay, updateShootDay,
@@ -63,17 +66,70 @@ export default function App() {
     </div>
   )
 
-  const isGantt      = currentModule === 'crew'
-  const isCallsheet  = currentModule === 'callsheet'
+  const isGantt     = currentModule === 'crew'
+  const isCallsheet = currentModule === 'callsheet'
+
+  async function handleCreateProduction() {
+    setProdMenuOpen(false)
+    await createProduction()
+    navigate('setup')
+  }
+
+  async function handleDeleteProduction(id) {
+    if (productions.length <= 1) return
+    const prod = productions.find(p => p.id === id)
+    if (!window.confirm(`Delete "${prod?.name || 'this production'}"? This cannot be undone.`)) return
+    setProdMenuOpen(false)
+    await deleteProduction(id)
+  }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" onClick={() => setProdMenuOpen(false)}>
 
       {/* ── Sidebar ───────────────────────────────────────────────────────────── */}
       <aside className="sidebar">
-        <div className="sidebar-logo">
+
+        {/* Production switcher */}
+        <div className="sidebar-logo" onClick={e => e.stopPropagation()}>
           <div className="sidebar-eyebrow">Production</div>
-          <div className="sidebar-prod-name">{store.production.name}</div>
+          <button
+            className="sidebar-prod-btn"
+            onClick={() => setProdMenuOpen(o => !o)}
+            title="Switch production"
+          >
+            <span className="sidebar-prod-name">{store.production.name || 'Untitled'}</span>
+            <span className="sidebar-prod-chevron">{prodMenuOpen ? '▴' : '▾'}</span>
+          </button>
+
+          {prodMenuOpen && (
+            <div className="sidebar-prod-menu">
+              {productions.map(p => (
+                <div
+                  key={p.id}
+                  className={`sidebar-prod-option${p.id === currentProductionId ? ' active' : ''}`}
+                >
+                  <span
+                    className="sidebar-prod-option-name"
+                    onClick={() => { switchProduction(p.id); setProdMenuOpen(false) }}
+                  >
+                    {p.id === currentProductionId && <span className="sidebar-prod-tick">✓ </span>}
+                    {p.name || 'Untitled'}
+                  </span>
+                  {productions.length > 1 && p.id !== currentProductionId && (
+                    <button
+                      className="sidebar-prod-del"
+                      onClick={() => handleDeleteProduction(p.id)}
+                      title="Delete production"
+                    >✕</button>
+                  )}
+                </div>
+              ))}
+              <button
+                className="sidebar-prod-new"
+                onClick={handleCreateProduction}
+              >+ New production</button>
+            </div>
+          )}
         </div>
 
         <nav className="sidebar-nav">
@@ -130,7 +186,7 @@ export default function App() {
           )}
 
           {currentModule === 'budget' && (
-            <Budget store={store} />
+            <Budget store={store} onUpdate={updateProduction} />
           )}
 
         </div>

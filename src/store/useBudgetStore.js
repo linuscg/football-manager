@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-
-let _productionId = null
+import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 
 function mapItem(row) {
   return {
@@ -20,22 +19,16 @@ export function useBudgetStore() {
   const [items,   setItems]   = useState([])
 
   async function loadAll() {
-    try {
-      if (!_productionId) {
-        const { data: prods, error: prodErr } = await supabase
-          .from('production').select('id').limit(1)
-        if (prodErr) throw prodErr
-        if (!prods?.length) throw new Error('No production row found')
-        _productionId = prods[0].id
-      }
+    const prodId = getCurrentProductionId()
+    if (!prodId) return
 
+    try {
       const { data, error: err } = await supabase
         .from('budget_items')
         .select('*')
-        .eq('production_id', _productionId)
+        .eq('production_id', prodId)
         .order('sort_order', { ascending: true })
       if (err) throw err
-
       setItems((data ?? []).map(mapItem))
       setError(null)
     } catch (err) {
@@ -48,20 +41,29 @@ export function useBudgetStore() {
 
   useEffect(() => {
     loadAll()
+    const unsub = onProductionChange(() => {
+      setLoading(true)
+      setItems([])
+      loadAll()
+    })
     const channel = supabase
       .channel('budget_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_items' }, loadAll)
       .subscribe()
-    return () => supabase.removeChannel(channel)
+    return () => {
+      unsub()
+      supabase.removeChannel(channel)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function addItem() {
-    const newId    = crypto.randomUUID()
+    const prodId    = getCurrentProductionId()
+    const newId     = crypto.randomUUID()
     const sortOrder = items.length
-    const newItem  = { id: newId, category: 'Other', name: 'New item', amount: 0, notes: '', sortOrder }
+    const newItem   = { id: newId, category: 'Other', name: 'New item', amount: 0, notes: '', sortOrder }
     setItems(is => [...is, newItem])
     supabase.from('budget_items').insert({
-      id: newId, production_id: _productionId,
+      id: newId, production_id: prodId,
       category: 'Other', name: 'New item', amount: 0, sort_order: sortOrder,
     }).then(({ error: err }) => { if (err) { console.error('[budget store] insert:', err); loadAll() } })
     return newId

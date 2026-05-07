@@ -136,8 +136,10 @@ export default function ShootDayCard({
             </span>
           ) : (
             <>
-              {day.location && (
-                <span className="day-location-display">{day.location}</span>
+              {(day.locations ?? [day.location]).filter(Boolean).length > 0 && (
+                <span className="day-location-display">
+                  {(day.locations ?? [day.location]).filter(Boolean).join(' · ')}
+                </span>
               )}
               <span className="day-scene-count">
                 {sceneCount} scene{sceneCount !== 1 ? 's' : ''}
@@ -263,15 +265,41 @@ export default function ShootDayCard({
                   </div>
                 )}
 
-                <div className="field-group">
-                  <label className="field-label">Location</label>
-                  <input
-                    className="field-input"
-                    type="text"
-                    value={day.location}
-                    placeholder="Stage 4A, Prague"
-                    onChange={e => onUpdate(day.id, 'location', e.target.value)}
-                  />
+                <div className="field-group field-full">
+                  <label className="field-label">Location(s)</label>
+                  {(day.locations ?? [day.location ?? '']).map((loc, i) => (
+                    <div key={i} className="location-row">
+                      <input
+                        className="field-input"
+                        type="text"
+                        value={loc}
+                        placeholder={i === 0 ? 'Stage 4A, Prague…' : 'Additional location…'}
+                        onChange={e => {
+                          const next = [...(day.locations ?? [day.location ?? ''])]
+                          next[i] = e.target.value
+                          onUpdate(day.id, 'locations', next)
+                        }}
+                      />
+                      {(day.locations ?? []).length > 1 && (
+                        <button
+                          className="btn-icon danger location-remove"
+                          title="Remove location"
+                          onClick={() => {
+                            const next = [...day.locations]
+                            next.splice(i, 1)
+                            onUpdate(day.id, 'locations', next)
+                          }}
+                        >✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    className="btn btn-secondary btn-sm btn-add-location"
+                    onClick={() => {
+                      const current = day.locations ?? [day.location ?? '']
+                      onUpdate(day.id, 'locations', [...current, ''])
+                    }}
+                  >+ Add location</button>
                 </div>
 
                 <div className="field-group">

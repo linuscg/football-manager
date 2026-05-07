@@ -197,7 +197,7 @@ export default function CallSheet({ store }) {
         >
           {shootingDays.map(d => (
             <option key={d.id} value={d.id}>
-              Day {d.dayNumber} — {formatDateShort(d.date)}{d.location ? ` · ${d.location}` : ''}
+              {`Day ${d.dayNumber} — ${formatDateShort(d.date)}${(d.locations ?? [d.location]).filter(Boolean)[0] ? ` · ${(d.locations ?? [d.location]).filter(Boolean)[0]}` : ''}`}
             </option>
           ))}
         </select>
@@ -257,22 +257,33 @@ export default function CallSheet({ store }) {
             </div>
 
             {/* ── Info strip ──────────────────────────────────────────────── */}
-            {(day.location || day.unitBase) && (
-              <div className="cs-info-strip">
-                {day.location && (
-                  <div className="cs-info-item">
-                    <span className="cs-info-label">Location</span>
-                    <span className="cs-info-value">{day.location}</span>
-                  </div>
-                )}
-                {day.unitBase && (
-                  <div className="cs-info-item">
-                    <span className="cs-info-label">Unit Base</span>
-                    <span className="cs-info-value">{day.unitBase}</span>
-                  </div>
-                )}
-              </div>
-            )}
+            {(() => {
+              const locs = (day.locations ?? [day.location]).filter(Boolean)
+              const showStrip = locs.length > 0 || day.unitBase
+              if (!showStrip) return null
+              return (
+                <div className="cs-info-strip">
+                  {locs.length === 1 && (
+                    <div className="cs-info-item">
+                      <span className="cs-info-label">Location</span>
+                      <span className="cs-info-value">{locs[0]}</span>
+                    </div>
+                  )}
+                  {locs.length > 1 && locs.map((loc, i) => (
+                    <div key={i} className="cs-info-item">
+                      <span className="cs-info-label">Location {i + 1}</span>
+                      <span className="cs-info-value">{loc}</span>
+                    </div>
+                  ))}
+                  {day.unitBase && (
+                    <div className="cs-info-item">
+                      <span className="cs-info-label">Unit Base</span>
+                      <span className="cs-info-value">{day.unitBase}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* ── Scenes ──────────────────────────────────────────────────── */}
             {day.scenes.length > 0 && (
