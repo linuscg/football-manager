@@ -264,13 +264,6 @@ export default function CallSheet({ store, castMembers = [] }) {
   return (
     <div className="cs-wrap">
 
-      {/* ── Jump to today floating button ──────────────────────────────────── */}
-      {todayDay && !isOnToday && (
-        <button className="schedule-jump-today no-print" onClick={() => setSelectedId(todayDay.id)}>
-          Jump to today
-        </button>
-      )}
-
       {/* ── Day selector bar ───────────────────────────────────────────────── */}
       <div className="cs-selector no-print">
         <button
@@ -317,6 +310,14 @@ export default function CallSheet({ store, castMembers = [] }) {
           Next →
         </button>
 
+        <button
+          className="pm-btn pm-btn--ghost pm-btn--sm"
+          disabled={!todayDay || isOnToday}
+          onClick={() => todayDay && setSelectedId(todayDay.id)}
+          title={todayDay ? (isOnToday ? 'Already on today' : 'Jump to today\'s day') : 'No day scheduled for today'}
+        >
+          Open Today
+        </button>
         <button
           className="pm-btn pm-btn--primary pm-btn--sm cs-print-btn"
           onClick={() => window.print()}
