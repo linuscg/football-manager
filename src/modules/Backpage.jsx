@@ -14,12 +14,14 @@ function addMins(timeStr, mins) {
   return `${String(Math.floor(norm / 60)).padStart(2, '0')}:${String(norm % 60).padStart(2, '0')}`
 }
 
-function calcWrapTime(generalCall, dayType, production) {
+function calcWrapTime(generalCall, dayType, production, lunchIncluded = true) {
   if (!generalCall) return null
   const type  = dayType || production.defaultDayType || 'SWD'
-  const lunch = type === 'CWD'  ? (production.cwdLunch  ?? 0)
-              : type === 'SCWD' ? (production.scwdLunch ?? 30)
-              :                   (production.swdLunch  ?? 60)
+  const lunch = lunchIncluded
+    ? (type === 'CWD'  ? (production.cwdLunch  ?? 0)
+     : type === 'SCWD' ? (production.scwdLunch ?? 30)
+     :                   (production.swdLunch  ?? 60))
+    : 0
   return addMins(generalCall, (production.workHours ?? 10) * 60 + lunch)
 }
 
@@ -208,8 +210,9 @@ export default function Backpage({ store }) {
   const { members }               = useFulltimeCrewStore()
   const {
     loading: bpLoading,
-    getDeptSetting,       upsertDeptSetting,
-    getMemberOverride,    upsertMemberOverride,
+    getDeptSetting,    upsertDeptSetting,
+    getDaySetting,     upsertDaySetting,
+    getMemberOverride, upsertMemberOverride,
   } = useBackpageStore()
 
   const [exporting, setExporting] = useState(false)
@@ -241,8 +244,11 @@ export default function Backpage({ store }) {
   }
 
   const day              = shootDays.find(d => d.id === selectedDayId) ?? null
-  const wrapTime         = day ? calcWrapTime(day.generalCall, day.dayType, production) : null
+  const daySetting       = day ? getDaySetting(day.id) : null
+  const lunchIncluded    = daySetting?.lunchIncluded ?? true
+  const scenechronize    = daySetting?.scenechronize  ?? false
   const effectiveDayType = day ? (day.dayType || production.defaultDayType || 'SWD') : null
+  const wrapTime         = day ? calcWrapTime(day.generalCall, day.dayType, production, lunchIncluded) : null
 
   // ── Group fulltime crew by department ──────────────────────────────────
   const FALLBACK = 'Unassigned'
@@ -419,16 +425,37 @@ export default function Backpage({ store }) {
             <div className="bp-time-label">Hours</div>
             <div className="bp-time-value">{production.workHours ?? 10}h</div>
           </div>
-          {wrapTime && (
-            <div className="bp-time-block">
-              <div className="bp-time-label">Lunch</div>
-              <div className="bp-time-value">
-                {effectiveDayType === 'CWD'  ? (production.cwdLunch  ?? 0)  + ' min'
-               : effectiveDayType === 'SCWD' ? (production.scwdLunch ?? 30) + ' min'
-               :                               (production.swdLunch  ?? 60) + ' min'}
-              </div>
-            </div>
-          )}
+          <div className="bp-time-block">
+            <div className="bp-time-label">Lunch</div>
+            <label className="bp-check-toggle">
+              <input
+                type="checkbox"
+                checked={lunchIncluded}
+                onChange={e => upsertDaySetting(day.id, 'lunchIncluded', e.target.checked)}
+              />
+              <span className={lunchIncluded ? 'bp-time-value bp-check-val' : 'bp-time-value bp-check-val is-off'}>
+                {lunchIncluded
+                  ? (effectiveDayType === 'CWD'  ? (production.cwdLunch  ?? 0)
+                   : effectiveDayType === 'SCWD' ? (production.scwdLunch ?? 30)
+                   :                               (production.swdLunch  ?? 60)) + ' min'
+                  : 'Off'}
+              </span>
+            </label>
+          </div>
+          <div className="bp-time-divider" />
+          <div className="bp-time-block">
+            <div className="bp-time-label">Scenechronize</div>
+            <label className="bp-check-toggle">
+              <input
+                type="checkbox"
+                checked={scenechronize}
+                onChange={e => upsertDaySetting(day.id, 'scenechronize', e.target.checked)}
+              />
+              <span className={scenechronize ? 'bp-time-value bp-check-val is-on' : 'bp-time-value bp-check-val is-off'}>
+                {scenechronize ? 'Active' : 'Off'}
+              </span>
+            </label>
+          </div>
           <div className="bp-time-spacer" />
           {!day.generalCall && (
             <div className="bp-time-warn">⚠ No general call set — set it in Schedule</div>

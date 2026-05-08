@@ -101,3 +101,14 @@ create table if not exists backpage_member_overrides (
   created_at    timestamptz default now()
 );
 alter publication supabase_realtime add table backpage_member_overrides;
+
+-- Per-day backpage settings: lunch toggle + scenechronize flag
+create table if not exists backpage_day_settings (
+  id              uuid primary key default gen_random_uuid(),
+  production_id   uuid references production(id) on delete cascade,
+  day_id          uuid references shoot_days(id) on delete cascade,
+  lunch_included  boolean not null default true,
+  scenechronize   boolean not null default false,
+  created_at      timestamptz default now()
+);
+alter publication supabase_realtime add table backpage_day_settings;

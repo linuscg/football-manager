@@ -4778,3 +4778,33 @@ select.pm-input { cursor: pointer; }
   line-height: 1.6;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Backpage checkbox toggles (time strip) ────────────────────── */
+.bp-check-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+}
+.bp-check-toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--pm-accent, #3b82f6);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin: 0;
+}
+.bp-check-val {
+  font-size: 18px !important;
+  line-height: 1 !important;
+  transition: color 0.15s;
+}
+.bp-check-val.is-off {
+  color: #cbd5e1 !important;
+  font-size: 14px !important;
+}
+.bp-check-val.is-on {
+  color: #16a34a !important;
+}

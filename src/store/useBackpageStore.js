@@ -24,11 +24,21 @@ function mapOverride(row) {
   }
 }
 
+function mapDaySetting(row) {
+  return {
+    id:            row.id,
+    dayId:         row.day_id,
+    lunchIncluded: row.lunch_included ?? true,
+    scenechronize: row.scenechronize  ?? false,
+  }
+}
+
 // ─── Store hook ───────────────────────────────────────────────────────────────
 
 export function useBackpageStore() {
   const [deptSettings,    setDeptSettings]    = useState([])
   const [memberOverrides, setMemberOverrides] = useState([])
+  const [daySettings,     setDaySettings]     = useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
 
@@ -36,14 +46,17 @@ export function useBackpageStore() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
     try {
-      const [settingsRes, overridesRes] = await Promise.all([
+      const [settingsRes, overridesRes, daySettingsRes] = await Promise.all([
         supabase.from('backpage_dept_settings')    .select('*').eq('production_id', prodId),
         supabase.from('backpage_member_overrides') .select('*').eq('production_id', prodId),
+        supabase.from('backpage_day_settings')     .select('*').eq('production_id', prodId),
       ])
-      if (settingsRes.error)  throw settingsRes.error
-      if (overridesRes.error) throw overridesRes.error
-      setDeptSettings((settingsRes.data ?? []).map(mapSetting))
+      if (settingsRes.error)    throw settingsRes.error
+      if (overridesRes.error)   throw overridesRes.error
+      if (daySettingsRes.error) throw daySettingsRes.error
+      setDeptSettings((settingsRes.data    ?? []).map(mapSetting))
       setMemberOverrides((overridesRes.data ?? []).map(mapOverride))
+      setDaySettings((daySettingsRes.data   ?? []).map(mapDaySetting))
       setError(null)
     } catch (err) {
       console.error('[backpage store] loadAll:', err)
@@ -59,6 +72,7 @@ export function useBackpageStore() {
       setLoading(true)
       setDeptSettings([])
       setMemberOverrides([])
+      setDaySettings([])
       loadAll()
     })
     const ch1 = supabase
@@ -69,7 +83,11 @@ export function useBackpageStore() {
       .channel('backpage_override_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'backpage_member_overrides' }, loadAll)
       .subscribe()
-    return () => { unsub(); supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
+    const ch3 = supabase
+      .channel('backpage_day_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'backpage_day_settings' }, loadAll)
+      .subscribe()
+    return () => { unsub(); supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dept settings ─────────────────────────────────────────────────────────
@@ -99,6 +117,35 @@ export function useBackpageStore() {
         .from('backpage_dept_settings')
         .insert({ id: newId, production_id: prodId, day_id: dayId, department, pre_call_mins: preCallMins, derig_mins: derigMins })
       if (err) { console.error('[backpage store] insert dept:', err); loadAll() }
+    }
+  }
+
+  // ── Day settings (lunch toggle, scenechronize) ────────────────────────────
+
+  function getDaySetting(dayId) {
+    return daySettings.find(s => s.dayId === dayId)
+      ?? { lunchIncluded: true, scenechronize: false }
+  }
+
+  async function upsertDaySetting(dayId, field, value) {
+    const prodId   = getCurrentProductionId()
+    const existing = daySettings.find(s => s.dayId === dayId)
+
+    if (existing) {
+      setDaySettings(ss => ss.map(s => s.id === existing.id ? { ...s, [field]: value } : s))
+      const col = field === 'lunchIncluded' ? 'lunch_included' : 'scenechronize'
+      const { error: err } = await supabase
+        .from('backpage_day_settings').update({ [col]: value }).eq('id', existing.id)
+      if (err) { console.error('[backpage store] update day setting:', err); loadAll() }
+    } else {
+      const newId        = crypto.randomUUID()
+      const lunchIncluded = field === 'lunchIncluded' ? value : true
+      const scenechronize = field === 'scenechronize'  ? value : false
+      setDaySettings(ss => [...ss, { id: newId, dayId, lunchIncluded, scenechronize }])
+      const { error: err } = await supabase
+        .from('backpage_day_settings')
+        .insert({ id: newId, production_id: prodId, day_id: dayId, lunch_included: lunchIncluded, scenechronize })
+      if (err) { console.error('[backpage store] insert day setting:', err); loadAll() }
     }
   }
 
@@ -142,8 +189,9 @@ export function useBackpageStore() {
   }
 
   return {
-    deptSettings, memberOverrides, loading, error,
-    getDeptSetting,     upsertDeptSetting,
-    getMemberOverride,  upsertMemberOverride,
+    deptSettings, memberOverrides, daySettings, loading, error,
+    getDeptSetting,    upsertDeptSetting,
+    getDaySetting,     upsertDaySetting,
+    getMemberOverride, upsertMemberOverride,
   }
 }
