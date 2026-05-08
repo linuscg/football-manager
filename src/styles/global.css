@@ -2084,6 +2084,17 @@ textarea.field-input {
 
 .budget-section-body {
   padding: 0 0 4px;
+  max-height: 480px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Keep column headers pinned while scrolling */
+.budget-section-body .budget-th {
+  position: sticky;
+  top: 0;
+  background: #f9fafb;
+  z-index: 1;
 }
 
 /* ── Groups ───────────────────────────────────────────────── */
