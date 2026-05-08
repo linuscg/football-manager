@@ -56,6 +56,8 @@ function dayOptionLabel(d) {
 
 // ─── CrewRow ──────────────────────────────────────────────────────────────────
 
+const STATUS_OPTIONS = ['work', 'O/C', 'SPL', 'N/A', 'PREP']
+
 function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMemberOverride }) {
   const override = getMemberOverride(dayId, m.id)
 
@@ -73,54 +75,85 @@ function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMember
   const lunch         = override?.lunch         ?? true
   const scenechronize = override?.scenechronize ?? false
   const exclude       = override?.exclude       ?? false
+  const status        = override?.status        ?? 'work'
+
+  const isOffWork = status !== 'work'   // any non-work status dims the row
+  const isNA      = status === 'N/A'   // N/A additionally strikes through
+
+  const rowClass = [
+    'bp-crew-row',
+    (isOffWork || exclude) ? 'bp-crew-row--dimmed' : '',
+    isNA                   ? 'bp-crew-row--na'     : '',
+  ].filter(Boolean).join(' ')
 
   return (
-    <tr className={`bp-crew-row${exclude ? ' bp-crew-row--excluded' : ''}`}>
+    <tr className={rowClass}>
       <td className="bp-td bp-td-name">{m.name || <span className="bp-empty-name">—</span>}</td>
       <td className="bp-td bp-td-role">{m.role}</td>
 
-      {/* Call time — editable per member */}
-      <td className="bp-td bp-td-time">
-        <div className="bp-time-cell">
-          <input
-            className={`bp-time-input${hasCallOv ? ' is-override' : ''}`}
-            value={lCall}
-            placeholder={deptCall || '—'}
-            onChange={e => setLCall(e.target.value)}
-            onBlur={commitCall}
-            title={hasCallOv ? 'Override active — clear to use dept default' : 'Type to override'}
-          />
-          {hasCallOv && (
-            <button
-              className="bp-clear-btn"
-              title="Clear override"
-              onMouseDown={e => e.preventDefault()}
-              onClick={() => { setLCall(''); upsertMemberOverride(dayId, m.id, 'callTime', '') }}
-            >×</button>
-          )}
-        </div>
+      {/* Status dropdown */}
+      <td className="bp-td bp-td-status">
+        <select
+          className={`bp-status-select${isOffWork ? ' is-offwork' : ''}`}
+          value={status}
+          onChange={e => upsertMemberOverride(dayId, m.id, 'status', e.target.value)}
+        >
+          {STATUS_OPTIONS.map(opt => (
+            <option key={opt} value={opt}>
+              {opt === 'work' ? 'Work' : opt}
+            </option>
+          ))}
+        </select>
       </td>
 
-      {/* Wrap time — editable per member */}
+      {/* Call time — shows status label when off-work, editable when working */}
       <td className="bp-td bp-td-time">
-        <div className="bp-time-cell">
-          <input
-            className={`bp-time-input${hasWrapOv ? ' is-override' : ''}`}
-            value={lWrap}
-            placeholder={deptWrap || '—'}
-            onChange={e => setLWrap(e.target.value)}
-            onBlur={commitWrap}
-            title={hasWrapOv ? 'Override active — clear to use dept default' : 'Type to override'}
-          />
-          {hasWrapOv && (
-            <button
-              className="bp-clear-btn"
-              title="Clear override"
-              onMouseDown={e => e.preventDefault()}
-              onClick={() => { setLWrap(''); upsertMemberOverride(dayId, m.id, 'wrapTime', '') }}
-            >×</button>
-          )}
-        </div>
+        {isOffWork ? (
+          <span className="bp-status-label">{status}</span>
+        ) : (
+          <div className="bp-time-cell">
+            <input
+              className={`bp-time-input${hasCallOv ? ' is-override' : ''}`}
+              value={lCall}
+              placeholder={deptCall || '—'}
+              onChange={e => setLCall(e.target.value)}
+              onBlur={commitCall}
+              title={hasCallOv ? 'Override active — clear to use dept default' : 'Type to override'}
+            />
+            {hasCallOv && (
+              <button
+                className="bp-clear-btn"
+                title="Clear override"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => { setLCall(''); upsertMemberOverride(dayId, m.id, 'callTime', '') }}
+              >×</button>
+            )}
+          </div>
+        )}
+      </td>
+
+      {/* Wrap time — hidden when off-work */}
+      <td className="bp-td bp-td-time">
+        {!isOffWork && (
+          <div className="bp-time-cell">
+            <input
+              className={`bp-time-input${hasWrapOv ? ' is-override' : ''}`}
+              value={lWrap}
+              placeholder={deptWrap || '—'}
+              onChange={e => setLWrap(e.target.value)}
+              onBlur={commitWrap}
+              title={hasWrapOv ? 'Override active — clear to use dept default' : 'Type to override'}
+            />
+            {hasWrapOv && (
+              <button
+                className="bp-clear-btn"
+                title="Clear override"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => { setLWrap(''); upsertMemberOverride(dayId, m.id, 'wrapTime', '') }}
+              >×</button>
+            )}
+          </div>
+        )}
       </td>
 
       {/* Exclude checkbox */}
@@ -242,6 +275,7 @@ function DeptSection({
           <tr>
             <th className="bp-th">Name</th>
             <th className="bp-th">Role</th>
+            <th className="bp-th bp-th-status">Status</th>
             <th className="bp-th bp-th-time">Call</th>
             <th className="bp-th bp-th-time">Wrap</th>
             <th className="bp-th bp-th-check" title="Exclude from backpage and export">Ex</th>
@@ -330,6 +364,10 @@ export default function Backpage({ store }) {
     else     localStorage.removeItem(BP_DAY_KEY)
   }
 
+  const currentIdx = allDays.findIndex(d => d.id === selectedDayId)
+  const prevDay    = currentIdx > 0                    ? allDays[currentIdx - 1] : null
+  const nextDay    = currentIdx < allDays.length - 1   ? allDays[currentIdx + 1] : null
+
   const day              = shootDays.find(d => d.id === selectedDayId) ?? null
   const daySetting       = day ? getDaySetting(day.id) : null
   const lunchIncluded    = daySetting?.lunchIncluded ?? true
@@ -408,12 +446,15 @@ export default function Backpage({ store }) {
             name: key,
             members: (sourceMap[dept] ?? []).map(m => {
               const ov = getMemberOverride(day.id, m.id)
+              const st        = ov?.status ?? 'work'
+              const isOffWork = st !== 'work'
               return {
                 name:     m.name,
                 role:     m.role,
-                callTime: ov?.callTime || deptCall || '',
-                wrapTime: ov?.wrapTime || deptWrap || '',
-                excluded: ov?.exclude  ?? false,
+                callTime: isOffWork ? st   : (ov?.callTime || deptCall || ''),
+                wrapTime: isOffWork ? ''   : (ov?.wrapTime || deptWrap || ''),
+                excluded: ov?.exclude ?? false,
+                status:   st,
               }
             }),
           }
@@ -500,6 +541,12 @@ export default function Backpage({ store }) {
       <div className="bp-selector-bar">
         <div className="bp-selector-l">
           <label className="bp-selector-label">Day</label>
+          <button
+            className="pm-btn pm-btn--ghost pm-btn--sm bp-nav-btn"
+            onClick={() => prevDay && setSelectedDayId(prevDay.id)}
+            disabled={!prevDay}
+            title={prevDay ? dayOptionLabel(prevDay) : 'No previous day'}
+          >‹</button>
           <select
             className="bp-day-select"
             value={selectedDayId ?? ''}
@@ -509,6 +556,12 @@ export default function Backpage({ store }) {
               <option key={d.id} value={d.id}>{dayOptionLabel(d)}</option>
             ))}
           </select>
+          <button
+            className="pm-btn pm-btn--ghost pm-btn--sm bp-nav-btn"
+            onClick={() => nextDay && setSelectedDayId(nextDay.id)}
+            disabled={!nextDay}
+            title={nextDay ? dayOptionLabel(nextDay) : 'No next day'}
+          >›</button>
         </div>
 
         {/* Info pills */}

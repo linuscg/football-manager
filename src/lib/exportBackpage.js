@@ -89,6 +89,7 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
           call:     m.callTime || '',
           wrap:     m.wrapTime || '',
           excluded: m.excluded ?? false,
+          status:   m.status   ?? 'work',
         })
       }
     }
@@ -143,21 +144,22 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
           }
           merge(ri, base, ri, base + 1)
         } else {
-          // Excluded members render in muted grey
-          const ex = item?.excluded ?? false
+          const ex       = (item?.excluded ?? false) || (item?.status && item.status !== 'work')
+          const isNA     = item?.status === 'N/A'
+          const fillRgb  = ex ? 'F3F4F6' : C.white
+
           for (let c = base; c < base + 4; c++) {
             const isTime = (c === base + 2 || c === base + 3)
+            const baseSz = c === base + 1 ? 8.5 : 9
+
             sty(ri, c, {
               font: ex
-                ? { sz: c === base + 2 ? 9 : (c === base + 1 ? 8.5 : 9),
-                    italic: true,
-                    color: { rgb: 'AAAAAA' },
-                    name: 'Calibri' }
+                ? { sz: baseSz, italic: true, strike: isNA, color: { rgb: 'AAAAAA' }, name: 'Calibri' }
                 : c === base     ? { sz: 9,   color: { rgb: '111827' }, name: 'Calibri' }
                 : c === base + 1 ? { sz: 8.5, color: { rgb: '4B5563' }, name: 'Calibri' }
                 : c === base + 2 ? { bold: true, sz: 9, color: { rgb: '111827' }, name: 'Calibri' }
                 :                  { sz: 9, color: { rgb: '4B5563' }, name: 'Calibri' },
-              fill:      { patternType: 'solid', fgColor: { rgb: ex ? 'F3F4F6' : C.white } },
+              fill:      { patternType: 'solid', fgColor: { rgb: fillRgb } },
               border:    thinBorder(C.border),
               alignment: isTime
                 ? { horizontal: 'center', vertical: 'center' }

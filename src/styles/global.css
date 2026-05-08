@@ -4840,17 +4840,68 @@ select.pm-input { cursor: pointer; }
   accent-color: #ef4444;   /* red tint for the exclude checkbox */
 }
 
-/* ── Excluded crew row ─────────────────────────────────────────── */
-.bp-crew-row--excluded {
+/* ── Status column ─────────────────────────────────────────────── */
+.bp-th-status { width: 90px; }
+.bp-td-status { width: 90px; }
+
+.bp-status-select {
+  font-size: 11.5px;
+  font-family: inherit;
+  font-weight: 500;
+  color: #374151;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 4px;
+  cursor: pointer;
+  width: 100%;
+  transition: border-color 0.12s, background 0.12s;
+}
+.bp-status-select:hover {
+  border-color: #d1d5db;
   background: #f9fafb;
 }
-.bp-crew-row--excluded .bp-td {
-  color: #9ca3af;
-  opacity: 0.6;
+.bp-status-select:focus {
+  outline: none;
+  border-color: var(--pm-accent, #3b82f6);
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.12);
 }
-.bp-crew-row--excluded .bp-td-name {
+.bp-status-select.is-offwork {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Label shown in Call cell for non-work statuses */
+.bp-status-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #9ca3af;
+  letter-spacing: 0.04em;
+}
+
+/* ── Dimmed crew row (exclude checkbox OR non-work status) ──────── */
+.bp-crew-row--dimmed {
+  background: #f9fafb;
+}
+.bp-crew-row--dimmed .bp-td {
+  color: #9ca3af;
+  opacity: 0.65;
+}
+
+/* ── N/A status — strikethrough on all cells ────────────────────── */
+.bp-crew-row--na .bp-td {
   text-decoration: line-through;
   text-decoration-color: #d1d5db;
+}
+
+/* ── Prev / next nav buttons in day selector ────────────────────── */
+.bp-nav-btn {
+  padding: 4px 8px;
+  font-size: 15px;
+  line-height: 1;
+  min-width: 28px;
 }
 
 /* Select-all label in dept table header */

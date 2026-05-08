@@ -126,3 +126,8 @@ alter table backpage_member_overrides
 -- Exclude flag: when true the person is greyed out on the backpage and in the export.
 alter table backpage_member_overrides
   add column if not exists exclude boolean not null default false;
+
+-- Status: work (default) | O/C | SPL | N/A | PREP
+-- Non-work statuses dim the row; N/A additionally strikes through.
+alter table backpage_member_overrides
+  add column if not exists status text not null default 'work';
