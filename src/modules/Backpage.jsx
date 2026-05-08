@@ -56,7 +56,15 @@ function dayOptionLabel(d) {
 
 // ─── CrewRow ──────────────────────────────────────────────────────────────────
 
-const STATUS_OPTIONS = ['work', 'O/C', 'SPL', 'N/A', 'PREP', 'MAIN']
+const STATUS_OPTIONS = ['work', 'O/C', 'SPL', 'N/A', 'PREP', 'MAIN', 'OTHER']
+
+// Maps a sub-unit dayCategory to the label written on the main day
+// when the coordinator moves someone from main to that unit.
+function subUnitLabel(dayCategory) {
+  if (dayCategory === 'prep')     return 'PREP'
+  if (dayCategory === 'other')    return 'OTHER'
+  return 'SPL'  // splinter (default for all other sub-unit categories)
+}
 
 /**
  * Derive the effective (displayed) status for a crew member, cross-referencing
@@ -89,7 +97,8 @@ function getEffectiveStatus(dayId, dayCategory, sameDateDays, memberId, ownOverr
       // only auto-derive when sub has no call-time override (a call time means
       // the coordinator explicitly put them on sub)
       if (mainSt === 'work' && ownSt === 'work' && !ownOverride?.callTime) return 'MAIN'
-      // mainSt is SPL / PREP → sent to sub; use own status
+      // mainSt is SPL / PREP / OTHER → sent to a sub unit; use own status
+      if (mainSt === 'SPL' || mainSt === 'PREP' || mainSt === 'OTHER') return ownSt
       return ownSt
     }
   }
@@ -144,13 +153,40 @@ function CrewRow({
       <td className="bp-td bp-td-name">{m.name || <span className="bp-empty-name">—</span>}</td>
       <td className="bp-td bp-td-role">{m.role}</td>
 
-      {/* Status dropdown — shows derived status; writes to own-day override */}
+      {/* Status dropdown — shows derived status; bidirectional writes on sub-unit pages */}
       <td className="bp-td bp-td-status">
         <select
           className={`bp-status-select${isOffWork ? ' is-offwork' : ''}`}
           value={status}
-          title={status === 'MAIN' ? 'Auto-derived: on main unit (set from main day)' : undefined}
-          onChange={e => upsertMemberOverride(dayId, m.id, 'status', e.target.value)}
+          title={status === 'MAIN' ? 'Auto-derived: on main unit — change to Work to move here, or set SPL/PREP/OTHER on the main day' : undefined}
+          onChange={e => {
+            const newVal = e.target.value
+
+            // ── Bidirectional logic for sub-unit pages ─────────────────────
+            if (dayCategory !== 'main' && sameDateDays?.length > 0) {
+              const mainDay = sameDateDays.find(d => d.dayCategory === 'main')
+              if (mainDay) {
+                const mainSt = getMemberOverride(mainDay.id, m.id)?.status ?? 'work'
+
+                // Displayed as MAIN (main='work') and user picks 'Work'
+                // → move them to this sub unit by writing the sub label on MAIN
+                if (mainSt === 'work' && newVal === 'work') {
+                  upsertMemberOverride(mainDay.id, m.id, 'status', subUnitLabel(dayCategory))
+                  return  // own sub-day stays default (no row = 'work')
+                }
+
+                // User explicitly picks 'MAIN'
+                // → put them back on main by clearing the sub label from MAIN
+                if (newVal === 'MAIN') {
+                  upsertMemberOverride(mainDay.id, m.id, 'status', 'work')
+                  return  // own sub-day stays default
+                }
+              }
+            }
+
+            // Default: N/A, O/C, SPL, PREP, OTHER, or any status on own day
+            upsertMemberOverride(dayId, m.id, 'status', newVal)
+          }}
         >
           {STATUS_OPTIONS.map(opt => (
             <option key={opt} value={opt}>
@@ -396,9 +432,11 @@ export default function Backpage({ store }) {
   const [exporting, setExporting] = useState(false)
   const [summaryCopied, setSummaryCopied] = useState(false)
 
-  // ── All non-non-shoot days (includes prep, splinter, main) ─────────────
+  // ── All productive days (main + splinter + prep + other) ──────────────
+  // Prep and other days have isNonShootDay=true in the DB, but they still
+  // need a backpage, so we include them explicitly by dayCategory.
   const allDays = shootDays
-    .filter(d => !d.isNonShootDay)
+    .filter(d => !d.isNonShootDay || d.dayCategory === 'prep' || d.dayCategory === 'other')
     .sort((a, b) => (a.date < b.date ? -1 : 1))
 
   const today       = new Date().toISOString().slice(0, 10)
