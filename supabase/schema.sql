@@ -89,3 +89,15 @@ create table if not exists backpage_dept_settings (
   created_at    timestamptz default now()
 );
 alter publication supabase_realtime add table backpage_dept_settings;
+
+-- Per-member call/wrap overrides (Crew Times module — Step 3 extension)
+create table if not exists backpage_member_overrides (
+  id            uuid primary key default gen_random_uuid(),
+  production_id uuid references production(id) on delete cascade,
+  day_id        uuid references shoot_days(id) on delete cascade,
+  member_id     uuid references fulltime_crew(id) on delete cascade,
+  call_time     text,
+  wrap_time     text,
+  created_at    timestamptz default now()
+);
+alter publication supabase_realtime add table backpage_member_overrides;

@@ -4610,3 +4610,90 @@ select.pm-input { cursor: pointer; }
 .bp-empty-icon  { font-size: 40px; opacity: 0.35; }
 .bp-empty-title { font-size: 14px; font-weight: 600; color: #6b7280; }
 .bp-empty-sub   { font-size: 12.5px; text-align: center; max-width: 320px; }
+
+/* ── Backpage additions: hint bar, actions, member time inputs ── */
+
+.bp-hint {
+  padding: 6px 20px;
+  font-size: 11px;
+  color: #9ca3af;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+.bp-selector-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.bp-info-pill--cat {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #b45309;
+  font-weight: 700;
+}
+
+/* ── Per-member time input cells ───────────────────────────────── */
+.bp-time-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.bp-time-input {
+  width: 66px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  color: #374151;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 5px;
+  transition: border-color 0.12s, background 0.12s;
+}
+.bp-time-input:hover {
+  border-color: #d1d5db;
+  background: #f9fafb;
+}
+.bp-time-input:focus {
+  outline: none;
+  border-color: var(--pm-accent, #3b82f6);
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.12);
+}
+.bp-time-input.is-override {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.bp-time-input::placeholder {
+  color: #cbd5e1;
+  font-weight: 400;
+}
+
+.bp-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  font-size: 10px;
+  line-height: 1;
+  color: #9ca3af;
+  background: #e5e7eb;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.bp-clear-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}

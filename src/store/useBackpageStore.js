@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 
-// ─── Row mapper ───────────────────────────────────────────────────────────────
+// ─── Row mappers ──────────────────────────────────────────────────────────────
 
 function mapSetting(row) {
   return {
@@ -14,10 +14,21 @@ function mapSetting(row) {
   }
 }
 
+function mapOverride(row) {
+  return {
+    id:       row.id,
+    dayId:    row.day_id,
+    memberId: row.member_id,
+    callTime: row.call_time ?? null,
+    wrapTime: row.wrap_time ?? null,
+  }
+}
+
 // ─── Store hook ───────────────────────────────────────────────────────────────
 
 export function useBackpageStore() {
-  const [deptSettings, setDeptSettings] = useState([])
+  const [deptSettings,    setDeptSettings]    = useState([])
+  const [memberOverrides, setMemberOverrides] = useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
 
@@ -25,12 +36,14 @@ export function useBackpageStore() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
     try {
-      const { data, error: err } = await supabase
-        .from('backpage_dept_settings')
-        .select('*')
-        .eq('production_id', prodId)
-      if (err) throw err
-      setDeptSettings((data ?? []).map(mapSetting))
+      const [settingsRes, overridesRes] = await Promise.all([
+        supabase.from('backpage_dept_settings')    .select('*').eq('production_id', prodId),
+        supabase.from('backpage_member_overrides') .select('*').eq('production_id', prodId),
+      ])
+      if (settingsRes.error)  throw settingsRes.error
+      if (overridesRes.error) throw overridesRes.error
+      setDeptSettings((settingsRes.data ?? []).map(mapSetting))
+      setMemberOverrides((overridesRes.data ?? []).map(mapOverride))
       setError(null)
     } catch (err) {
       console.error('[backpage store] loadAll:', err)
@@ -45,41 +58,38 @@ export function useBackpageStore() {
     const unsub = onProductionChange(() => {
       setLoading(true)
       setDeptSettings([])
+      setMemberOverrides([])
       loadAll()
     })
-    const channel = supabase
+    const ch1 = supabase
       .channel('backpage_dept_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'backpage_dept_settings' }, loadAll)
       .subscribe()
-    return () => { unsub(); supabase.removeChannel(channel) }
+    const ch2 = supabase
+      .channel('backpage_override_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'backpage_member_overrides' }, loadAll)
+      .subscribe()
+    return () => { unsub(); supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Get settings for a specific day + department ──────────────────────────
+  // ── Dept settings ─────────────────────────────────────────────────────────
 
   function getDeptSetting(dayId, department) {
     return deptSettings.find(s => s.dayId === dayId && s.department === department)
       ?? { preCallMins: 0, derigMins: 0 }
   }
 
-  // ── Upsert (create or update) a dept setting ──────────────────────────────
-
   async function upsertDeptSetting(dayId, department, field, value) {
-    const prodId = getCurrentProductionId()
+    const prodId   = getCurrentProductionId()
     const existing = deptSettings.find(s => s.dayId === dayId && s.department === department)
 
     if (existing) {
-      // Optimistic update
-      setDeptSettings(ss => ss.map(s =>
-        s.id === existing.id ? { ...s, [field]: value } : s
-      ))
+      setDeptSettings(ss => ss.map(s => s.id === existing.id ? { ...s, [field]: value } : s))
       const col = field === 'preCallMins' ? 'pre_call_mins' : 'derig_mins'
       const { error: err } = await supabase
-        .from('backpage_dept_settings')
-        .update({ [col]: value })
-        .eq('id', existing.id)
-      if (err) { console.error('[backpage store] update:', err); loadAll() }
+        .from('backpage_dept_settings').update({ [col]: value }).eq('id', existing.id)
+      if (err) { console.error('[backpage store] update dept:', err); loadAll() }
     } else {
-      // Insert new row
       const newId       = crypto.randomUUID()
       const preCallMins = field === 'preCallMins' ? value : 0
       const derigMins   = field === 'derigMins'   ? value : 0
@@ -87,19 +97,53 @@ export function useBackpageStore() {
       setDeptSettings(ss => [...ss, newSetting])
       const { error: err } = await supabase
         .from('backpage_dept_settings')
-        .insert({
-          id: newId, production_id: prodId,
-          day_id: dayId, department,
-          pre_call_mins: preCallMins,
-          derig_mins:    derigMins,
-        })
-      if (err) { console.error('[backpage store] insert:', err); loadAll() }
+        .insert({ id: newId, production_id: prodId, day_id: dayId, department, pre_call_mins: preCallMins, derig_mins: derigMins })
+      if (err) { console.error('[backpage store] insert dept:', err); loadAll() }
+    }
+  }
+
+  // ── Member overrides ──────────────────────────────────────────────────────
+
+  function getMemberOverride(dayId, memberId) {
+    return memberOverrides.find(o => o.dayId === dayId && o.memberId === memberId) ?? null
+  }
+
+  async function upsertMemberOverride(dayId, memberId, field, value) {
+    const prodId   = getCurrentProductionId()
+    const existing = memberOverrides.find(o => o.dayId === dayId && o.memberId === memberId)
+    const norm     = value?.trim() || null   // empty string → null
+
+    if (existing) {
+      const updated = { ...existing, [field]: norm }
+      // Both fields null → delete the row entirely
+      if (updated.callTime === null && updated.wrapTime === null) {
+        setMemberOverrides(oo => oo.filter(o => o.id !== existing.id))
+        const { error: err } = await supabase
+          .from('backpage_member_overrides').delete().eq('id', existing.id)
+        if (err) { console.error('[backpage store] delete override:', err); loadAll() }
+      } else {
+        setMemberOverrides(oo => oo.map(o => o.id === existing.id ? updated : o))
+        const col = field === 'callTime' ? 'call_time' : 'wrap_time'
+        const { error: err } = await supabase
+          .from('backpage_member_overrides').update({ [col]: norm }).eq('id', existing.id)
+        if (err) { console.error('[backpage store] update override:', err); loadAll() }
+      }
+    } else {
+      if (!norm) return
+      const newId    = crypto.randomUUID()
+      const callTime = field === 'callTime' ? norm : null
+      const wrapTime = field === 'wrapTime' ? norm : null
+      setMemberOverrides(oo => [...oo, { id: newId, dayId, memberId, callTime, wrapTime }])
+      const { error: err } = await supabase
+        .from('backpage_member_overrides')
+        .insert({ id: newId, production_id: prodId, day_id: dayId, member_id: memberId, call_time: callTime, wrap_time: wrapTime })
+      if (err) { console.error('[backpage store] insert override:', err); loadAll() }
     }
   }
 
   return {
-    deptSettings, loading, error,
-    getDeptSetting,
-    upsertDeptSetting,
+    deptSettings, memberOverrides, loading, error,
+    getDeptSetting,     upsertDeptSetting,
+    getMemberOverride,  upsertMemberOverride,
   }
 }
