@@ -3778,3 +3778,19 @@ select.pm-input { cursor: pointer; }
   line-height: 1;
 }
 .pm-day-tab-drag:active { cursor: grabbing; }
+
+/* ─── Budget PO detail panel ─────────────────────────────────────── */
+.budget-resource-row.is-expanded td { background: #f1f5fb; }
+.budget-resource-row:hover td { background: #f8fafc; }
+.budget-td-detail { padding: 8px 16px 12px !important; background: #f1f5fb; border-bottom: 1px solid #e5e7eb; }
+.budget-detail-row { display: flex; gap: 24px; flex-wrap: wrap; }
+.budget-detail-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #374151; }
+.budget-detail-label { font-family: var(--pm-font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #9ca3af; }
+
+/* ─── Prep / splinter tab text — white on coloured bg ───────────── */
+.pm-day--prep .pm-day-tab-label,
+.pm-day--prep .pm-day-tab-num,
+.pm-day--prep .pm-day-tab-drag,
+.pm-day--splinter .pm-day-tab-label,
+.pm-day--splinter .pm-day-tab-num,
+.pm-day--splinter .pm-day-tab-drag { color: rgba(255,255,255,0.9); }

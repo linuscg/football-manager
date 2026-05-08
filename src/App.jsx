@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useScheduleStore } from './store/useScheduleStore'
 import Schedule    from './modules/Schedule'
 import CrewGantt   from './modules/CrewGantt'
@@ -92,6 +92,12 @@ export default function App() {
       <span style={{ color: '#9ca3af' }}>{error}</span>
     </div>
   )
+
+  useEffect(() => {
+    document.title = store.production.name
+      ? `Football Manager — ${store.production.name}`
+      : 'Football Manager'
+  }, [store.production.name])
 
   const isGantt     = currentModule === 'crew'
   const isCallsheet = currentModule === 'callsheet'

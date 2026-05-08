@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
-export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers = [], onUpdateSceneCast }) {
+export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers = [], onUpdateSceneCast, production }) {
   const [castOpen, setCastOpen] = useState(false)
   const dropdownRef = useRef(null)
 
@@ -91,6 +91,25 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
         style={{ textAlign: 'center' }}
         onChange={e => onUpdate(dayId, scene.id, 'pages', e.target.value)}
       />
+
+      {/* Episode selector — only in TV mode */}
+      {production?.format === 'tv' && production?.episodeCount > 0 && (
+        <select
+          className="scene-input"
+          value={scene.episodeNumber ?? ''}
+          onChange={e => {
+            const n = parseInt(e.target.value, 10)
+            onUpdate(dayId, scene.id, 'episodeNumber', isNaN(n) ? null : n)
+          }}
+          style={{ width: 64, flexShrink: 0 }}
+          title="Episode"
+        >
+          <option value="">Ep</option>
+          {Array.from({ length: production.episodeCount }, (_, i) => i + 1).map(n => (
+            <option key={n} value={n}>Ep {n}</option>
+          ))}
+        </select>
+      )}
 
       {/* Cast selector */}
       <div className="cast-cell" ref={dropdownRef} style={{ position: 'relative' }}>

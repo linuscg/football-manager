@@ -49,14 +49,15 @@ function mapDay(row, scenes = [], extras = []) {
 function mapScene(row) {
   return {
     id:            row.id,
-    sceneNumber:   row.scene_number  ?? '',
-    intExt:        row.int_ext       ?? 'INT',
-    location:      row.location      ?? '',
-    dayNight:      row.day_night     ?? 'DAY',
-    description:   row.description   ?? '',
-    pages:         row.pages         ?? '',
-    sortOrder:     row.sort_order    ?? 0,
+    sceneNumber:   row.scene_number   ?? '',
+    intExt:        row.int_ext        ?? 'INT',
+    location:      row.location       ?? '',
+    dayNight:      row.day_night      ?? 'DAY',
+    description:   row.description    ?? '',
+    pages:         row.pages          ?? '',
+    sortOrder:     row.sort_order     ?? 0,
     castMemberIds: row.cast_member_ids ?? [],
+    episodeNumber: row.episode_number  ?? null,
   }
 }
 
@@ -77,6 +78,8 @@ function mapProduction(row) {
     swdLunch:       row.swd_lunch        ?? 60,
     cwdLunch:       row.cwd_lunch        ?? 0,
     scwdLunch:      row.scwd_lunch       ?? 30,
+    format:         row.format           ?? 'film',
+    episodeCount:   row.episode_count    ?? null,
   }
 }
 
@@ -115,6 +118,7 @@ const SCENE_FIELD_MAP = {
   description:   'description',
   pages:         'pages',
   castMemberIds: 'cast_member_ids',
+  episodeNumber: 'episode_number',
 }
 
 const PRODUCTION_FIELD_MAP = {
@@ -132,6 +136,8 @@ const PRODUCTION_FIELD_MAP = {
   swdLunch:       'swd_lunch',
   cwdLunch:       'cwd_lunch',
   scwdLunch:      'scwd_lunch',
+  format:         'format',
+  episodeCount:   'episode_count',
 }
 
 function dbVal(value) {

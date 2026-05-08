@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useCrewStore } from '../store/useCrewStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,42 @@ function CastMemberRow({ member, index, total, onUpdate, onDelete, onMoveUp, onM
   )
 }
 
+// ─── CrewMemberRow — local state to avoid focus loss ─────────────────────────
+
+function CrewMemberRow({ resource, onUpdate, onDelete }) {
+  const [lName,  setLName]  = useState(resource.name)
+  const [lRole,  setLRole]  = useState(resource.role)
+  const [lPhone, setLPhone] = useState(resource.contactPhone)
+  const [lEmail, setLEmail] = useState(resource.contactEmail)
+
+  useEffect(() => setLName(resource.name),          [resource.name])
+  useEffect(() => setLRole(resource.role),          [resource.role])
+  useEffect(() => setLPhone(resource.contactPhone), [resource.contactPhone])
+  useEffect(() => setLEmail(resource.contactEmail), [resource.contactEmail])
+
+  return (
+    <div className="cast-member-row">
+      <input className="pm-input" value={lName} placeholder="Name"
+        onChange={e => setLName(e.target.value)}
+        onBlur={() => { if (lName !== resource.name) onUpdate(resource.id, 'name', lName) }}
+        style={{ flex: 2 }} />
+      <input className="pm-input" value={lRole} placeholder="Title / Role"
+        onChange={e => setLRole(e.target.value)}
+        onBlur={() => { if (lRole !== resource.role) onUpdate(resource.id, 'role', lRole) }}
+        style={{ flex: 2 }} />
+      <input className="pm-input" value={lPhone} placeholder="Phone"
+        onChange={e => setLPhone(e.target.value)}
+        onBlur={() => { if (lPhone !== resource.contactPhone) onUpdate(resource.id, 'contactPhone', lPhone) }}
+        style={{ flex: 1.5 }} />
+      <input className="pm-input" value={lEmail} placeholder="Email" type="email"
+        onChange={e => setLEmail(e.target.value)}
+        onBlur={() => { if (lEmail !== resource.contactEmail) onUpdate(resource.id, 'contactEmail', lEmail) }}
+        style={{ flex: 2 }} />
+      <button className="pm-icon-btn danger" onClick={() => onDelete(resource.id)} title="Remove">✕</button>
+    </div>
+  )
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ProjectSetup({
@@ -128,6 +165,9 @@ export default function ProjectSetup({
   const [lastGenRange, setLastGenRange] = useState(null)  // { start, end } after successful gen
   const [fxLoading,    setFxLoading]    = useState(false)
   const [fxError,      setFxError]      = useState(null)
+
+  const { resources, addResource, deleteResource, updateResource } = useCrewStore()
+  const crewMembers = resources.filter(r => r.type === 'crew')
 
   const shootStart = production.shootStartDate
   const shootEnd   = production.shootEndDate
@@ -478,6 +518,86 @@ export default function ProjectSetup({
           onClick={onAddCastMember}
         >
           + Add Cast Member
+        </button>
+      </div>
+
+      {/* ── Format ───────────────────────────────────────────────────────────── */}
+      <div className="setup-card">
+        <div className="setup-phase-header">
+          <span className="setup-phase-icon">🎞</span>
+          <span className="setup-phase-label" style={{ color: '#374151' }}>Format</span>
+        </div>
+        <div className="setup-date-row" style={{ gap: '12px 24px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div className="pm-field-group">
+            <label className="pm-field-label">Production type</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['film', 'tv'].map(fmt => (
+                <button
+                  key={fmt}
+                  className={`pm-btn pm-btn--sm${(production.format ?? 'film') === fmt ? ' pm-btn--primary' : ' pm-btn--ghost'}`}
+                  onClick={() => onUpdate('format', fmt)}
+                >
+                  {fmt === 'film' ? '🎬 Film' : '📺 TV Series'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {(production.format ?? 'film') === 'tv' && (
+            <div className="pm-field-group">
+              <label className="pm-field-label">Number of episodes</label>
+              <input
+                className="pm-input"
+                type="number"
+                min="1"
+                max="999"
+                value={production.episodeCount ?? ''}
+                placeholder="—"
+                onChange={e => {
+                  const n = parseInt(e.target.value, 10)
+                  onUpdate('episodeCount', isNaN(n) ? null : n)
+                }}
+                style={{ width: 80 }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Crew ─────────────────────────────────────────────────────────────── */}
+      <div className="setup-card">
+        <div className="setup-phase-header">
+          <span className="setup-phase-icon">🎬</span>
+          <span className="setup-phase-label" style={{ color: '#374151' }}>
+            Crew
+            {crewMembers.length > 0 && (
+              <span className="setup-phase-badge" style={{ background: '#2563eb', marginLeft: 8 }}>
+                {crewMembers.length}
+              </span>
+            )}
+          </span>
+        </div>
+
+        {crewMembers.length === 0 && (
+          <p className="setup-card-hint" style={{ marginBottom: 10 }}>
+            Add crew members here to populate the contact directory. Full booking management is in <strong>Crew &amp; Equipment</strong>.
+          </p>
+        )}
+
+        {crewMembers.map(r => (
+          <CrewMemberRow
+            key={r.id}
+            resource={r}
+            onUpdate={updateResource}
+            onDelete={deleteResource}
+          />
+        ))}
+
+        <button
+          className="pm-btn pm-btn--ghost pm-btn--sm"
+          style={{ marginTop: 10 }}
+          onClick={() => addResource('crew')}
+        >
+          + Add Crew Member
         </button>
       </div>
     </div>

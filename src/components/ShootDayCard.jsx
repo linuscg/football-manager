@@ -522,6 +522,7 @@ export default function ShootDayCard({
                 onDelete={onDeleteScene}
                 castMembers={castMembers}
                 onUpdateSceneCast={onUpdateSceneCast}
+                production={production}
               />
             ))}
           </div>

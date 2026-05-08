@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Fragment } from 'react'
 import { useCrewStore }   from '../store/useCrewStore'
 import { useBudgetStore } from '../store/useBudgetStore'
 
@@ -173,6 +173,9 @@ export default function Budget({ store, onUpdate }) {
 
   // viewCurrency: the currency to display amounts in (defaults to base)
   const [viewCurrency, setViewCurrency] = useState(baseCurrency)
+  const [expandedId,   setExpandedId]   = useState(null)
+
+  function toggleExpand(id) { setExpandedId(prev => prev === id ? null : id) }
 
   // If base currency changes, reset view currency
   useEffect(() => { setViewCurrency(baseCurrency) }, [baseCurrency])
@@ -374,15 +377,39 @@ export default function Budget({ store, onUpdate }) {
                     </thead>
                     <tbody>
                       {members.map(r => (
-                        <tr key={r.id} className="budget-resource-row">
-                          <td className="budget-td budget-td-name">{r.name}</td>
-                          <td className="budget-td budget-td-role">{r.role || '—'}</td>
-                          <td className="budget-td budget-td-rate">{rateStr(r)}</td>
-                          <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
-                          <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
-                          <td className="budget-td budget-td-cost">{fmt(cv(r.confirmedCost), displaySymbol)}</td>
-                          <td className="budget-td budget-td-hold">{fmt(cv(r.holdCost), displaySymbol)}</td>
-                        </tr>
+                        <Fragment key={r.id}>
+                          <tr
+                            className={`budget-resource-row${expandedId === r.id ? ' is-expanded' : ''}`}
+                            onClick={() => toggleExpand(r.id)}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for PO details"
+                          >
+                            <td className="budget-td budget-td-name">{r.name}</td>
+                            <td className="budget-td budget-td-role">{r.role || '—'}</td>
+                            <td className="budget-td budget-td-rate">{rateStr(r)}</td>
+                            <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
+                            <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
+                            <td className="budget-td budget-td-cost">{fmt(cv(r.confirmedCost), displaySymbol)}</td>
+                            <td className="budget-td budget-td-hold">{fmt(cv(r.holdCost), displaySymbol)}</td>
+                          </tr>
+                          {expandedId === r.id && (
+                            <tr className="budget-resource-detail">
+                              <td colSpan={7} className="budget-td-detail">
+                                <div className="budget-detail-row">
+                                  {r.poNumber && <div className="budget-detail-item"><span className="budget-detail-label">PO</span>{r.poNumber}</div>}
+                                  {(r.hireStartDate || r.hireEndDate) && (
+                                    <div className="budget-detail-item"><span className="budget-detail-label">Hire</span>{r.hireStartDate || '?'} → {r.hireEndDate || '?'}</div>
+                                  )}
+                                  {r.contactPhone && <div className="budget-detail-item"><span className="budget-detail-label">Phone</span>{r.contactPhone}</div>}
+                                  {r.contactEmail && <div className="budget-detail-item"><span className="budget-detail-label">Email</span>{r.contactEmail}</div>}
+                                  {!r.poNumber && !r.hireStartDate && !r.hireEndDate && !r.contactPhone && !r.contactEmail && (
+                                    <span style={{ color: '#9ca3af', fontSize: 12 }}>No PO details — add in Crew &amp; Equipment</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       ))}
                     </tbody>
                     <tfoot>
@@ -436,15 +463,39 @@ export default function Budget({ store, onUpdate }) {
                     </thead>
                     <tbody>
                       {items.map(r => (
-                        <tr key={r.id} className="budget-resource-row">
-                          <td className="budget-td budget-td-name">{r.name}</td>
-                          <td className="budget-td budget-td-role">{r.vendor || '—'}</td>
-                          <td className="budget-td budget-td-rate">{rateStr(r)}</td>
-                          <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
-                          <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
-                          <td className="budget-td budget-td-cost">{fmt(cv(r.confirmedCost), displaySymbol)}</td>
-                          <td className="budget-td budget-td-hold">{fmt(cv(r.holdCost), displaySymbol)}</td>
-                        </tr>
+                        <Fragment key={r.id}>
+                          <tr
+                            className={`budget-resource-row${expandedId === r.id ? ' is-expanded' : ''}`}
+                            onClick={() => toggleExpand(r.id)}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for PO details"
+                          >
+                            <td className="budget-td budget-td-name">{r.name}</td>
+                            <td className="budget-td budget-td-role">{r.vendor || '—'}</td>
+                            <td className="budget-td budget-td-rate">{rateStr(r)}</td>
+                            <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
+                            <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
+                            <td className="budget-td budget-td-cost">{fmt(cv(r.confirmedCost), displaySymbol)}</td>
+                            <td className="budget-td budget-td-hold">{fmt(cv(r.holdCost), displaySymbol)}</td>
+                          </tr>
+                          {expandedId === r.id && (
+                            <tr className="budget-resource-detail">
+                              <td colSpan={7} className="budget-td-detail">
+                                <div className="budget-detail-row">
+                                  {r.poNumber && <div className="budget-detail-item"><span className="budget-detail-label">PO</span>{r.poNumber}</div>}
+                                  {(r.hireStartDate || r.hireEndDate) && (
+                                    <div className="budget-detail-item"><span className="budget-detail-label">Hire</span>{r.hireStartDate || '?'} → {r.hireEndDate || '?'}</div>
+                                  )}
+                                  {r.contactPhone && <div className="budget-detail-item"><span className="budget-detail-label">Phone</span>{r.contactPhone}</div>}
+                                  {r.contactEmail && <div className="budget-detail-item"><span className="budget-detail-label">Email</span>{r.contactEmail}</div>}
+                                  {!r.poNumber && !r.hireStartDate && !r.hireEndDate && !r.contactPhone && !r.contactEmail && (
+                                    <span style={{ color: '#9ca3af', fontSize: 12 }}>No PO details — add in Crew &amp; Equipment</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       ))}
                     </tbody>
                     <tfoot>

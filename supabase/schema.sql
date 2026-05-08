@@ -43,3 +43,12 @@ alter publication supabase_realtime add table scenes;
 
 -- Insert a default production row to get started
 insert into production (name) values ('Untitled Production');
+
+-- ─── Migrations (run in Supabase SQL editor after initial setup) ──────────────
+
+-- Film vs TV format + episode count (added for format toggle feature)
+alter table production add column if not exists format text default 'film';
+alter table production add column if not exists episode_count integer;
+
+-- Episode number on scenes (for TV episode assignment)
+alter table scenes add column if not exists episode_number integer;
