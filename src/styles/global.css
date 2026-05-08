@@ -4453,10 +4453,17 @@ select.pm-input { cursor: pointer; }
 }
 
 /* ── Body (scrollable dept list) ───────────────────────────────── */
-.bp-body {
+/* Single scrollable wrapper — replaces per-section overflow */
+.bp-scroll-area {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.bp-body {
+  padding: 8px 20px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -4565,7 +4572,7 @@ select.pm-input { cursor: pointer; }
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.bp-th-time { width: 160px; }
+.bp-th-time { width: 110px; white-space: nowrap; }
 
 .bp-crew-row {
   border-bottom: 1px solid #f1f5f9;

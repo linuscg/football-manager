@@ -577,48 +577,22 @@ export default function Backpage({ store }) {
         </div>
       )}
 
-      {/* ── Dept override hint ────────────────────────────────────────────── */}
+      {/* ── Single scrollable content area ───────────────────────────────── */}
       {day && (
-        <div className="bp-hint">
-          Dept Pre-call / Derig adjusts the whole department.
-          Click any individual Call or Wrap time to override it for that person.
-        </div>
-      )}
+        <div className="bp-scroll-area">
 
-      {/* ── Fulltime crew sections ────────────────────────────────────────── */}
-      {day && (
-        <div className="bp-body">
-          {depts.map(dept => (
-            <DeptSection
-              key={`ftc-${dept}`}
-              dept={dept}
-              members={groupMap[dept]}
-              dayId={day.id}
-              generalCall={day.generalCall}
-              wrapTime={wrapTime}
-              getDeptSetting={getDeptSetting}
-              upsertDeptSetting={upsertDeptSetting}
-              getMemberOverride={getMemberOverride}
-              upsertMemberOverride={upsertMemberOverride}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* ── Additional crew (Gantt bookings) ─────────────────────────────── */}
-      {day && additionalMembers.length > 0 && (
-        <>
-          <div className="bp-additional-header">
-            <span className="bp-additional-title">Additional Crew</span>
-            <span className="bp-additional-count">{additionalMembers.length}</span>
-            <span className="bp-additional-sub">booked via Crew Gantt</span>
+          <div className="bp-hint">
+            Dept Pre-call / Derig adjusts the whole department.
+            Click any individual Call or Wrap time to override it for that person.
           </div>
+
+          {/* Fulltime crew */}
           <div className="bp-body">
-            {addDepts.map(dept => (
+            {depts.map(dept => (
               <DeptSection
-                key={`add-${dept}`}
+                key={`ftc-${dept}`}
                 dept={dept}
-                members={addGroupMap[dept]}
+                members={groupMap[dept]}
                 dayId={day.id}
                 generalCall={day.generalCall}
                 wrapTime={wrapTime}
@@ -629,7 +603,36 @@ export default function Backpage({ store }) {
               />
             ))}
           </div>
-        </>
+
+          {/* Additional crew — each dept gets a "- Additional" suffix so its
+              pre-call/derig settings are stored separately from fulltime */}
+          {additionalMembers.length > 0 && (
+            <>
+              <div className="bp-additional-header">
+                <span className="bp-additional-title">Additional Crew</span>
+                <span className="bp-additional-count">{additionalMembers.length}</span>
+                <span className="bp-additional-sub">booked via Crew Gantt</span>
+              </div>
+              <div className="bp-body">
+                {addDepts.map(dept => (
+                  <DeptSection
+                    key={`add-${dept}`}
+                    dept={`${dept} - Additional`}
+                    members={addGroupMap[dept]}
+                    dayId={day.id}
+                    generalCall={day.generalCall}
+                    wrapTime={wrapTime}
+                    getDeptSetting={getDeptSetting}
+                    upsertDeptSetting={upsertDeptSetting}
+                    getMemberOverride={getMemberOverride}
+                    upsertMemberOverride={upsertMemberOverride}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+        </div>
       )}
 
       {/* ── Pre-call summary bar ─────────────────────────────────────────── */}
