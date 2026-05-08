@@ -223,13 +223,22 @@ export default function Backpage({ store }) {
   const today       = new Date().toISOString().slice(0, 10)
   const todayDayId  = allDays.find(d => d.date === today)?.id ?? null
 
-  const [selectedDayId, setSelectedDayId] = useState(() => {
+  const BP_DAY_KEY = 'fm_bp_day_id'
+  const [selectedDayId, setSelectedDayIdRaw] = useState(() => {
+    const saved = localStorage.getItem(BP_DAY_KEY)
+    if (saved && allDays.find(d => d.id === saved)) return saved
     return (
       allDays.find(d => d.date === today)?.id ??
       allDays.find(d => d.date >= today)?.id  ??
       allDays[0]?.id ?? null
     )
   })
+
+  function setSelectedDayId(id) {
+    setSelectedDayIdRaw(id)
+    if (id) localStorage.setItem(BP_DAY_KEY, id)
+    else     localStorage.removeItem(BP_DAY_KEY)
+  }
 
   const day              = shootDays.find(d => d.id === selectedDayId) ?? null
   const wrapTime         = day ? calcWrapTime(day.generalCall, day.dayType, production) : null
