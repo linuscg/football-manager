@@ -97,8 +97,12 @@ function getEffectiveStatus(dayId, dayCategory, sameDateDays, memberId, ownOverr
       // only auto-derive when sub has no call-time override (a call time means
       // the coordinator explicitly put them on sub)
       if (mainSt === 'work' && ownSt === 'work' && !ownOverride?.callTime) return 'MAIN'
-      // mainSt is SPL / PREP / OTHER → sent to a sub unit; use own status
-      if (mainSt === 'SPL' || mainSt === 'PREP' || mainSt === 'OTHER') return ownSt
+      // mainSt is SPL / PREP / OTHER → sent to a specific sub unit.
+      // Only show 'work' on the page whose category matches the assigned status.
+      // All other sub-unit pages show the status label (e.g. 'SPL' on the prep page).
+      if (mainSt === 'SPL' || mainSt === 'PREP' || mainSt === 'OTHER') {
+        return mainSt === subUnitLabel(dayCategory) ? ownSt : mainSt
+      }
       return ownSt
     }
   }
