@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "football-manager",
+      "runtimeExecutable": "/Users/linus/.nvm/versions/node/v24.15.0/bin/npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5173"],
+      "port": 5173
+    }
+  ]
+}

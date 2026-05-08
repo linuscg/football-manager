@@ -7,12 +7,32 @@ import CallSheet   from './modules/CallSheet'
 import Budget      from './modules/Budget'
 
 const NAV = [
-  { id: 'setup',     icon: '⚙',  label: 'Project Setup' },
-  { id: 'schedule',  icon: '≡',  label: 'Schedule' },
-  { id: 'crew',      icon: '▦',  label: 'Crew & Equipment' },
-  { id: 'callsheet', icon: '☰',  label: 'Daily Info' },
-  { id: 'budget',    icon: '$',  label: 'Cost Tracking' },
+  { id: 'setup',     num: '01', label: 'Project Setup' },
+  { id: 'schedule',  num: '02', label: 'Schedule' },
+  { id: 'crew',      num: '03', label: 'Crew & Equipment' },
+  { id: 'callsheet', num: '04', label: 'Daily Info' },
+  { id: 'budget',    num: '05', label: 'Cost Tracking' },
 ]
+
+const MODULE_SUB = {
+  setup:     'Production setup',
+  schedule:  'Shooting board',
+  crew:      'Booking gantt',
+  callsheet: 'Call sheet',
+  budget:    'Cost tracking',
+}
+
+function todayStamp() {
+  const d = new Date()
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yy = String(d.getFullYear()).slice(-2)
+  return `${dd} / ${mm} / ${yy}`
+}
+
+function todayFull() {
+  return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 function getInitialModule() {
   const saved = localStorage.getItem('fm_current_module')
@@ -98,7 +118,7 @@ export default function App() {
 
         {/* Production switcher */}
         <div className="pm-sidebar-mast" onClick={e => e.stopPropagation()}>
-          <div className="pm-sidebar-eyebrow">Production</div>
+          <div className="pm-sidebar-eyebrow">Production Office</div>
           <button
             className="pm-sidebar-prod"
             onClick={() => setProdMenuOpen(o => !o)}
@@ -150,20 +170,46 @@ export default function App() {
               ].filter(Boolean).join(' ')}
               onClick={() => !item.soon && navigate(item.id)}
             >
-              <span className="pm-nav-icon">{item.icon}</span>
+              {currentModule === item.id && <span className="pm-nav-rule" />}
+              <span className="pm-nav-icon">{item.num}</span>
               {item.label}
               {item.soon && <span className="nav-soon">Soon</span>}
             </div>
           ))}
         </nav>
+
+        <div className="pm-sidebar-foot">
+          <div className="pm-stamp">
+            <div className="pm-stamp-line">Rev. {store.shootDays.length > 0 ? store.shootDays.length : '—'}</div>
+            <div className="pm-stamp-date">{todayStamp()}</div>
+          </div>
+          <div className="pm-foot-meta">
+            {store.shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay).length} shoot day{store.shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay).length !== 1 ? 's' : ''}
+            {store.castMembers?.length > 0 && ` · Cast ${store.castMembers.length}`}
+          </div>
+        </div>
       </aside>
 
       {/* ── Main ──────────────────────────────────────────────────────────────── */}
       <div className="pm-main">
         <header className="pm-topbar">
-          <span className="pm-topbar-title">
-            {NAV.find(n => n.id === currentModule)?.label ?? ''}
-          </span>
+          <div className="pm-topbar-l">
+            <span className="pm-topbar-eyebrow">
+              {NAV.find(n => n.id === currentModule)?.label ?? ''}
+            </span>
+            <span className="pm-topbar-sub">
+              {MODULE_SUB[currentModule] ?? ''}
+              {currentModule === 'schedule' && store.shootDays.length > 0
+                ? ` · ${store.shootDays.length} days`
+                : ''}
+            </span>
+          </div>
+          <div className="pm-topbar-r">
+            <span className="pm-topbar-rev">{todayFull()}</span>
+            <span className="pm-topbar-user">
+              {(store.production.name || 'P').slice(0, 2).toUpperCase()}
+            </span>
+          </div>
         </header>
 
         <div className={`pm-content${isGantt ? ' pm-content--gantt' : ''}${isCallsheet ? ' pm-content--cs' : ''}`}>

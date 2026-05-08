@@ -69,13 +69,32 @@ export default function Schedule({ store, actions }) {
   const allOrdered = dateGroups.flatMap(([, days]) => days)
   const totalDays  = allOrdered.length
 
+  const shootStart = production.shootStartDate
+  const shootEnd   = production.shootEndDate
+  function fmtDate(d) {
+    if (!d) return ''
+    const dt = new Date(d + 'T00:00:00')
+    return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+
   return (
     <div className="pm-module">
       <div className="pm-module-head">
-        <h1 className="pm-h1">Shooting Schedule</h1>
-        <button className="pm-btn pm-btn--primary" onClick={handleAddDay}>
-          + Add shoot day
-        </button>
+        <div>
+          <div className="pm-eyebrow">Section II</div>
+          <h1 className="pm-h1">Shooting Schedule</h1>
+          {shootStart && shootEnd && (
+            <div className="pm-h1-sub">
+              Principal photography · {fmtDate(shootStart)} → {fmtDate(shootEnd)}
+            </div>
+          )}
+        </div>
+        <div className="pm-module-head-actions">
+          <button className="pm-btn pm-btn--ghost" onClick={() => window.print()}>Print board</button>
+          <button className="pm-btn pm-btn--primary" onClick={handleAddDay}>
+            + Add shoot day
+          </button>
+        </div>
       </div>
 
       {shootDays.length === 0 ? (
@@ -87,7 +106,7 @@ export default function Schedule({ store, actions }) {
           </div>
         </div>
       ) : (
-        <>
+        <div className="pm-day-list">
           {dateGroups.map(([, daysInGroup]) =>
             daysInGroup.map((day) => {
               const index = allOrdered.findIndex(d => d.id === day.id)
@@ -125,7 +144,7 @@ export default function Schedule({ store, actions }) {
             })
           )}
           <div ref={listBottomRef} />
-        </>
+        </div>
       )}
     </div>
   )

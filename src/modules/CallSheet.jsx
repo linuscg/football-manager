@@ -275,7 +275,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                 <div className="cs-date-line">{formatDateFull(day.date)}</div>
               </div>
               <div className="cs-header-center">
-                <div className="pm-cs-stamp">DAILY INFO</div>
+                <div className="pm-cs-stamp">CALL SHEET</div>
                 {day.dayNumber != null && (
                   <div className="pm-cs-daynum">Shoot Day {day.dayNumber}</div>
                 )}
@@ -284,7 +284,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                 {day.generalCall ? (
                   <div className="pm-cs-call-block">
                     <span className="pm-cs-call-label">General Call</span>
-                    <span className="pm-cs-call-val">{day.generalCall}</span>
+                    <span className="pm-cs-call-val">{day.generalCall.slice(0, 5)}</span>
                   </div>
                 ) : (
                   <div className="pm-cs-call-block cs-call-empty">

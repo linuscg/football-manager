@@ -254,19 +254,28 @@ export default function ShootDayCard({
           ⠿
         </span>
 
-        {/* Badge: Day N / Prep / Splinter */}
+        {/* Day tab */}
         {isPrep ? (
-          <span className="prep-badge">Prep</span>
+          <div className="pm-day-tab">
+            <span className="pm-day-tab-label">PREP</span>
+          </div>
         ) : isSplinter ? (
-          <>
-            <span className="splinter-badge">Splinter</span>
+          <div className="pm-day-tab">
+            <span className="pm-day-tab-label">SPLIT</span>
             {day.dayNumber != null && (
-              <span className="pm-day-tab" style={{ marginLeft: 4 }}>D{day.dayNumber}</span>
+              <span className="pm-day-tab-num" style={{ fontSize: 18 }}>D{day.dayNumber}</span>
             )}
-          </>
-        ) : !day.isNonShootDay ? (
-          <span className="pm-day-tab">Day {day.dayNumber}</span>
-        ) : null}
+          </div>
+        ) : day.isNonShootDay ? (
+          <div className="pm-day-tab" style={{ background: 'var(--pm-tab-non-bg)' }}>
+            <span className="pm-day-tab-label" style={{ color: '#6b7280' }}>OFF</span>
+          </div>
+        ) : (
+          <div className="pm-day-tab">
+            <span className="pm-day-tab-label">DAY</span>
+            <span className="pm-day-tab-num">{String(day.dayNumber ?? '—').padStart(2, '0')}</span>
+          </div>
+        )}
 
         <div className="pm-day-summary">
           <span className="pm-day-date">{formatDateDisplay(day.date)}</span>
@@ -286,15 +295,33 @@ export default function ShootDayCard({
                   {(day.locations ?? [day.location]).filter(Boolean).join(' · ')}
                 </span>
               )}
-              <span className="pm-day-meta-item">
-                {sceneCount} scene{sceneCount !== 1 ? 's' : ''}
-              </span>
             </>
           )}
         </div>
 
-        {day.isNonShootDay && !isPrep && (
-          <span className="pm-tag pm-tag--nonshoot">Non-shooting</span>
+        {!isPrep && !isSplinter && !day.isNonShootDay && (
+          <div className="pm-day-meta">
+            {day.generalCall && (
+              <div className="pm-day-meta-item">
+                <span className="pm-day-meta-label">CALL</span>
+                <span className="pm-day-meta-val">{day.generalCall.slice(0, 5)}</span>
+              </div>
+            )}
+            {wrapTime && (
+              <div className="pm-day-meta-item">
+                <span className="pm-day-meta-label">WRAP</span>
+                <span className="pm-day-meta-val">{wrapTime}</span>
+              </div>
+            )}
+            <div className="pm-day-meta-item">
+              <span className="pm-day-meta-label">TYPE</span>
+              <span className="pm-day-meta-val">{effectiveDayType}</span>
+            </div>
+            <div className="pm-day-meta-item">
+              <span className="pm-day-meta-label">SCENES</span>
+              <span className="pm-day-meta-val">{sceneCount}</span>
+            </div>
+          </div>
         )}
 
         <div
@@ -326,7 +353,7 @@ export default function ShootDayCard({
           </button>
         </div>
 
-        <span className={`pm-chev${expanded ? ' open' : ''}`}>▶</span>
+        <span className={`pm-day-chev${expanded ? ' is-open' : ''}`}>▶</span>
       </div>
 
       {/* ── Expanded body ──────────────────────────────────────────────────── */}
