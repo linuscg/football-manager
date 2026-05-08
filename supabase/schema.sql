@@ -64,3 +64,16 @@ create table if not exists hods (
   sort_order    integer not null default 0,
   created_at    timestamptz default now()
 );
+
+-- Fulltime crew list (Crew Times module — Step 2)
+create table if not exists fulltime_crew (
+  id            uuid primary key default gen_random_uuid(),
+  production_id uuid references production(id) on delete cascade,
+  name          text not null default '',
+  department    text not null default '',
+  role          text not null default '',
+  phone         text not null default '',
+  email         text not null default '',
+  sort_order    integer not null default 0,
+  created_at    timestamptz default now()
+);

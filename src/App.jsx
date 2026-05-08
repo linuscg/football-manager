@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useScheduleStore } from './store/useScheduleStore'
-import Schedule    from './modules/Schedule'
-import CrewGantt   from './modules/CrewGantt'
+import Schedule     from './modules/Schedule'
+import CrewGantt    from './modules/CrewGantt'
 import ProjectSetup from './modules/ProjectSetup'
-import CallSheet   from './modules/CallSheet'
-import Budget      from './modules/Budget'
+import CallSheet    from './modules/CallSheet'
+import Budget       from './modules/Budget'
+import FulltimeCrew from './modules/FulltimeCrew'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -398,7 +399,7 @@ export default function App() {
 
             {/* ── Crew Times tab ────────────────────────────────────────────── */}
             {topTab === 'crew-times' && ctModule === 'ct-crew' && (
-              <UnderConstruction label="Fulltime Crew" />
+              <FulltimeCrew />
             )}
             {topTab === 'crew-times' && ctModule === 'ct-backpage' && (
               <UnderConstruction label="Backpage" />
