@@ -6,47 +6,107 @@ import ProjectSetup from './modules/ProjectSetup'
 import CallSheet   from './modules/CallSheet'
 import Budget      from './modules/Budget'
 
-const NAV = [
-  { id: 'setup',     num: '01', label: 'Project Setup' },
-  { id: 'schedule',  num: '02', label: 'Schedule' },
-  { id: 'crew',      num: '03', label: 'Crew & Equipment' },
-  { id: 'callsheet', num: '04', label: 'Daily Info' },
-  { id: 'budget',    num: '05', label: 'Cost Tracking' },
+// ─── Top-level tab definitions ────────────────────────────────────────────────
+
+const TOP_TABS = [
+  { id: 'fm',         label: 'Football Manager' },
+  { id: 'setup',      label: 'Project Setup'    },
+  { id: 'crew-times', label: 'Crew Times'       },
 ]
 
-const MODULE_SUB = {
-  setup:     'Production setup',
+// ─── Football Manager nav ─────────────────────────────────────────────────────
+
+const FM_NAV = [
+  { id: 'schedule',  num: '01', label: 'Schedule'         },
+  { id: 'crew',      num: '02', label: 'Crew & Equipment' },
+  { id: 'callsheet', num: '03', label: 'Daily Info'       },
+  { id: 'budget',    num: '04', label: 'Cost Tracking'    },
+]
+
+const FM_MODULE_SUB = {
   schedule:  'Shooting board',
   crew:      'Booking gantt',
   callsheet: 'Call sheet',
   budget:    'Cost tracking',
 }
 
-function todayStamp() {
-  const d = new Date()
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const yy = String(d.getFullYear()).slice(-2)
-  return `${dd} / ${mm} / ${yy}`
+// ─── Crew Times nav ───────────────────────────────────────────────────────────
+
+const CT_NAV = [
+  { id: 'ct-crew',       num: '01', label: 'Fulltime Crew' },
+  { id: 'ct-backpage',   num: '02', label: 'Backpage'      },
+  { id: 'ct-timesheets', num: '03', label: 'Timesheets'    },
+]
+
+const CT_MODULE_SUB = {
+  'ct-crew':       'Full-time crew list',
+  'ct-backpage':   'Daily back page',
+  'ct-timesheets': 'Weekly timesheets',
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayFull() {
   return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function getInitialModule() {
+function getInitialTopTab() {
+  const saved = localStorage.getItem('fm_top_tab')
+  if (saved && TOP_TABS.find(t => t.id === saved)) return saved
+  // Legacy: if the old module was 'setup', land on setup tab
+  const savedModule = localStorage.getItem('fm_current_module')
+  if (savedModule === 'setup') return 'setup'
+  return 'fm'
+}
+
+function getInitialFmModule() {
   const saved = localStorage.getItem('fm_current_module')
-  if (saved && NAV.find(n => n.id === saved)) return saved
+  if (saved && FM_NAV.find(n => n.id === saved)) return saved
   return 'schedule'
 }
 
-export default function App() {
-  const [currentModule, setCurrentModule] = useState(getInitialModule)
-  const [prodMenuOpen,  setProdMenuOpen]  = useState(false)
+function getInitialCtModule() {
+  const saved = localStorage.getItem('fm_ct_module')
+  if (saved && CT_NAV.find(n => n.id === saved)) return saved
+  return 'ct-crew'
+}
 
-  function navigate(id) {
-    setCurrentModule(id)
+// ─── Crew Times placeholder (replaced in Step 2+) ────────────────────────────
+
+function CtPlaceholder({ label, sub }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100%', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{label}</div>
+      <div style={{ fontSize: 12, color: '#9ca3af' }}>{sub} — coming soon</div>
+    </div>
+  )
+}
+
+// ─── App ─────────────────────────────────────────────────────────────────────
+
+export default function App() {
+  const [topTab,       setTopTab]       = useState(getInitialTopTab)
+  const [fmModule,     setFmModule]     = useState(getInitialFmModule)
+  const [ctModule,     setCtModule]     = useState(getInitialCtModule)
+  const [prodMenuOpen, setProdMenuOpen] = useState(false)
+
+  function navigateTopTab(id) {
+    setTopTab(id)
+    localStorage.setItem('fm_top_tab', id)
+    setProdMenuOpen(false)
+  }
+
+  function navigateFm(id) {
+    setFmModule(id)
     localStorage.setItem('fm_current_module', id)
+  }
+
+  function navigateCt(id) {
+    setCtModule(id)
+    localStorage.setItem('fm_ct_module', id)
   }
 
   const {
@@ -99,13 +159,36 @@ export default function App() {
     </div>
   )
 
-  const isGantt     = currentModule === 'crew'
-  const isCallsheet = currentModule === 'callsheet'
+  // ── Derived state for topbar ───────────────────────────────────────────────
+
+  const isGantt     = topTab === 'fm' && fmModule === 'crew'
+  const isCallsheet = topTab === 'fm' && fmModule === 'callsheet'
+
+  const topbarEyebrow = (() => {
+    if (topTab === 'setup')      return 'Project Setup'
+    if (topTab === 'fm')         return FM_NAV.find(n => n.id === fmModule)?.label ?? ''
+    if (topTab === 'crew-times') return CT_NAV.find(n => n.id === ctModule)?.label ?? ''
+    return ''
+  })()
+
+  const topbarSub = (() => {
+    if (topTab === 'setup') return 'Production setup'
+    if (topTab === 'fm') {
+      const base = FM_MODULE_SUB[fmModule] ?? ''
+      return fmModule === 'schedule' && store.shootDays.length > 0
+        ? `${base} · ${store.shootDays.length} days`
+        : base
+    }
+    if (topTab === 'crew-times') return CT_MODULE_SUB[ctModule] ?? ''
+    return ''
+  })()
+
+  // ── Production menu handlers ───────────────────────────────────────────────
 
   async function handleCreateProduction() {
     setProdMenuOpen(false)
     await createProduction()
-    navigate('setup')
+    navigateTopTab('setup')
   }
 
   async function handleDeleteProduction(id) {
@@ -116,144 +199,177 @@ export default function App() {
     await deleteProduction(id)
   }
 
+  // ── Sidebar nav (changes per top tab) ─────────────────────────────────────
+
+  const activeNav = topTab === 'fm' ? FM_NAV : topTab === 'crew-times' ? CT_NAV : []
+  const activeModule = topTab === 'fm' ? fmModule : topTab === 'crew-times' ? ctModule : null
+
+  function handleNavClick(id) {
+    if (topTab === 'fm')         navigateFm(id)
+    if (topTab === 'crew-times') navigateCt(id)
+  }
+
   return (
-    <div className="pm-shell" onClick={() => setProdMenuOpen(false)}>
+    <div className="pm-app" onClick={() => setProdMenuOpen(false)}>
 
-      {/* ── Sidebar ───────────────────────────────────────────────────────────── */}
-      <aside className="pm-sidebar">
-
-        {/* Production switcher */}
-        <div className="pm-sidebar-mast" onClick={e => e.stopPropagation()}>
-          <div className="pm-sidebar-eyebrow">Production Office</div>
-          <button
-            className="pm-sidebar-prod"
-            onClick={() => setProdMenuOpen(o => !o)}
-            title="Switch production"
-          >
-            <span className="pm-sidebar-prod-name">{store.production.name || 'Untitled'}</span>
-            <span className="pm-sidebar-prod-chev">{prodMenuOpen ? '▴' : '▾'}</span>
-          </button>
-
-          {prodMenuOpen && (
-            <div className="sidebar-prod-menu">
-              {productions.map(p => (
-                <div
-                  key={p.id}
-                  className={`sidebar-prod-option${p.id === currentProductionId ? ' active' : ''}`}
-                >
-                  <span
-                    className="sidebar-prod-option-name"
-                    onClick={() => { switchProduction(p.id); setProdMenuOpen(false) }}
-                  >
-                    {p.id === currentProductionId && <span className="sidebar-prod-tick">✓ </span>}
-                    {p.name || 'Untitled'}
-                  </span>
-                  {productions.length > 1 && p.id !== currentProductionId && (
-                    <button
-                      className="sidebar-prod-del"
-                      onClick={() => handleDeleteProduction(p.id)}
-                      title="Delete production"
-                    >✕</button>
-                  )}
-                </div>
-              ))}
-              <button
-                className="sidebar-prod-new"
-                onClick={handleCreateProduction}
-              >+ New production</button>
-            </div>
-          )}
-        </div>
-
-        <nav className="pm-sidebar-nav">
-          {NAV.map(item => (
-            <div
-              key={item.id}
-              className={[
-                'pm-nav-item',
-                currentModule === item.id ? 'is-active' : '',
-                item.soon ? 'disabled' : '',
-              ].filter(Boolean).join(' ')}
-              onClick={() => !item.soon && navigate(item.id)}
+      {/* ── Top tab bar ─────────────────────────────────────────────────────── */}
+      <nav className="pm-tab-bar" onClick={e => e.stopPropagation()}>
+        <div className="pm-tab-bar-brand">FM</div>
+        <div className="pm-tab-bar-tabs">
+          {TOP_TABS.map(tab => (
+            <button
+              key={tab.id}
+              className={`pm-tab-btn${topTab === tab.id ? ' is-active' : ''}`}
+              onClick={() => navigateTopTab(tab.id)}
             >
-              {currentModule === item.id && <span className="pm-nav-rule" />}
-              <span className="pm-nav-icon">{item.num}</span>
-              {item.label}
-              {item.soon && <span className="nav-soon">Soon</span>}
-            </div>
+              {tab.label}
+            </button>
           ))}
-        </nav>
-
-        <div className="pm-sidebar-foot">
-          <div className="pm-stamp">
-            <div className="pm-stamp-line">Alpha v 0.1</div>
-            <div className="pm-stamp-date">{__BUILD_DATE__}</div>
-          </div>
-          <div className="pm-foot-meta">
-            {store.shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay).length} shoot day{store.shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay).length !== 1 ? 's' : ''}
-            {store.castMembers?.length > 0 && ` · Cast ${store.castMembers.length}`}
-          </div>
         </div>
-      </aside>
+      </nav>
 
-      {/* ── Main ──────────────────────────────────────────────────────────────── */}
-      <div className="pm-main">
-        <header className="pm-topbar">
-          <div className="pm-topbar-l">
-            <span className="pm-topbar-eyebrow">
-              {NAV.find(n => n.id === currentModule)?.label ?? ''}
-            </span>
-            <span className="pm-topbar-sub">
-              {MODULE_SUB[currentModule] ?? ''}
-              {currentModule === 'schedule' && store.shootDays.length > 0
-                ? ` · ${store.shootDays.length} days`
-                : ''}
-            </span>
+      {/* ── Shell (sidebar + main) ───────────────────────────────────────────── */}
+      <div className="pm-shell">
+
+        {/* ── Sidebar ───────────────────────────────────────────────────────── */}
+        <aside className="pm-sidebar">
+
+          {/* Production switcher */}
+          <div className="pm-sidebar-mast" onClick={e => e.stopPropagation()}>
+            <div className="pm-sidebar-eyebrow">Production Office</div>
+            <button
+              className="pm-sidebar-prod"
+              onClick={() => setProdMenuOpen(o => !o)}
+              title="Switch production"
+            >
+              <span className="pm-sidebar-prod-name">{store.production.name || 'Untitled'}</span>
+              <span className="pm-sidebar-prod-chev">{prodMenuOpen ? '▴' : '▾'}</span>
+            </button>
+
+            {prodMenuOpen && (
+              <div className="sidebar-prod-menu">
+                {productions.map(p => (
+                  <div
+                    key={p.id}
+                    className={`sidebar-prod-option${p.id === currentProductionId ? ' active' : ''}`}
+                  >
+                    <span
+                      className="sidebar-prod-option-name"
+                      onClick={() => { switchProduction(p.id); setProdMenuOpen(false) }}
+                    >
+                      {p.id === currentProductionId && <span className="sidebar-prod-tick">✓ </span>}
+                      {p.name || 'Untitled'}
+                    </span>
+                    {productions.length > 1 && p.id !== currentProductionId && (
+                      <button
+                        className="sidebar-prod-del"
+                        onClick={() => handleDeleteProduction(p.id)}
+                        title="Delete production"
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  className="sidebar-prod-new"
+                  onClick={handleCreateProduction}
+                >+ New production</button>
+              </div>
+            )}
           </div>
-          <div className="pm-topbar-r">
-            <span className="pm-topbar-rev">{todayFull()}</span>
-            <span className="pm-topbar-user">
-              {(store.production.name || 'P').slice(0, 2).toUpperCase()}
-            </span>
+
+          {/* Nav — changes per top tab */}
+          <nav className="pm-sidebar-nav">
+            {activeNav.map(item => (
+              <div
+                key={item.id}
+                className={[
+                  'pm-nav-item',
+                  activeModule === item.id ? 'is-active' : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => handleNavClick(item.id)}
+              >
+                {activeModule === item.id && <span className="pm-nav-rule" />}
+                <span className="pm-nav-icon">{item.num}</span>
+                {item.label}
+              </div>
+            ))}
+          </nav>
+
+          {/* Footer */}
+          <div className="pm-sidebar-foot">
+            <div className="pm-stamp">
+              <div className="pm-stamp-line">Alpha v 0.1</div>
+              <div className="pm-stamp-date">{__BUILD_DATE__}</div>
+            </div>
+            <div className="pm-foot-meta">
+              {store.shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay).length} shoot day{store.shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay).length !== 1 ? 's' : ''}
+              {store.castMembers?.length > 0 && ` · Cast ${store.castMembers.length}`}
+            </div>
           </div>
-        </header>
+        </aside>
 
-        <div className={`pm-content${isGantt ? ' pm-content--gantt' : ''}${isCallsheet ? ' pm-content--cs' : ''}`}>
+        {/* ── Main ──────────────────────────────────────────────────────────── */}
+        <div className="pm-main">
+          <header className="pm-topbar">
+            <div className="pm-topbar-l">
+              <span className="pm-topbar-eyebrow">{topbarEyebrow}</span>
+              <span className="pm-topbar-sub">{topbarSub}</span>
+            </div>
+            <div className="pm-topbar-r">
+              <span className="pm-topbar-rev">{todayFull()}</span>
+              <span className="pm-topbar-user">
+                {(store.production.name || 'P').slice(0, 2).toUpperCase()}
+              </span>
+            </div>
+          </header>
 
-          {currentModule === 'setup' && (
-            <ProjectSetup
-              production={store.production}
-              shootDays={store.shootDays}
-              castMembers={store.castMembers}
-              onUpdate={updateProduction}
-              onGenerate={generateShootDays}
-              onAddCastMember={addCastMember}
-              onDeleteCastMember={deleteCastMember}
-              onUpdateCastMember={updateCastMember}
-              onReorderCastMembers={reorderCastMembers}
-              onImportCastMembers={importCastMembers}
-            />
-          )}
+          <div className={`pm-content${isGantt ? ' pm-content--gantt' : ''}${isCallsheet ? ' pm-content--cs' : ''}`}>
 
-          {currentModule === 'schedule' && (
-            <Schedule store={store} actions={scheduleActions} />
-          )}
+            {/* ── Project Setup tab ─────────────────────────────────────────── */}
+            {topTab === 'setup' && (
+              <ProjectSetup
+                production={store.production}
+                shootDays={store.shootDays}
+                castMembers={store.castMembers}
+                onUpdate={updateProduction}
+                onGenerate={generateShootDays}
+                onAddCastMember={addCastMember}
+                onDeleteCastMember={deleteCastMember}
+                onUpdateCastMember={updateCastMember}
+                onReorderCastMembers={reorderCastMembers}
+                onImportCastMembers={importCastMembers}
+              />
+            )}
 
-          {currentModule === 'crew' && (
-            <CrewGantt
-              production={store.production}
-              shootDays={store.shootDays}
-            />
-          )}
+            {/* ── Football Manager tab ──────────────────────────────────────── */}
+            {topTab === 'fm' && fmModule === 'schedule' && (
+              <Schedule store={store} actions={scheduleActions} />
+            )}
+            {topTab === 'fm' && fmModule === 'crew' && (
+              <CrewGantt
+                production={store.production}
+                shootDays={store.shootDays}
+              />
+            )}
+            {topTab === 'fm' && fmModule === 'callsheet' && (
+              <CallSheet store={store} castMembers={store.castMembers} />
+            )}
+            {topTab === 'fm' && fmModule === 'budget' && (
+              <Budget store={store} onUpdate={updateProduction} />
+            )}
 
-          {currentModule === 'callsheet' && (
-            <CallSheet store={store} castMembers={store.castMembers} />
-          )}
+            {/* ── Crew Times tab ────────────────────────────────────────────── */}
+            {topTab === 'crew-times' && ctModule === 'ct-crew' && (
+              <CtPlaceholder label="Fulltime Crew" sub="Full-time crew list" />
+            )}
+            {topTab === 'crew-times' && ctModule === 'ct-backpage' && (
+              <CtPlaceholder label="Backpage" sub="Daily back page" />
+            )}
+            {topTab === 'crew-times' && ctModule === 'ct-timesheets' && (
+              <CtPlaceholder label="Timesheets" sub="Weekly timesheets" />
+            )}
 
-          {currentModule === 'budget' && (
-            <Budget store={store} onUpdate={updateProduction} />
-          )}
-
+          </div>
         </div>
       </div>
     </div>

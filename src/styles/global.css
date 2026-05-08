@@ -2723,11 +2723,78 @@ html, body {
    inside it consumes them. This way the same component HTML renders
    three distinct skins. */
 
+/* ── App wrapper (tab bar + shell) ───────────────────────────── */
+.pm-app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Top tab bar ─────────────────────────────────────────────── */
+.pm-tab-bar {
+  display: flex;
+  align-items: stretch;
+  height: 42px;
+  background: var(--pm-side-bg);
+  border-bottom: 1px solid #192338;
+  flex-shrink: 0;
+}
+
+.pm-tab-bar-brand {
+  display: flex;
+  align-items: center;
+  padding: 0 20px 0 22px;
+  font-family: var(--pm-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--pm-accent);
+  flex-shrink: 0;
+  border-right: 1px solid #192338;
+  user-select: none;
+}
+
+.pm-tab-bar-tabs {
+  display: flex;
+  align-items: stretch;
+}
+
+.pm-tab-btn {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--pm-side-nav);
+  font-family: var(--pm-font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  top: 1px;           /* aligns bottom border flush with bar edge */
+  transition: color 0.12s;
+}
+
+.pm-tab-btn:hover {
+  color: var(--pm-side-nav-hover);
+}
+
+.pm-tab-btn.is-active {
+  color: #ffffff;
+  border-bottom-color: var(--pm-accent);
+}
+
 /* ── Common skeleton ─────────────────────────────────────────── */
 .pm-shell {
   display: flex;
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: 100%;
   background: var(--pm-bg);
   color: var(--pm-fg);
   font-family: var(--pm-font-body);
