@@ -1,6 +1,11 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import ShootDayCard from '../components/ShootDayCard'
 import { useCrewStore } from '../store/useCrewStore'
+
+function todayStr() {
+  const t = new Date()
+  return [t.getFullYear(), String(t.getMonth()+1).padStart(2,'0'), String(t.getDate()).padStart(2,'0')].join('-')
+}
 
 export default function Schedule({ store, actions }) {
   const { shootDays, production, castMembers } = store
@@ -23,10 +28,6 @@ export default function Schedule({ store, actions }) {
     )
   }
 
-  // Track the id of the most recently added day so we can auto-expand it.
-  const [newestId, setNewestId] = useState(null)
-  const listBottomRef = useRef(null)
-
   // Persist which cards are expanded across tab switches and refreshes
   const [expandedIds, setExpandedIds] = useState(() => {
     try {
@@ -45,8 +46,7 @@ export default function Schedule({ store, actions }) {
   }
 
   function handleAddDay() {
-    const id = actions.addShootDay()
-    setNewestId(id)
+    const id = actions.addShootDay('main', null)
     setExpandedIds(prev => {
       const next = new Set(prev)
       next.add(id)
@@ -55,12 +55,16 @@ export default function Schedule({ store, actions }) {
     })
   }
 
-  // Scroll the new card into view after it renders.
-  useEffect(() => {
-    if (newestId && listBottomRef.current) {
-      listBottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
-  }, [newestId, shootDays.length])
+  // Beside-card "+" button: add an 'other' day on the same date — no auto-scroll
+  function handleAddBeside(date) {
+    const id = actions.addShootDay('other', date)
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      localStorage.setItem('fm_schedule_expanded', JSON.stringify([...next]))
+      return next
+    })
+  }
 
   // Group shoot days by date, then within each date group:
   // main/splinter days first (sorted by sortOrder), then prep days beneath
@@ -76,6 +80,13 @@ export default function Schedule({ store, actions }) {
     }
     byDate[key].push(day)
   }
+
+  // Sort date groups chronologically; undated days go at the end
+  seenDates.sort((a, b) => {
+    if (a.startsWith('no-date')) return 1
+    if (b.startsWith('no-date')) return -1
+    return a.localeCompare(b)
+  })
 
   for (const date of seenDates) {
     const group = byDate[date]
@@ -100,8 +111,21 @@ export default function Schedule({ store, actions }) {
     return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
+  const today = todayStr()
+  const hasTodayCard = shootDays.some(d => d.date === today)
+
+  function jumpToToday() {
+    document.querySelector(`[data-day-date="${today}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <div className="pm-module">
+      {hasTodayCard && (
+        <button className="schedule-jump-today" onClick={jumpToToday}>
+          Jump to today
+        </button>
+      )}
       <div className="pm-module-head">
         <div>
           <div className="pm-eyebrow">Section II</div>
@@ -133,42 +157,48 @@ export default function Schedule({ store, actions }) {
           {dateGroups.map(([, daysInGroup]) =>
             daysInGroup.map((day) => {
               const index = allOrdered.findIndex(d => d.id === day.id)
-              const isPrep     = day.dayCategory === 'prep'
-              const isSplinter = day.dayCategory === 'splinter'
+              const isNonMain = day.dayCategory !== 'main'
               return (
                 <div
                   key={day.id}
-                  style={(isPrep || isSplinter) ? { marginLeft: 32 } : undefined}
+                  className={`schedule-day-row${isNonMain ? ' schedule-day-row--indent' : ''}`}
+                  data-day-date={day.date}
                 >
-                  <ShootDayCard
-                    day={day}
-                    index={index}
-                    totalDays={totalDays}
-                    defaultExpanded={expandedIds.has(day.id)}
-                    onUpdate={actions.updateShootDay}
-                    onDelete={actions.deleteShootDay}
-                    onMoveUp={actions.moveDayUp}
-                    onMoveDown={actions.moveDayDown}
-                    onReorder={actions.reorderDays}
-                    onAddScene={actions.addScene}
-                    onDeleteScene={actions.deleteScene}
-                    onUpdateScene={actions.updateScene}
-                    onAddPrepDay={actions.addPrepDay}
-                    onAddSplinterDay={actions.addSplinterDay}
-                    onAddDayExtra={actions.addDayExtra}
-                    onDeleteDayExtra={actions.deleteDayExtra}
-                    onUpdateDayExtra={actions.updateDayExtra}
-                    onUpdateSceneCast={actions.updateSceneCast}
-                    onToggleExpanded={handleToggleExpanded}
-                    additionals={additionalsByDate[day.date] ?? []}
-                    production={production}
-                    castMembers={castMembers ?? []}
-                  />
+                  <div className="schedule-day-card-wrap">
+                    <ShootDayCard
+                      day={day}
+                      index={index}
+                      totalDays={totalDays}
+                      defaultExpanded={expandedIds.has(day.id)}
+                      onUpdate={actions.updateShootDay}
+                      onDelete={actions.deleteShootDay}
+                      onMoveUp={actions.moveDayUp}
+                      onMoveDown={actions.moveDayDown}
+                      onReorder={actions.reorderDays}
+                      onAddScene={actions.addScene}
+                      onDeleteScene={actions.deleteScene}
+                      onUpdateScene={actions.updateScene}
+                      onAddPrepDay={actions.addPrepDay}
+                      onAddSplinterDay={actions.addSplinterDay}
+                      onAddDayExtra={actions.addDayExtra}
+                      onDeleteDayExtra={actions.deleteDayExtra}
+                      onUpdateDayExtra={actions.updateDayExtra}
+                      onUpdateSceneCast={actions.updateSceneCast}
+                      onToggleExpanded={handleToggleExpanded}
+                      additionals={additionalsByDate[day.date] ?? []}
+                      production={production}
+                      castMembers={castMembers ?? []}
+                    />
+                  </div>
+                  <button
+                    className="schedule-add-beside"
+                    onClick={() => handleAddBeside(day.date)}
+                    title="Add day on this date"
+                  >+</button>
                 </div>
               )
             })
           )}
-          <div ref={listBottomRef} />
         </div>
       )}
     </div>

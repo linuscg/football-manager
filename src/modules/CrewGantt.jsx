@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useCrewStore } from '../store/useCrewStore'
-import { getNotifiedIds, markIdsNotified } from '../lib/ganttNotified'
 
 // ─── Phase definitions ────────────────────────────────────────────────────────
 
@@ -51,13 +50,6 @@ function formatColHeader(dateStr) {
   }
 }
 
-function formatNoticeDate(dateStr) {
-  if (!dateStr) return ''
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
-    weekday: 'short', day: 'numeric', month: 'short',
-  })
-}
-
 // ─── Column spec builder ──────────────────────────────────────────────────────
 
 function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDate = {}) {
@@ -70,15 +62,22 @@ function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDat
     if (expandedPhases[phase.id]) {
       for (const date of eachDay(start, end)) {
         const { isWeekend } = formatColHeader(date)
-        specs.push({
-          type: 'day', date,
-          phaseId: phase.id, phaseColor: phase.color,
-          isToday: date === today, isWeekend,
-          shootDay: dateMap[date] ?? null,
-          dayId: null, subUnitCategory: null,
-        })
-        // Insert a column for each prep / splinter unit on this date
-        for (const subDay of subUnitsByDate[date] ?? []) {
+        const subDays   = subUnitsByDate[date] ?? []
+        const hasMainDay = !!dateMap[date]
+
+        // Only emit a main-unit column if there IS a main unit for this date,
+        // OR if there are no sub-units (so an empty day column still appears).
+        if (hasMainDay || subDays.length === 0) {
+          specs.push({
+            type: 'day', date,
+            phaseId: phase.id, phaseColor: phase.color,
+            isToday: date === today, isWeekend,
+            shootDay: dateMap[date] ?? null,
+            dayId: null, subUnitCategory: null,
+          })
+        }
+        // Insert a column for each sub-unit (prep / splinter / other) on this date
+        for (const subDay of subDays) {
           specs.push({
             type: 'day', date,
             phaseId: phase.id, phaseColor: phase.color,
@@ -291,13 +290,17 @@ function ResourceRow({
             statusCls,
             spec.subUnitCategory === 'prep'     ? 'cell-prep'     : '',
             spec.subUnitCategory === 'splinter' ? 'cell-splinter' : '',
+            spec.subUnitCategory === 'other'    ? 'cell-other'    : '',
             spec.shootDay?.isNonShootDay && !isSubUnit ? 'cell-nonshoot' : '',
             spec.isWeekend ? 'cell-weekend'  : '',
             spec.isToday   ? 'cell-today'    : '',
             !isShootDay && !isSubUnit ? 'cell-no-shoot' : '',
           ].filter(Boolean).join(' ')
 
-          const unitLabel = spec.subUnitCategory === 'prep' ? 'Prep' : spec.subUnitCategory === 'splinter' ? 'Splinter' : null
+          const unitLabel = spec.subUnitCategory === 'prep'     ? 'Prep'
+                          : spec.subUnitCategory === 'splinter' ? 'Splinter'
+                          : spec.subUnitCategory === 'other'    ? 'Other'
+                          : null
 
           return (
             <td
@@ -507,7 +510,7 @@ export default function CrewGantt({ production, shootDays }) {
   })
   const [paintMode,      setPaintMode]      = useState('booked')   // the selected brush
   const [isDragging,     setIsDragging]     = useState(false)
-  const [notices,        setNotices]        = useState([])
+  const [hidePastDays,   setHidePastDays]   = useState(false)
 
   const isDraggingRef  = useRef(false)
   const dragActionRef  = useRef(paintMode)   // the status being applied for the current drag
@@ -529,24 +532,6 @@ export default function CrewGantt({ production, shootDays }) {
 
   const today = todayStr()
 
-  // ── Notices: detect newly-added shoot days ─────────────────────────────────
-
-  useEffect(() => {
-    const notified = getNotifiedIds()
-    const newDays  = shootDays.filter(sd => !sd.isNonShootDay && !notified.has(sd.id))
-    setNotices(newDays)
-  }, [shootDays])
-
-  function dismissNotice(id) {
-    markIdsNotified([id])
-    setNotices(n => n.filter(sd => sd.id !== id))
-  }
-
-  function dismissAllNotices() {
-    markIdsNotified(notices.map(n => n.id))
-    setNotices([])
-  }
-
   // ── Derived data ───────────────────────────────────────────────────────────
 
   const hasPhases = PHASES.some(p => production[p.startKey] && production[p.endKey])
@@ -557,10 +542,10 @@ export default function CrewGantt({ production, shootDays }) {
     if (sd.date && sd.dayCategory === 'main') dateMap[sd.date] = sd
   }
 
-  // date → [subUnit, ...] map — prep AND splinter units get their own columns
+  // date → [subUnit, ...] map — prep, splinter AND other units get their own columns
   const subUnitsByDate = {}
   for (const sd of shootDays) {
-    if ((sd.dayCategory === 'prep' || sd.dayCategory === 'splinter') && sd.date) {
+    if ((sd.dayCategory === 'prep' || sd.dayCategory === 'splinter' || sd.dayCategory === 'other') && sd.date) {
       if (!subUnitsByDate[sd.date]) subUnitsByDate[sd.date] = []
       subUnitsByDate[sd.date].push(sd)
     }
@@ -571,9 +556,12 @@ export default function CrewGantt({ production, shootDays }) {
     shootDays.filter(sd => !sd.isNonShootDay).map(sd => sd.date)
   )
 
-  const colSpecs = hasPhases
+  let colSpecs = hasPhases
     ? buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDate)
     : []
+  if (hidePastDays) {
+    colSpecs = colSpecs.filter(spec => spec.type === 'summary' || spec.date >= today)
+  }
 
   // booking lookup:
   //   prep bookings  → `${resourceId}:${dayId}`
@@ -628,6 +616,15 @@ export default function CrewGantt({ production, shootDays }) {
       localStorage.setItem('fm_gantt_phases', JSON.stringify(next))
       return next
     })
+    // After React re-renders, scroll the gantt to today's column
+    setTimeout(() => {
+      const todayTh = scrollRef.current?.querySelector('th.is-today')
+      if (todayTh && scrollRef.current) {
+        const containerRect = scrollRef.current.getBoundingClientRect()
+        const thRect = todayTh.getBoundingClientRect()
+        scrollRef.current.scrollLeft += thRect.left - containerRect.left - 200
+      }
+    }, 50)
   }
 
   function switchTab(tab) {
@@ -819,35 +816,6 @@ export default function CrewGantt({ production, shootDays }) {
   return (
     <div className="gantt-module-wrap">
 
-      {/* ── New shoot-day notices ─────────────────────────────────────────────── */}
-      {notices.length > 0 && (
-        <div className="gantt-notices">
-          <div className="gantt-notices-header">
-            <span className="gantt-notices-title">
-              ⚠ {notices.length} new shoot day{notices.length !== 1 ? 's' : ''} added
-              — check crew &amp; equipment bookings
-            </span>
-            <button className="gantt-notices-dismiss-all" onClick={dismissAllNotices}>
-              Dismiss all
-            </button>
-          </div>
-          {notices.map(sd => (
-            <div key={sd.id} className="gantt-notice">
-              <span>
-                <strong>D{sd.dayNumber} — {formatNoticeDate(sd.date)}</strong>
-                {sd.location ? ` · ${sd.location}` : ''}
-                <span className="gantt-notice-hint">
-                  {' '}— check bookings for surrounding days too
-                </span>
-              </span>
-              <button className="gantt-notice-dismiss" onClick={() => dismissNotice(sd.id)}>
-                Dismiss
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* ── Top bar ──────────────────────────────────────────────────────────── */}
       <div className="gantt-top">
 
@@ -920,8 +888,18 @@ export default function CrewGantt({ production, shootDays }) {
                   </button>
                 )
               })}
-              <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={collapseBeforeToday}>
-                Collapse past
+              <button
+                className={`pm-btn pm-btn--ghost pm-btn--sm${hidePastDays ? ' is-active' : ''}`}
+                onClick={() => {
+                  if (hidePastDays) {
+                    setHidePastDays(false)
+                  } else {
+                    setHidePastDays(true)
+                    collapseBeforeToday()
+                  }
+                }}
+              >
+                {hidePastDays ? 'Show past' : 'Collapse past'}
               </button>
             </div>
           )}
@@ -975,21 +953,26 @@ export default function CrewGantt({ production, shootDays }) {
                   const sd = spec.shootDay
                   const isShoot = shootDateSet.has(spec.date)
 
-                  // Sub-unit column (prep or splinter) — compact coloured header
+                  // Sub-unit column (prep / splinter / other) — compact coloured header
                   if (spec.subUnitCategory) {
-                    const isPrep = spec.subUnitCategory === 'prep'
+                    const isPrep     = spec.subUnitCategory === 'prep'
+                    const isSplinter = spec.subUnitCategory === 'splinter'
+                    const isOther    = spec.subUnitCategory === 'other'
+                    const colClass   = isPrep ? 'gantt-prep-col' : isSplinter ? 'gantt-splinter-col' : 'gantt-other-col'
+                    const badgeClass = isPrep ? 'gantt-badge-p'  : isSplinter ? 'gantt-badge-s'      : 'gantt-badge-o'
+                    const badgeLbl   = isPrep ? 'P'              : isSplinter ? 'S'                  : 'O'
+                    const typeLabel2 = isPrep ? 'Prep'           : isSplinter ? 'Splinter'           : 'Other'
+                    const subLabel   = sd?.dayLabel ? ` (${sd.dayLabel})` : ''
                     return (
                       <th key={`sub-${spec.dayId}`}
                           className={[
                             'pm-g-day',
-                            isPrep ? 'gantt-prep-col' : 'gantt-splinter-col',
+                            colClass,
                             spec.isToday ? 'is-today' : '',
                           ].filter(Boolean).join(' ')}
                           style={{ '--phase-color': spec.phaseColor }}
-                          title={`${isPrep ? 'Prep' : 'Splinter'} unit — ${spec.date}${sd?.description ? ': ' + sd.description : ''}`}>
-                        <span className={isPrep ? 'gantt-badge-p' : 'gantt-badge-s'}>
-                          {isPrep ? 'P' : 'S'}
-                        </span>
+                          title={`${typeLabel2}${subLabel} — ${spec.date}${sd?.description ? ': ' + sd.description : ''}`}>
+                        <span className={badgeClass}>{badgeLbl}</span>
                         <span className="gantt-day-date" style={{ fontSize: 9 }}>{dStr}</span>
                       </th>
                     )
@@ -1030,7 +1013,9 @@ export default function CrewGantt({ production, shootDays }) {
                 groups.map(([deptName, deptResources]) => (
                   <Fragment key={`dept-${deptName}`}>
                     <tr className="pm-g-dept">
-                      <td colSpan={colSpecs.length + 1}>{deptName}</td>
+                      <td colSpan={colSpecs.length + 1}>
+                        <span className="pm-g-dept-label">{deptName}</span>
+                      </td>
                     </tr>
                     {deptResources.map(resource => (
                       <ResourceRow
@@ -1055,6 +1040,16 @@ export default function CrewGantt({ production, shootDays }) {
                   </Fragment>
                 ))
               )}
+              <tr className="gantt-add-bottom-row">
+                <td colSpan={colSpecs.length + 1}>
+                  <button
+                    className="pm-btn pm-btn--ghost pm-btn--sm gantt-add-bottom-btn"
+                    onClick={() => addResource(activeTab)}
+                  >
+                    + Add {typeLabel}
+                  </button>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>

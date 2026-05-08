@@ -41,6 +41,7 @@ function mapDay(row, scenes = [], extras = []) {
     notes:         row.notes           ?? '',
     sortOrder:     row.sort_order      ?? 0,
     dayCategory:   row.day_category    ?? 'main',
+    dayLabel:      row.day_label       ?? '',
     scenes:        scenes.map(mapScene).sort((a, b) => a.sortOrder - b.sortOrder),
     extras:        groupExtrasByCategory(extras),
   }
@@ -108,6 +109,7 @@ const DAY_FIELD_MAP = {
   description: 'description',
   notes:       'notes',
   dayCategory: 'day_category',
+  dayLabel:    'day_label',
 }
 
 const SCENE_FIELD_MAP = {
@@ -333,22 +335,27 @@ export function useScheduleStore() {
 
   // ── Shoot days ─────────────────────────────────────────────────────────────
 
-  function addShootDay(category = 'main') {
+  function addShootDay(category = 'main', initialDate = null) {
     const prodId = getCurrentProductionId()
     const days = store.shootDays
     const shootingDays = days.filter(d => !d.isNonShootDay && d.dayCategory === 'main')
     const lastDayNum   = shootingDays.length
       ? Math.max(...shootingDays.map(d => d.dayNumber ?? 0)) : 0
 
-    const sorted = days.filter(d => d.date).sort((a, b) => (a.date < b.date ? -1 : 1))
+    function datePlusOne(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00')
+      d.setDate(d.getDate() + 1)
+      return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-')
+    }
+
     let nextDate = null
-    if (sorted.length) {
-      const last = new Date(sorted[sorted.length - 1].date + 'T00:00:00')
-      last.setDate(last.getDate() + 1)
-      const y = last.getFullYear()
-      const m = String(last.getMonth() + 1).padStart(2, '0')
-      const d = String(last.getDate()).padStart(2, '0')
-      nextDate = `${y}-${m}-${d}`
+    if (initialDate) {
+      // Use the provided date as-is (e.g. beside-button → same date)
+      nextDate = initialDate
+    } else {
+      // Header button → auto-pick the day after the last scheduled day
+      const sorted = days.filter(d => d.date).sort((a, b) => (a.date < b.date ? -1 : 1))
+      if (sorted.length) nextDate = datePlusOne(sorted[sorted.length - 1].date)
     }
 
     const newId        = crypto.randomUUID()
@@ -359,7 +366,7 @@ export function useScheduleStore() {
       id: newId, dayNumber: newDayNumber, date: nextDate ?? '',
       location: '', locations: [''], unitBase: '', generalCall: '', dayType: '',
       isNonShootDay: false, description: '', notes: '',
-      sortOrder: newSortOrder, scenes: [], dayCategory: category, extras: {},
+      sortOrder: newSortOrder, scenes: [], dayCategory: category, dayLabel: '', extras: {},
     }
     optimistic(s => ({ ...s, shootDays: [...s.shootDays, newDay] }))
 
@@ -435,11 +442,23 @@ export function useScheduleStore() {
 
   function updateShootDay(id, field, value) {
     let newDayNumber = null
+
     if (field === 'isNonShootDay' && value === false) {
       const maxNum = Math.max(
         0,
         ...store.shootDays
           .filter(x => x.id !== id && !x.isNonShootDay)
+          .map(x => x.dayNumber ?? 0)
+      )
+      newDayNumber = maxNum + 1
+    }
+
+    // Changing to Main Unit: re-assign a day number
+    if (field === 'dayCategory' && value === 'main') {
+      const maxNum = Math.max(
+        0,
+        ...store.shootDays
+          .filter(x => x.id !== id && x.dayCategory === 'main')
           .map(x => x.dayNumber ?? 0)
       )
       newDayNumber = maxNum + 1
@@ -454,6 +473,15 @@ export function useScheduleStore() {
             ? { ...d, isNonShootDay: true,  dayNumber: null }
             : { ...d, isNonShootDay: false, dayNumber: newDayNumber }
         }
+        if (field === 'dayCategory') {
+          const isNonShoot = value === 'prep' || value === 'other'
+          return {
+            ...d,
+            dayCategory:   value,
+            isNonShootDay: isNonShoot,
+            dayNumber:     value === 'main' ? newDayNumber : null,
+          }
+        }
         // Keep derived location in sync when locations array changes
         if (field === 'locations') {
           return { ...d, locations: value, location: value[0] ?? '' }
@@ -467,6 +495,13 @@ export function useScheduleStore() {
       patch = value === true
         ? { is_non_shoot_day: true,  day_number: null }
         : { is_non_shoot_day: false, day_number: newDayNumber }
+    } else if (field === 'dayCategory') {
+      const isNonShoot = value === 'prep' || value === 'other'
+      patch = {
+        day_category:    value,
+        is_non_shoot_day: isNonShoot,
+        day_number:      value === 'main' ? newDayNumber : null,
+      }
     } else if (field === 'locations') {
       const nonEmpty = value.filter(Boolean)
       patch = { locations: nonEmpty, location: dbVal(nonEmpty[0] ?? '') }
@@ -675,6 +710,26 @@ export function useScheduleStore() {
     )
   }
 
+  async function importCastMembers(members) {
+    const prodId = getCurrentProductionId()
+    const maxSort = store.castMembers.length
+    const rows = members.map((m, i) => ({
+      id:            crypto.randomUUID(),
+      production_id: prodId,
+      name:          m.name,
+      role:          m.role,
+      cast_number:   m.castNumber ?? null,
+      sort_order:    maxSort + i,
+    }))
+    const mapped = rows.map(r => ({
+      id: r.id, name: r.name, role: r.role,
+      castNumber: r.cast_number, sortOrder: r.sort_order,
+    }))
+    optimistic(s => ({ ...s, castMembers: [...s.castMembers, ...mapped] }))
+    await supabase.from('cast_members').insert(rows)
+    return rows.length
+  }
+
   // ── Generate weekday shoot days ────────────────────────────────────────────
 
   async function generateShootDays(startDate, endDate) {
@@ -751,6 +806,6 @@ export function useScheduleStore() {
     addScene, deleteScene, updateScene,
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra,
-    addCastMember, deleteCastMember, updateCastMember, reorderCastMembers,
+    addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
   }
 }
