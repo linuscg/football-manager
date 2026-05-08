@@ -61,7 +61,7 @@ export default function App() {
     addScene, deleteScene, updateScene,
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra,
-    addCastMember, deleteCastMember, updateCastMember, reorderCastMembers,
+    addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
   } = useScheduleStore()
 
   const scheduleActions = {
@@ -231,6 +231,7 @@ export default function App() {
               onDeleteCastMember={deleteCastMember}
               onUpdateCastMember={updateCastMember}
               onReorderCastMembers={reorderCastMembers}
+              onImportCastMembers={importCastMembers}
             />
           )}
 

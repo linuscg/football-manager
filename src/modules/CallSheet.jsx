@@ -13,6 +13,7 @@ const EXTRAS_CATEGORY_LABELS = {
   vfx:      'VFX',
   extras:   'Extras',
   visitors: 'Visitors',
+  other:    'Other',
 }
 
 function formatDateFull(dateStr) {
@@ -78,6 +79,11 @@ function CopyBtn({ getText }) {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
+
+function todayDateStr() {
+  const t = new Date()
+  return [t.getFullYear(), String(t.getMonth()+1).padStart(2,'0'), String(t.getDate()).padStart(2,'0')].join('-')
+}
 
 export default function CallSheet({ store, castMembers = [] }) {
   const { shootDays, production } = store  // shootDays needed for prep unit lookup
@@ -220,10 +226,23 @@ export default function CallSheet({ store, castMembers = [] }) {
     )
   }
 
+  // ── Jump to today ───────────────────────────────────────────────────────────
+
+  const todayStr  = todayDateStr()
+  const todayDay  = shootingDays.find(d => d.date === todayStr)
+  const isOnToday = day?.date === todayStr
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="cs-wrap">
+
+      {/* ── Jump to today floating button ──────────────────────────────────── */}
+      {todayDay && !isOnToday && (
+        <button className="schedule-jump-today no-print" onClick={() => setSelectedId(todayDay.id)}>
+          Jump to today
+        </button>
+      )}
 
       {/* ── Day selector bar ───────────────────────────────────────────────── */}
       <div className="cs-selector no-print">

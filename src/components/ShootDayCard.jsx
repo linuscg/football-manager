@@ -13,6 +13,7 @@ const EXTRAS_CATEGORIES = [
   { key: 'stunts',   label: 'Stunts' },
   { key: 'vfx',      label: 'VFX' },
   { key: 'extras',   label: 'Extras' },
+  { key: 'other',    label: 'Other' },
   { key: 'visitors', label: 'Visitors' },
 ]
 
@@ -182,12 +183,13 @@ export default function ShootDayCard({
   const [isDragOver,       setIsDragOver]       = useState(false)
   const cardRef = useRef(null)
 
-  const category = day.dayCategory ?? 'main'
+  const category   = day.dayCategory ?? 'main'
+  const isMain     = category === 'main'
   const isPrep     = category === 'prep'
   const isSplinter = category === 'splinter'
+  const isOther    = category === 'other'
 
-  // Category-specific CSS classes
-  const categoryClass = isPrep ? ' pm-day--prep' : isSplinter ? ' pm-day--splinter' : ''
+  const categoryClass = isPrep ? ' pm-day--prep' : isSplinter ? ' pm-day--splinter' : isOther ? ' pm-day--other' : ''
 
   // ── Drag-and-drop ─────────────────────────────────────────────────────────
   function onHandleMouseDown() {
@@ -226,7 +228,11 @@ export default function ShootDayCard({
   // ── Delete with confirmation ───────────────────────────────────────────────
   function handleDelete(e) {
     e.stopPropagation()
-    const label = isPrep ? 'Prep unit' : isSplinter ? 'Splinter unit' : `Day ${day.dayNumber}`
+    const label = isMain
+      ? `Day ${day.dayNumber ?? '?'}`
+      : isPrep     ? `Prep day${day.dayLabel ? ' ' + day.dayLabel : ''}`
+      : isSplinter ? `Splinter unit${day.dayLabel ? ' ' + day.dayLabel : ''}`
+      : `Other day${day.dayLabel ? ' ' + day.dayLabel : ''}`
     if (window.confirm(`Delete ${label}? This cannot be undone.`)) {
       onDelete(day.id)
     }
@@ -237,7 +243,7 @@ export default function ShootDayCard({
   return (
     <div
       ref={cardRef}
-      className={`pm-day${day.isNonShootDay ? ' pm-day--nonshoot' : ''}${isDragOver ? ' drag-over' : ''}${categoryClass}`}
+      className={`pm-day${isDragOver ? ' drag-over' : ''}${categoryClass}`}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
@@ -248,42 +254,40 @@ export default function ShootDayCard({
       <div className="pm-day-head" onClick={() => setExpanded(e => { const next = !e; onToggleExpanded?.(day.id, next); return next })}>
 
         {/* Day tab — drag handle lives inside so colour extends into grab area */}
-        {isPrep ? (
-          <div className="pm-day-tab">
-            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
-            <span className="pm-day-tab-label">PREP</span>
-          </div>
-        ) : isSplinter ? (
-          <div className="pm-day-tab">
-            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
-            <span className="pm-day-tab-label">SPLIT</span>
-            {day.dayNumber != null && (
-              <span className="pm-day-tab-num" style={{ fontSize: 18 }}>D{day.dayNumber}</span>
-            )}
-          </div>
-        ) : day.isNonShootDay ? (
-          <div className="pm-day-tab" style={{ background: 'var(--pm-tab-non-bg)' }}>
-            <span className="pm-day-tab-drag" style={{ color: 'rgba(0,0,0,0.2)' }} onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
-            <span className="pm-day-tab-label" style={{ color: '#6b7280' }}>OFF</span>
-          </div>
-        ) : (
+        {isMain ? (
           <div className="pm-day-tab">
             <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
             <span className="pm-day-tab-label">DAY</span>
             <span className="pm-day-tab-num">{String(day.dayNumber ?? '—').padStart(2, '0')}</span>
           </div>
+        ) : isPrep ? (
+          <div className="pm-day-tab">
+            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
+            <span className="pm-day-tab-label">PREP</span>
+            {day.dayLabel && <span className="pm-day-tab-num" style={{ fontSize: 13 }}>{day.dayLabel}</span>}
+          </div>
+        ) : isSplinter ? (
+          <div className="pm-day-tab">
+            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
+            <span className="pm-day-tab-label">SPLIT</span>
+            {day.dayLabel && <span className="pm-day-tab-num" style={{ fontSize: 13 }}>{day.dayLabel}</span>}
+          </div>
+        ) : (
+          <div className="pm-day-tab">
+            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
+            <span className="pm-day-tab-label">OTH</span>
+            {day.dayLabel && <span className="pm-day-tab-num" style={{ fontSize: 13 }}>{day.dayLabel}</span>}
+          </div>
         )}
 
         <div className="pm-day-summary">
           <span className="pm-day-date">{formatDateDisplay(day.date)}</span>
-          {isPrep ? (
+          {(isPrep || isOther) ? (
             <span className="pm-day-loc">
-              {(day.locations ?? []).filter(Boolean)[0] || day.description ||
-               <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>Prep unit</span>}
-            </span>
-          ) : day.isNonShootDay ? (
-            <span className="pm-day-loc">
-              {day.description || <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>Non-shooting</span>}
+              {day.description ||
+               <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>
+                 {isPrep ? 'Prep day' : 'Other day'}
+               </span>}
             </span>
           ) : (
             <>
@@ -296,30 +300,28 @@ export default function ShootDayCard({
           )}
         </div>
 
-        {!isPrep && !isSplinter && !day.isNonShootDay && (
-          <div className="pm-day-meta">
-            {day.generalCall && (
-              <div className="pm-day-meta-item">
-                <span className="pm-day-meta-label">CALL</span>
-                <span className="pm-day-meta-val">{day.generalCall.slice(0, 5)}</span>
-              </div>
-            )}
-            {wrapTime && (
-              <div className="pm-day-meta-item">
-                <span className="pm-day-meta-label">WRAP</span>
-                <span className="pm-day-meta-val">{wrapTime}</span>
-              </div>
-            )}
+        <div className="pm-day-meta">
+          {day.generalCall && (
             <div className="pm-day-meta-item">
-              <span className="pm-day-meta-label">TYPE</span>
-              <span className="pm-day-meta-val">{effectiveDayType}</span>
+              <span className="pm-day-meta-label">CALL</span>
+              <span className="pm-day-meta-val">{day.generalCall.slice(0, 5)}</span>
             </div>
+          )}
+          {wrapTime && (
             <div className="pm-day-meta-item">
-              <span className="pm-day-meta-label">SCENES</span>
-              <span className="pm-day-meta-val">{sceneCount}</span>
+              <span className="pm-day-meta-label">WRAP</span>
+              <span className="pm-day-meta-val">{wrapTime}</span>
             </div>
+          )}
+          <div className="pm-day-meta-item">
+            <span className="pm-day-meta-label">TYPE</span>
+            <span className="pm-day-meta-val">{effectiveDayType}</span>
           </div>
-        )}
+          <div className="pm-day-meta-item">
+            <span className="pm-day-meta-label">SCENES</span>
+            <span className="pm-day-meta-val">{sceneCount}</span>
+          </div>
+        </div>
 
         <div
           className="day-header-actions"
@@ -357,8 +359,8 @@ export default function ShootDayCard({
       {expanded && (
         <div className="pm-day-body">
           <div className="pm-field-grid">
-            {/* Day number — only for main shoot days */}
-            {category === 'main' && !day.isNonShootDay && (
+            {/* Day number (main) or free-text label (non-main) */}
+            {isMain ? (
               <div className="pm-field-group">
                 <label className="pm-field-label">Day #</label>
                 <input
@@ -366,9 +368,18 @@ export default function ShootDayCard({
                   type="number"
                   min="1"
                   value={day.dayNumber ?? ''}
-                  onChange={e =>
-                    onUpdate(day.id, 'dayNumber', parseInt(e.target.value, 10) || 1)
-                  }
+                  onChange={e => onUpdate(day.id, 'dayNumber', parseInt(e.target.value, 10) || 1)}
+                />
+              </div>
+            ) : (
+              <div className="pm-field-group">
+                <label className="pm-field-label">Label</label>
+                <input
+                  className="pm-input"
+                  type="text"
+                  value={day.dayLabel ?? ''}
+                  placeholder={isPrep ? 'e.g. P1, P-A' : isSplinter ? 'e.g. X1, S-B' : 'e.g. T1, OT-1'}
+                  onChange={e => onUpdate(day.id, 'dayLabel', e.target.value)}
                 />
               </div>
             )}
@@ -383,15 +394,15 @@ export default function ShootDayCard({
               />
             </div>
 
-            {/* Description — for non-shoot and prep days */}
-            {(day.isNonShootDay || isPrep) && (
+            {/* Description — for non-main day types */}
+            {!isMain && (
               <div className="pm-field-group">
                 <label className="pm-field-label">Description</label>
                 <input
                   className="pm-input"
                   type="text"
                   value={day.description}
-                  placeholder={isPrep ? 'e.g. Camera tests, costume fittings, rigging…' : 'e.g. Holiday, Travel day, Turnaround…'}
+                  placeholder={isPrep ? 'Camera tests, rigging, fittings…' : isOther ? 'Holiday, Travel, Turnaround…' : 'Parallel unit description…'}
                   onChange={e => onUpdate(day.id, 'description', e.target.value)}
                 />
               </div>
@@ -536,25 +547,6 @@ export default function ShootDayCard({
             onUpdateDayExtra={onUpdateDayExtra}
           />
 
-          {/* ── Prep / Splinter actions (main days only) ─────────────────────── */}
-          {category === 'main' && (
-            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f0f0ea', display: 'flex', gap: 8 }}>
-              <button
-                className="pm-btn pm-btn--ghost pm-btn--sm"
-                onClick={() => onAddPrepDay(day)}
-                title="Add a prep unit for this date"
-              >
-                ＋ Prep Unit
-              </button>
-              <button
-                className="pm-btn pm-btn--ghost pm-btn--sm"
-                onClick={() => onAddSplinterDay(day)}
-                title="Add a splinter unit for this date"
-              >
-                ＋ Splinter
-              </button>
-            </div>
-          )}
 
           {/* ── Crew & Equipment from gantt — all day types ──────────────────── */}
           <div className="additionals-section">
@@ -621,18 +613,23 @@ export default function ShootDayCard({
         </div>
       )}
 
-      {/* ── Non-shoot toggle — hidden for prep days (always non-shoot) ─────── */}
-      {!isPrep && (
-        <div
-          className="pm-toggle-row"
-          onClick={() => onUpdate(day.id, 'isNonShootDay', !day.isNonShootDay)}
-        >
-          <div className={`pm-toggle${day.isNonShootDay ? ' on' : ''}`}>
-            <div className="pm-toggle-thumb" />
-          </div>
-          <span className="toggle-label">Non-shooting day</span>
-        </div>
-      )}
+      {/* ── Day type selector ────────────────────────────────────────────────── */}
+      <div className="pm-day-type-bar" onClick={e => e.stopPropagation()}>
+        {[
+          { value: 'main',     label: 'Main Unit' },
+          { value: 'splinter', label: 'Splinter' },
+          { value: 'prep',     label: 'Prep Day' },
+          { value: 'other',    label: 'Other' },
+        ].map(opt => (
+          <button
+            key={opt.value}
+            className={`pm-day-type-btn${category === opt.value ? ' active' : ''}`}
+            onClick={() => { if (category !== opt.value) onUpdate(day.id, 'dayCategory', opt.value) }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

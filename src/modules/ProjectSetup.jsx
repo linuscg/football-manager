@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useHodsStore } from '../store/useHodsStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ const SYMBOL_TO_CODE = {
 
 // ─── CastMemberRow — local state to avoid focus loss ─────────────────────────
 
-function CastMemberRow({ member, index, total, onUpdate, onDelete, onMoveUp, onMoveDown }) {
+function CastMemberRow({ member, onUpdate, onDelete, onDragStart, onDragOver, onDrop, isDragOver }) {
   const [lNum,  setLNum]  = useState(member.castNumber ?? '')
   const [lName, setLName] = useState(member.name)
   const [lRole, setLRole] = useState(member.role)
@@ -72,14 +72,21 @@ function CastMemberRow({ member, index, total, onUpdate, onDelete, onMoveUp, onM
   useEffect(() => setLRole(member.role),             [member.role])
 
   return (
-    <div className="cast-member-row">
+    <div
+      className={`cast-member-row${isDragOver ? ' drag-over' : ''}`}
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={e => { e.preventDefault(); onDragOver() }}
+      onDrop={onDrop}
+    >
+      <span className="cast-drag-handle" title="Drag to reorder">⠿</span>
       <input
         className="pm-input"
         type="number"
         min="1"
         value={lNum}
         placeholder="#"
-        title="Cast ID number — shown in schedule and daily info"
+        title="Cast ID number — list is sorted by this"
         onChange={e => setLNum(e.target.value)}
         onBlur={() => {
           const n = parseInt(lNum, 10)
@@ -104,9 +111,36 @@ function CastMemberRow({ member, index, total, onUpdate, onDelete, onMoveUp, onM
         onBlur={() => { if (lRole !== member.role) onUpdate(member.id, 'role', lRole) }}
         style={{ flex: 2 }}
       />
-      <button className="pm-icon-btn" onClick={() => onMoveUp(index)} disabled={index === 0} title="Move up">↑</button>
-      <button className="pm-icon-btn" onClick={() => onMoveDown(index)} disabled={index === total - 1} title="Move down">↓</button>
       <button className="pm-icon-btn danger" onClick={() => onDelete(member.id)} title="Remove cast member">✕</button>
+    </div>
+  )
+}
+
+// ─── RateInput — controlled input for a single FX rate ───────────────────────
+
+function RateInput({ code, label, storedValue, onSave }) {
+  const [local, setLocal] = useState(storedValue != null ? String(storedValue) : '')
+
+  useEffect(() => {
+    setLocal(storedValue != null ? String(storedValue) : '')
+  }, [storedValue])
+
+  return (
+    <div className="pm-field-group">
+      <label className="pm-field-label">{label}</label>
+      <input
+        className="pm-input"
+        type="number"
+        min="0"
+        step="0.0001"
+        value={local}
+        placeholder="—"
+        onChange={e => setLocal(e.target.value)}
+        onBlur={() => {
+          const num = parseFloat(local)
+          if (!isNaN(num) && num > 0) onSave(code, num)
+        }}
+      />
     </div>
   )
 }
@@ -159,12 +193,17 @@ export default function ProjectSetup({
   onDeleteCastMember,
   onUpdateCastMember,
   onReorderCastMembers,
+  onImportCastMembers,
 }) {
   const [genStatus,    setGenStatus]    = useState(null)  // null | 'loading' | { count }
   const [genError,     setGenError]     = useState(null)
-  const [lastGenRange, setLastGenRange] = useState(null)  // { start, end } after successful gen
   const [fxLoading,    setFxLoading]    = useState(false)
   const [fxError,      setFxError]      = useState(null)
+  const [fxUpdated,    setFxUpdated]    = useState(null)  // time of last successful fetch
+  const [castImportMsg, setCastImportMsg] = useState(null)
+  const [castDragIdx,   setCastDragIdx]   = useState(null)
+  const [castDragOver,  setCastDragOver]  = useState(null)
+  const castImportRef = useRef(null)
 
   const { hods, addHod, deleteHod, updateHod } = useHodsStore()
 
@@ -179,12 +218,8 @@ export default function ProjectSetup({
     d.date >= shootStart && d.date <= shootEnd
   ).length
 
-  // Grey out the button if dates haven't changed since last generation
-  const alreadyGenerated = !!(
-    lastGenRange &&
-    lastGenRange.start === shootStart &&
-    lastGenRange.end   === shootEnd
-  )
+  // Show "already generated" if there are shoot days in the schedule range
+  const alreadyGenerated = actualShootDays > 0
 
   async function handleGenerate() {
     if (!shootStart || !shootEnd) return
@@ -198,7 +233,6 @@ export default function ProjectSetup({
     try {
       const result = await onGenerate(shootStart, shootEnd)
       setGenStatus(result)
-      setLastGenRange({ start: shootStart, end: shootEnd })
     } catch (err) {
       setGenError(err.message)
       setGenStatus(null)
@@ -212,11 +246,14 @@ export default function ProjectSetup({
     setFxLoading(true)
     setFxError(null)
     try {
-      const res = await fetch(`https://api.frankfurter.app/latest?from=${baseCurrencyCode}`)
+      const res = await fetch(`https://open.er-api.com/v6/latest/${baseCurrencyCode}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
-      const rates = json.rates ?? {}
+      if (json.result !== 'success') throw new Error(json['error-type'] ?? 'API error')
+      // Strip the base currency from the rates object before saving
+      const { [baseCurrencyCode]: _base, ...rates } = json.rates
       onUpdate('exchangeRates', rates)
+      setFxUpdated(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))
     } catch (err) {
       setFxError(err.message)
     } finally {
@@ -224,12 +261,78 @@ export default function ProjectSetup({
     }
   }
 
-  function handleRateBlur(code, value) {
-    const num = parseFloat(value)
-    if (!isNaN(num) && num > 0) {
-      onUpdate('exchangeRates', { ...(production.exchangeRates ?? {}), [code]: num })
-    }
+  function handleRateSave(code, num) {
+    onUpdate('exchangeRates', { ...(production.exchangeRates ?? {}), [code]: num })
   }
+
+  // ── Cast CSV helpers ──────────────────────────────────────────────────────
+
+  function parseCastCSV(text) {
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
+    return lines.map(line => {
+      const fields = []
+      let cur = '', inQ = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') { inQ = !inQ }
+        else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
+        else cur += ch
+      }
+      fields.push(cur.trim())
+      return fields
+    })
+  }
+
+  function downloadCastTemplate() {
+    const headers = ['Cast Number', 'Name', 'Role / Character']
+    const example = ['1', 'Jane Smith', 'Detective Sara']
+    const csv = [headers, example].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = 'cast_template.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function handleImportCastFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const text  = await file.text()
+    const rows  = parseCastCSV(text)
+    if (rows.length < 2) return
+    const [header, ...dataRows] = rows
+    const h = header.map(s => s.toLowerCase())
+    const numIdx  = h.findIndex(x => x.includes('cast') || x.includes('number') || x === '#')
+    const nameIdx = h.indexOf('name')
+    const roleIdx = h.findIndex(x => x.includes('role') || x.includes('character'))
+    const mapped  = dataRows.map(r => ({
+      castNumber: numIdx  >= 0 ? (parseInt(r[numIdx],  10) || null) : null,
+      name:       nameIdx >= 0 ? (r[nameIdx] ?? '') : '',
+      role:       roleIdx >= 0 ? (r[roleIdx] ?? '') : '',
+    })).filter(r => r.name)
+    if (!mapped.length) return
+    const count = await onImportCastMembers(mapped)
+    setCastImportMsg(count)
+    setTimeout(() => setCastImportMsg(null), 4000)
+  }
+
+  // ── Cast drag-and-drop ────────────────────────────────────────────────────
+
+  function handleCastDrop(toIdx) {
+    if (castDragIdx === null || castDragIdx === toIdx) { setCastDragIdx(null); setCastDragOver(null); return }
+    onReorderCastMembers(castDragIdx, toIdx)
+    setCastDragIdx(null)
+    setCastDragOver(null)
+  }
+
+  // Sort cast by castNumber (nulls last)
+  const sortedCast = [...castMembers].sort((a, b) => {
+    if (a.castNumber == null && b.castNumber == null) return 0
+    if (a.castNumber == null) return 1
+    if (b.castNumber == null) return -1
+    return a.castNumber - b.castNumber
+  })
 
   return (
     <div className="pm-module">
@@ -312,7 +415,7 @@ export default function ProjectSetup({
                   {genStatus === 'loading'
                     ? 'Generating…'
                     : alreadyGenerated
-                      ? `✓ Generated ${wdCount} day${wdCount !== 1 ? 's' : ''}`
+                      ? `✓ ${actualShootDays} day${actualShootDays !== 1 ? 's' : ''} in Schedule`
                       : wdCount > 0
                         ? `Generate ${wdCount} shooting day${wdCount !== 1 ? 's' : ''} in Schedule`
                         : 'Generate shooting days'}
@@ -385,7 +488,10 @@ export default function ProjectSetup({
               {fxLoading ? 'Fetching…' : '↻ Fetch live rates'}
             </button>
             {fxError && <span className="setup-gen-error">Error: {fxError}</span>}
-            {!fxError && !fxLoading && Object.keys(production.exchangeRates ?? {}).length > 0 && (
+            {!fxError && fxUpdated && (
+              <span style={{ fontSize: 11, color: '#16a34a' }}>✓ Rates updated at {fxUpdated}</span>
+            )}
+            {!fxError && !fxUpdated && !fxLoading && Object.keys(production.exchangeRates ?? {}).length > 0 && (
               <span style={{ fontSize: 11, color: '#16a34a' }}>✓ Rates loaded</span>
             )}
           </div>
@@ -394,25 +500,15 @@ export default function ProjectSetup({
         <div className="fx-rate-grid">
           {SUPPORTED_CURRENCIES
             .filter(c => c.code !== baseCurrencyCode)
-            .map(c => {
-              const val = production.exchangeRates?.[c.code] ?? ''
-              return (
-                <div key={c.code} className="pm-field-group">
-                  <label className="pm-field-label">{c.label}</label>
-                  <input
-                    className="pm-input"
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    defaultValue={val || ''}
-                    key={`${c.code}-${val}`}
-                    placeholder="—"
-                    onBlur={e => handleRateBlur(c.code, e.target.value)}
-                    style={{ width: '100%' }}
-                  />
-                </div>
-              )
-            })}
+            .map(c => (
+              <RateInput
+                key={c.code}
+                code={c.code}
+                label={c.label}
+                storedValue={production.exchangeRates?.[c.code] ?? null}
+                onSave={handleRateSave}
+              />
+            ))}
         </div>
 
         <p className="setup-card-hint">
@@ -494,30 +590,38 @@ export default function ProjectSetup({
 
         {castMembers.length === 0 && (
           <p className="setup-card-hint" style={{ marginBottom: 10 }}>
-            No cast members yet. Add them below, then assign them to scenes in the Schedule.
+            No cast members yet. Add them below or import from CSV, then assign to scenes in the Schedule.
           </p>
         )}
 
-        {castMembers.map((member, i) => (
+        {sortedCast.map((member, i) => (
           <CastMemberRow
             key={member.id}
             member={member}
-            index={i}
-            total={castMembers.length}
             onUpdate={onUpdateCastMember}
             onDelete={onDeleteCastMember}
-            onMoveUp={idx => onReorderCastMembers(idx, idx - 1)}
-            onMoveDown={idx => onReorderCastMembers(idx, idx + 1)}
+            onDragStart={() => setCastDragIdx(i)}
+            onDragOver={() => setCastDragOver(i)}
+            onDrop={() => handleCastDrop(i)}
+            isDragOver={castDragOver === i && castDragIdx !== i}
           />
         ))}
 
-        <button
-          className="pm-btn pm-btn--ghost pm-btn--sm"
-          style={{ marginTop: 10 }}
-          onClick={onAddCastMember}
-        >
-          + Add Cast Member
-        </button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={onAddCastMember}>
+            + Add Cast Member
+          </button>
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadCastTemplate} title="Download CSV template">
+            ↓ Template
+          </button>
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => castImportRef.current?.click()} title="Import from CSV">
+            ↑ Import CSV
+          </button>
+          <input ref={castImportRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleImportCastFile} />
+          {castImportMsg != null && (
+            <span style={{ fontSize: 12, color: '#16a34a' }}>✓ Imported {castImportMsg} cast member{castImportMsg !== 1 ? 's' : ''}</span>
+          )}
+        </div>
       </div>
 
       {/* ── Format ───────────────────────────────────────────────────────────── */}
