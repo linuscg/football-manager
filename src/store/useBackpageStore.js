@@ -16,11 +16,13 @@ function mapSetting(row) {
 
 function mapOverride(row) {
   return {
-    id:       row.id,
-    dayId:    row.day_id,
-    memberId: row.member_id,
-    callTime: row.call_time ?? null,
-    wrapTime: row.wrap_time ?? null,
+    id:            row.id,
+    dayId:         row.day_id,
+    memberId:      row.member_id,
+    callTime:      row.call_time      ?? null,
+    wrapTime:      row.wrap_time      ?? null,
+    lunch:         row.lunch          ?? true,
+    scenechronize: row.scenechronize  ?? false,
   }
 }
 
@@ -155,35 +157,66 @@ export function useBackpageStore() {
     return memberOverrides.find(o => o.dayId === dayId && o.memberId === memberId) ?? null
   }
 
+  // Column name map for all override fields
+  const OVERRIDE_COL = {
+    callTime:      'call_time',
+    wrapTime:      'wrap_time',
+    lunch:         'lunch',
+    scenechronize: 'scenechronize',
+  }
+
+  // A row is "all defaults" if it carries no meaningful data worth storing
+  function isDefaultOverride(o) {
+    return o.callTime === null && o.wrapTime === null &&
+           (o.lunch === true || o.lunch == null) &&
+           !o.scenechronize
+  }
+
   async function upsertMemberOverride(dayId, memberId, field, value) {
     const prodId   = getCurrentProductionId()
     const existing = memberOverrides.find(o => o.dayId === dayId && o.memberId === memberId)
-    const norm     = value?.trim() || null   // empty string → null
+
+    // Normalise: empty strings on text fields become null
+    const norm = (field === 'callTime' || field === 'wrapTime')
+      ? (value?.trim() || null)
+      : value
 
     if (existing) {
       const updated = { ...existing, [field]: norm }
-      // Both fields null → delete the row entirely
-      if (updated.callTime === null && updated.wrapTime === null) {
+      if (isDefaultOverride(updated)) {
+        // Row back to all-defaults — clean it up
         setMemberOverrides(oo => oo.filter(o => o.id !== existing.id))
         const { error: err } = await supabase
           .from('backpage_member_overrides').delete().eq('id', existing.id)
         if (err) { console.error('[backpage store] delete override:', err); loadAll() }
       } else {
         setMemberOverrides(oo => oo.map(o => o.id === existing.id ? updated : o))
-        const col = field === 'callTime' ? 'call_time' : 'wrap_time'
         const { error: err } = await supabase
-          .from('backpage_member_overrides').update({ [col]: norm }).eq('id', existing.id)
+          .from('backpage_member_overrides')
+          .update({ [OVERRIDE_COL[field]]: norm })
+          .eq('id', existing.id)
         if (err) { console.error('[backpage store] update override:', err); loadAll() }
       }
     } else {
-      if (!norm) return
-      const newId    = crypto.randomUUID()
-      const callTime = field === 'callTime' ? norm : null
-      const wrapTime = field === 'wrapTime' ? norm : null
-      setMemberOverrides(oo => [...oo, { id: newId, dayId, memberId, callTime, wrapTime }])
+      // Don't create a row for a no-op (e.g. clearing an already-default value)
+      const candidate = {
+        callTime: null, wrapTime: null, lunch: true, scenechronize: false,
+        [field]: norm,
+      }
+      if (isDefaultOverride(candidate)) return
+
+      const newId = crypto.randomUUID()
+      const row   = { id: newId, dayId, memberId, ...candidate }
+      setMemberOverrides(oo => [...oo, row])
       const { error: err } = await supabase
         .from('backpage_member_overrides')
-        .insert({ id: newId, production_id: prodId, day_id: dayId, member_id: memberId, call_time: callTime, wrap_time: wrapTime })
+        .insert({
+          id: newId, production_id: prodId, day_id: dayId, member_id: memberId,
+          call_time:     candidate.callTime,
+          wrap_time:     candidate.wrapTime,
+          lunch:         candidate.lunch,
+          scenechronize: candidate.scenechronize,
+        })
       if (err) { console.error('[backpage store] insert override:', err); loadAll() }
     }
   }

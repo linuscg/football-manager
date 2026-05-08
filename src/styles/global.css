@@ -4808,3 +4808,23 @@ select.pm-input { cursor: pointer; }
 .bp-check-val.is-on {
   color: #16a34a !important;
 }
+
+/* ── Backpage per-member checkbox columns ──────────────────────── */
+.bp-th-check {
+  width: 32px;
+  text-align: center;
+  font-size: 10px;
+  color: #9ca3af;
+}
+.bp-td-check {
+  width: 32px;
+  text-align: center;
+  padding: 6px 4px;
+}
+.bp-row-check {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--pm-accent, #3b82f6);
+  cursor: pointer;
+  margin: 0;
+}

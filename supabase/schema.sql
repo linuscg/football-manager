@@ -112,3 +112,8 @@ create table if not exists backpage_day_settings (
   created_at      timestamptz default now()
 );
 alter publication supabase_realtime add table backpage_day_settings;
+
+-- Add lunch + scenechronize per-member flags to overrides table
+alter table backpage_member_overrides
+  add column if not exists lunch         boolean not null default true,
+  add column if not exists scenechronize boolean not null default false;

@@ -67,8 +67,10 @@ function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMember
   function commitCall() { upsertMemberOverride(dayId, m.id, 'callTime', lCall) }
   function commitWrap() { upsertMemberOverride(dayId, m.id, 'wrapTime', lWrap) }
 
-  const hasCallOv = Boolean(lCall)
-  const hasWrapOv = Boolean(lWrap)
+  const hasCallOv   = Boolean(lCall)
+  const hasWrapOv   = Boolean(lWrap)
+  const lunch        = override?.lunch         ?? true
+  const scenechronize = override?.scenechronize ?? false
 
   return (
     <tr className="bp-crew-row">
@@ -117,6 +119,28 @@ function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMember
             >×</button>
           )}
         </div>
+      </td>
+
+      {/* Lunch checkbox */}
+      <td className="bp-td bp-td-check">
+        <input
+          type="checkbox"
+          className="bp-row-check"
+          checked={lunch}
+          title={lunch ? 'Taking lunch' : 'No lunch'}
+          onChange={e => upsertMemberOverride(dayId, m.id, 'lunch', e.target.checked)}
+        />
+      </td>
+
+      {/* Scenechronize checkbox */}
+      <td className="bp-td bp-td-check">
+        <input
+          type="checkbox"
+          className="bp-row-check"
+          checked={scenechronize}
+          title={scenechronize ? 'On Scenechronize' : 'Not on Scenechronize'}
+          onChange={e => upsertMemberOverride(dayId, m.id, 'scenechronize', e.target.checked)}
+        />
       </td>
     </tr>
   )
@@ -183,6 +207,8 @@ function DeptSection({
             <th className="bp-th">Role</th>
             <th className="bp-th bp-th-time">Call</th>
             <th className="bp-th bp-th-time">Wrap</th>
+            <th className="bp-th bp-th-check" title="Lunch">L</th>
+            <th className="bp-th bp-th-check" title="Scenechronize">Sc</th>
           </tr>
         </thead>
         <tbody>
