@@ -23,9 +23,22 @@ function parseCSV(text) {
   })
 }
 
-// ─── MemberRow — local state keeps inputs focused during typing ───────────────
+function sortAlpha(members) {
+  return [...members].sort((a, b) => {
+    const d = (a.department || '').toLowerCase().localeCompare((b.department || '').toLowerCase())
+    if (d !== 0) return d
+    return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
+  })
+}
 
-function MemberRow({ member, onUpdate, onDelete, onMoveUp, onMoveDown, deptSuggestions, roleSuggestions }) {
+// ─── MemberRow ────────────────────────────────────────────────────────────────
+
+function MemberRow({
+  member, isDragOver, isDragging,
+  onUpdate, onDelete,
+  deptSuggestions, roleSuggestions,
+  onDragStart, onDragOver, onDrop, onDragEnd,
+}) {
   const [lName,  setLName]  = useState(member.name)
   const [lRole,  setLRole]  = useState(member.role)
   const [lDept,  setLDept]  = useState(member.department)
@@ -43,10 +56,20 @@ function MemberRow({ member, onUpdate, onDelete, onMoveUp, onMoveDown, deptSugge
   }
 
   return (
-    <tr className="ftc-row">
-      <td className="ftc-cell ftc-cell-order">
-        <button className="pm-icon-btn" onClick={() => onMoveUp(member.id)}   title="Move up">↑</button>
-        <button className="pm-icon-btn" onClick={() => onMoveDown(member.id)} title="Move down">↓</button>
+    <tr
+      className={[
+        'ftc-row',
+        isDragging ? 'is-dragging' : '',
+        isDragOver ? 'drag-over'   : '',
+      ].filter(Boolean).join(' ')}
+      draggable
+      onDragStart={() => onDragStart(member.id)}
+      onDragOver={e => { e.preventDefault(); onDragOver(member.id) }}
+      onDrop={() => onDrop(member.id)}
+      onDragEnd={onDragEnd}
+    >
+      <td className="ftc-cell ftc-cell-drag">
+        <span className="ftc-drag-handle" title="Drag to reorder">⠿</span>
       </td>
 
       <td className="ftc-cell ftc-cell-name">
@@ -112,7 +135,7 @@ function MemberRow({ member, onUpdate, onDelete, onMoveUp, onMoveDown, deptSugge
       <td className="ftc-cell ftc-cell-del">
         <button
           className="pm-icon-btn danger"
-          title="Delete"
+          title="Remove"
           onClick={() => {
             if (window.confirm(`Remove "${member.name || 'this person'}" from the fulltime crew list?`))
               onDelete(member.id)
@@ -131,34 +154,90 @@ export default function FulltimeCrew() {
   const {
     members, loading, error,
     addMember, deleteMember, updateMember,
-    moveMemberUp, moveMemberDown,
     importMembers,
   } = useFulltimeCrewStore()
 
-  const importRef   = useRef(null)
-  const [importMsg, setImportMsg] = useState(null)
+  // ── Local display order (alphabetical by default; drag can reorder for the session) ──
 
-  // ── Suggestions from existing data ────────────────────────────────────────
+  const [displayIds, setDisplayIds] = useState([])
+
+  useEffect(() => {
+    // Re-sort alphabetically whenever the SET of member IDs changes
+    // (new member added, member deleted). Preserves current order when only data changes.
+    const incomingIds = new Set(members.map(m => m.id))
+    const currentIds  = new Set(displayIds)
+    const unchanged   = incomingIds.size === currentIds.size &&
+                        [...incomingIds].every(id => currentIds.has(id))
+    if (!unchanged) {
+      setDisplayIds(sortAlpha(members).map(m => m.id))
+    }
+  }, [members]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ordered member objects for rendering
+  const displayMembers = displayIds
+    .map(id => members.find(m => m.id === id))
+    .filter(Boolean)
+
+  // ── Drag state ─────────────────────────────────────────────────────────────
+
+  const dragId    = useRef(null)
+  const [dragOverId, setDragOverId] = useState(null)
+
+  function onDragStart(id) {
+    dragId.current = id
+  }
+
+  function onDragOver(id) {
+    if (id !== dragId.current) setDragOverId(id)
+  }
+
+  function onDrop(targetId) {
+    if (!dragId.current || dragId.current === targetId) {
+      dragId.current = null; setDragOverId(null); return
+    }
+    setDisplayIds(ids => {
+      const from = ids.indexOf(dragId.current)
+      const to   = ids.indexOf(targetId)
+      if (from === -1 || to === -1) return ids
+      const next = [...ids]
+      next.splice(from, 1)
+      next.splice(to, 0, dragId.current)
+      return next
+    })
+    dragId.current = null
+    setDragOverId(null)
+  }
+
+  function onDragEnd() {
+    dragId.current = null
+    setDragOverId(null)
+  }
+
+  // ── Autocomplete suggestions ───────────────────────────────────────────────
 
   const deptSuggestions = uniq(members.map(m => m.department))
   const roleSuggestions = uniq(members.map(m => m.role))
 
-  // ── Group by department ────────────────────────────────────────────────────
+  // ── Grouping (from displayMembers so drag order is preserved) ──────────────
 
   const FALLBACK = 'Unassigned'
   const groupMap = {}
-  for (const m of members) {
+  for (const m of displayMembers) {
     const key = m.department.trim() || FALLBACK
     if (!groupMap[key]) groupMap[key] = []
     groupMap[key].push(m)
   }
+  // Departments sorted alphabetically; Unassigned last
   const groups = Object.entries(groupMap).sort(([a], [b]) => {
     if (a === FALLBACK) return 1
     if (b === FALLBACK) return -1
     return a.localeCompare(b)
   })
 
-  // ── CSV template download ──────────────────────────────────────────────────
+  // ── CSV template ───────────────────────────────────────────────────────────
+
+  const importRef = useRef(null)
+  const [importMsg, setImportMsg] = useState(null)
 
   function downloadTemplate() {
     const example = ['Jane Smith', 'Director of Photography', 'Camera', '+44 7700 900000', 'jane@example.com']
@@ -170,30 +249,23 @@ export default function FulltimeCrew() {
     URL.revokeObjectURL(url)
   }
 
-  // ── CSV import ─────────────────────────────────────────────────────────────
-
   async function handleImportFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-
     const text = await file.text()
     const rows = parseCSV(text)
     if (rows.length < 2) return
-
     const [header, ...dataRows] = rows
     const h = header.map(s => s.toLowerCase())
-
     const mapped = dataRows.map(r => ({
-      name:       r[h.indexOf('name')]        ?? '',
-      role:       r[h.indexOf('role')]        ?? '',
-      department: r[h.indexOf('department')]  ?? '',
-      phone:      r[h.indexOf('phone')]       ?? '',
-      email:      r[h.indexOf('email')]       ?? '',
+      name:       r[h.indexOf('name')]       ?? '',
+      role:       r[h.indexOf('role')]       ?? '',
+      department: r[h.indexOf('department')] ?? '',
+      phone:      r[h.indexOf('phone')]      ?? '',
+      email:      r[h.indexOf('email')]      ?? '',
     })).filter(r => r.name)
-
     if (!mapped.length) return
-
     const count = await importMembers(mapped)
     setImportMsg(count)
     setTimeout(() => setImportMsg(null), 4000)
@@ -217,31 +289,18 @@ export default function FulltimeCrew() {
             : 'No crew added yet'
           }
         </div>
-
         <div className="ftc-toolbar">
           {importMsg != null && (
             <span className="ftc-import-msg">✓ Imported {importMsg} member{importMsg !== 1 ? 's' : ''}</span>
           )}
-          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadTemplate} title="Download CSV template">
-            ↓ Template
-          </button>
-          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => importRef.current?.click()} title="Import from CSV">
-            ↑ Import CSV
-          </button>
-          <input
-            ref={importRef}
-            type="file"
-            accept=".csv,text/csv"
-            style={{ display: 'none' }}
-            onChange={handleImportFile}
-          />
-          <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={addMember}>
-            + Add Crew Member
-          </button>
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadTemplate}>↓ Template</button>
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => importRef.current?.click()}>↑ Import CSV</button>
+          <input ref={importRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleImportFile} />
+          <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={addMember}>+ Add Crew Member</button>
         </div>
       </div>
 
-      {/* ── Table ────────────────────────────────────────────────────────────── */}
+      {/* ── Table / empty state ───────────────────────────────────────────────── */}
       {members.length === 0 ? (
         <div className="ftc-empty">
           <div className="ftc-empty-icon">👥</div>
@@ -257,7 +316,7 @@ export default function FulltimeCrew() {
           <table className="ftc-table">
             <thead>
               <tr>
-                <th className="ftc-th ftc-th-order" />
+                <th className="ftc-th ftc-th-drag" />
                 <th className="ftc-th">Name</th>
                 <th className="ftc-th">Role</th>
                 <th className="ftc-th">Department</th>
@@ -279,24 +338,24 @@ export default function FulltimeCrew() {
                     <MemberRow
                       key={member.id}
                       member={member}
+                      isDragging={dragId.current === member.id}
+                      isDragOver={dragOverId === member.id}
                       onUpdate={updateMember}
                       onDelete={deleteMember}
-                      onMoveUp={moveMemberUp}
-                      onMoveDown={moveMemberDown}
                       deptSuggestions={deptSuggestions}
                       roleSuggestions={roleSuggestions}
+                      onDragStart={onDragStart}
+                      onDragOver={onDragOver}
+                      onDrop={onDrop}
+                      onDragEnd={onDragEnd}
                     />
                   ))}
                 </Fragment>
               ))}
             </tbody>
           </table>
-
-          {/* Add row at bottom */}
           <div className="ftc-add-bottom">
-            <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={addMember}>
-              + Add Crew Member
-            </button>
+            <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={addMember}>+ Add Crew Member</button>
           </div>
         </div>
       )}
