@@ -667,8 +667,6 @@ export default function CrewGantt({ production, shootDays }) {
     paintedInDrag.current = new Set()
     setIsDragging(true)
 
-    dirtyResources.current.add(resourceId)
-
     const key      = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
     const existing = bMap[key]
     // Toggle off by re-clicking only for non-cancelled statuses.
@@ -676,6 +674,14 @@ export default function CrewGantt({ production, shootDays }) {
     // the Clear brush (Esc) to explicitly remove a cancelled booking.
     const sameStatus = existing?.status === paintMode
     dragActionRef.current = (sameStatus && paintMode !== 'cancelled') ? null : paintMode
+
+    // Only track dirty resources for hire-date sync when painting booked/clear
+    // on a main-unit cell. Painting cancelled/unavailable/hold triggers no hire-date update,
+    // which avoids a race condition where the hire-date DB write triggers a
+    // realtime reload that races with the (still in-flight) booking INSERT.
+    if (!dayId && (dragActionRef.current === 'booked' || dragActionRef.current === null)) {
+      dirtyResources.current.add(resourceId)
+    }
 
     paintedInDrag.current.add(key)
     setBooking(resourceId, date, dragActionRef.current, dayId)
@@ -688,7 +694,9 @@ export default function CrewGantt({ production, shootDays }) {
     const key = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
     if (paintedInDrag.current.has(key)) return
     paintedInDrag.current.add(key)
-    dirtyResources.current.add(resourceId)
+    if (!dayId && (dragActionRef.current === 'booked' || dragActionRef.current === null)) {
+      dirtyResources.current.add(resourceId)
+    }
     setBooking(resourceId, date, dragActionRef.current, dayId)
   }
 

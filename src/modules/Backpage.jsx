@@ -4,6 +4,7 @@ import { useCrewStore }            from '../store/useCrewStore'
 import { useBackpageStore }        from '../store/useBackpageStore'
 import { exportBackpageXLSX }      from '../lib/exportBackpage'
 import { generatePreCallSummary }  from '../lib/backpageSummary'
+import { supabase }                from '../lib/supabase'
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
 
@@ -439,7 +440,7 @@ function DeptSection({
 export default function Backpage({ store }) {
   const { production, shootDays } = store
   const { members }                    = useFulltimeCrewStore()
-  const { resources, bookings, setBooking } = useCrewStore()
+  const { resources, bookings } = useCrewStore()
   const {
     loading: bpLoading,
     getDeptSetting,    upsertDeptSetting,
@@ -498,38 +499,101 @@ export default function Backpage({ store }) {
   // Called after a status change for an ADDITIONAL crew member (Gantt resource).
   // Moves ✓/✗ bookings in the Gantt to match the new backpage status.
   //
-  // On main page:
-  //   work   → rebook main (conflict cleanup removes any sub bookings)
-  //   SPL    → ✗ main + ✓ splinter
-  //   PREP   → ✗ main + ✓ prep
-  //   OTHER  → ✗ main + ✓ other
-  //   N/A/OC → ✗ main (leave sub bookings untouched)
+  // Uses direct Supabase writes (not setBooking) to avoid stale-closure
+  // issues when two booking mutations are needed in sequence.
+  // The realtime channel will fire loadAll() in both Backpage + Gantt
+  // instances, keeping both views in sync automatically.
   //
-  // On sub-unit page (bidirectional writes already done to main override):
-  //   'work' selected (was MAIN) → ✗ main, sub stays ✓ (already booked there)
-  //   'MAIN' selected            → ✓ main, ✗ sub
-  function syncGantt(memberId, actionTag, payload) {
+  // On main page:
+  //   work   → restore main booking to 'booked', delete all sub bookings
+  //   SPL    → cancel main + create/update splinter booking
+  //   PREP   → cancel main + create/update prep booking
+  //   OTHER  → cancel main + create/update other booking
+  //   N/A/OC → cancel main (leave sub bookings alone)
+  //
+  // On sub-unit page:
+  //   sub-to-sub  → cancel main + create sub booking (moving MAIN→this unit)
+  //   sub-to-main → delete sub booking + restore main booking
+  async function syncGantt(memberId, actionTag, payload) {
     if (!day) return
+    const date = day.date
+
+    // Snapshot bookings once for this call (fresh from component state)
+    const mainBk = bookings.find(b => b.resourceId === memberId && b.date === date && !b.dayId)
+    const allSubBks = bookings.filter(b => b.resourceId === memberId && b.date === date && b.dayId)
+    const thisDayBk = bookings.find(b => b.resourceId === memberId && b.dayId === day.id)
+
+    // Helper — upsert a booking for a given day slot
+    async function ensureBooked(targetDayId) {
+      const existing = targetDayId
+        ? bookings.find(b => b.resourceId === memberId && b.dayId === targetDayId)
+        : mainBk
+      if (existing) {
+        if (existing.status !== 'booked') {
+          const { error } = await supabase.from('resource_bookings')
+            .update({ status: 'booked' }).eq('id', existing.id)
+          if (error) console.error('[syncGantt] ensureBooked update:', error)
+        }
+      } else {
+        const { error } = await supabase.from('resource_bookings').insert({
+          id: crypto.randomUUID(),
+          resource_id: memberId,
+          booking_date: date,
+          day_id: targetDayId ?? null,
+          status: 'booked',
+        })
+        if (error) console.error('[syncGantt] ensureBooked insert:', error)
+      }
+    }
+
+    // Helper — cancel a booking (main or sub)
+    async function cancel(targetDayId) {
+      const existing = targetDayId
+        ? bookings.find(b => b.resourceId === memberId && b.dayId === targetDayId)
+        : mainBk
+      if (!existing) return
+      if (existing.status !== 'cancelled') {
+        const { error } = await supabase.from('resource_bookings')
+          .update({ status: 'cancelled' }).eq('id', existing.id)
+        if (error) console.error('[syncGantt] cancel:', error)
+      }
+    }
+
+    // Helper — delete a booking entirely
+    async function remove(targetDayId) {
+      const existing = targetDayId
+        ? bookings.find(b => b.resourceId === memberId && b.dayId === targetDayId)
+        : mainBk
+      if (!existing) return
+      const { error } = await supabase.from('resource_bookings')
+        .delete().eq('id', existing.id)
+      if (error) console.error('[syncGantt] remove:', error)
+    }
+
     if (actionTag === 'main-change') {
-      const newVal = payload          // the status written to main
+      const newVal = payload
       if (newVal === 'work') {
-        setBooking(memberId, day.date, 'booked', null)   // rebook main, auto-cleanup
+        // Back on main — restore main booking, remove all sub bookings for this date
+        await ensureBooked(null)
+        await Promise.all(allSubBks.map(b =>
+          supabase.from('resource_bookings').delete().eq('id', b.id)
+        ))
       } else if (newVal === 'SPL' || newVal === 'PREP' || newVal === 'OTHER') {
-        const cat      = newVal === 'SPL' ? 'splinter' : newVal === 'PREP' ? 'prep' : 'other'
+        const cat       = newVal === 'SPL' ? 'splinter' : newVal === 'PREP' ? 'prep' : 'other'
         const targetDay = sameDateDays.find(d => d.dayCategory === cat)
-        setBooking(memberId, day.date, 'cancelled', null, true)          // ✗ main
-        if (targetDay) setBooking(memberId, day.date, 'booked', targetDay.id, true)  // ✓ sub
+        await cancel(null)                                    // ✗ main
+        if (targetDay) await ensureBooked(targetDay.id)       // ✓ sub
       } else if (newVal === 'N/A' || newVal === 'O/C') {
-        setBooking(memberId, day.date, 'cancelled', null, true)          // ✗ main
+        await cancel(null)                                    // ✗ main
       }
     } else if (actionTag === 'sub-to-sub') {
-      // User on sub page picked 'Work' (was MAIN) → they're now working sub
-      setBooking(memberId, day.date, 'cancelled', null, true)            // ✗ main
-      // Sub booking is already ✓ (they're in additionalMembers for this day)
+      // User on sub page picked 'Work' (was MAIN) → moving from main → this sub unit
+      await cancel(null)             // ✗ main
+      await ensureBooked(day.id)    // ✓ this sub unit
     } else if (actionTag === 'sub-to-main') {
-      // User on sub page picked 'MAIN' → back on main unit
-      setBooking(memberId, day.date, 'cancelled', day.id, true)          // ✗ sub
-      setBooking(memberId, day.date, 'booked', null, true)               // ✓ main
+      // User on sub page picked 'MAIN' → moving back to main unit
+      await remove(day.id)          // delete sub booking
+      await ensureBooked(null)      // ✓ main
     }
   }
 
