@@ -4811,13 +4811,14 @@ select.pm-input { cursor: pointer; }
 
 /* ── Backpage per-member checkbox columns ──────────────────────── */
 .bp-th-check {
-  width: 32px;
+  width: 40px;
   text-align: center;
   font-size: 10px;
   color: #9ca3af;
+  vertical-align: middle;
 }
 .bp-td-check {
-  width: 32px;
+  width: 40px;
   text-align: center;
   padding: 6px 4px;
 }
@@ -4827,4 +4828,27 @@ select.pm-input { cursor: pointer; }
   accent-color: var(--pm-accent, #3b82f6);
   cursor: pointer;
   margin: 0;
+}
+
+/* Select-all label in dept table header */
+.bp-th-selectall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  user-select: none;
+}
+.bp-th-check-label {
+  font-size: 9px;
+  line-height: 1;
+  color: #9ca3af;
+  letter-spacing: 0.03em;
+}
+
+/* Sub-text for count display in time strip (e.g. "/31") */
+.bp-time-sub {
+  font-size: 0.7em;
+  color: #9ca3af;
+  margin-left: 1px;
 }

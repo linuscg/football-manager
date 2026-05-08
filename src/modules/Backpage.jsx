@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useFulltimeCrewStore }    from '../store/useFulltimeCrewStore'
 import { useBackpageStore }        from '../store/useBackpageStore'
 import { exportBackpageXLSX }      from '../lib/exportBackpage'
@@ -160,6 +160,30 @@ function DeptSection({
   const deptCall = generalCall ? addMins(generalCall, -preCallMins) : null
   const deptWrap = wrapTime    ? addMins(wrapTime,     derigMins)   : null
 
+  // ── Select-all state ──────────────────────────────────────────────────────
+  const lunchCount = members.filter(m => (getMemberOverride(dayId, m.id)?.lunch ?? true)).length
+  const scCount    = members.filter(m => (getMemberOverride(dayId, m.id)?.scenechronize ?? false)).length
+  const n          = members.length
+
+  const lunchAllRef = useRef(null)
+  const scAllRef    = useRef(null)
+
+  useEffect(() => {
+    if (lunchAllRef.current) lunchAllRef.current.indeterminate = lunchCount > 0 && lunchCount < n
+  }, [lunchCount, n])
+  useEffect(() => {
+    if (scAllRef.current) scAllRef.current.indeterminate = scCount > 0 && scCount < n
+  }, [scCount, n])
+
+  function toggleAllLunch() {
+    const newVal = lunchCount < n   // if not all on, turn all on; if all on, turn all off
+    members.forEach(m => upsertMemberOverride(dayId, m.id, 'lunch', newVal))
+  }
+  function toggleAllSc() {
+    const newVal = scCount < n
+    members.forEach(m => upsertMemberOverride(dayId, m.id, 'scenechronize', newVal))
+  }
+
   return (
     <div className="bp-dept">
       {/* Dept header row */}
@@ -207,8 +231,30 @@ function DeptSection({
             <th className="bp-th">Role</th>
             <th className="bp-th bp-th-time">Call</th>
             <th className="bp-th bp-th-time">Wrap</th>
-            <th className="bp-th bp-th-check" title="Lunch">L</th>
-            <th className="bp-th bp-th-check" title="Scenechronize">Sc</th>
+            <th className="bp-th bp-th-check" title="Lunch — click to toggle all">
+              <label className="bp-th-selectall">
+                <span className="bp-th-check-label">L</span>
+                <input
+                  ref={lunchAllRef}
+                  type="checkbox"
+                  className="bp-row-check"
+                  checked={lunchCount === n}
+                  onChange={toggleAllLunch}
+                />
+              </label>
+            </th>
+            <th className="bp-th bp-th-check" title="Scenechronize — click to toggle all">
+              <label className="bp-th-selectall">
+                <span className="bp-th-check-label">Sc</span>
+                <input
+                  ref={scAllRef}
+                  type="checkbox"
+                  className="bp-row-check"
+                  checked={scCount === n && n > 0}
+                  onChange={toggleAllSc}
+                />
+              </label>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -323,6 +369,15 @@ export default function Backpage({ store }) {
       setExporting(false)
     }
   }
+
+  // ── Lunch / Scenechronize totals ────────────────────────────────────────
+  const totalCrew         = members.length
+  const totalLunch        = day
+    ? members.filter(m => (getMemberOverride(day.id, m.id)?.lunch ?? true)).length
+    : 0
+  const totalScenechronize = day
+    ? members.filter(m => (getMemberOverride(day.id, m.id)?.scenechronize ?? false)).length
+    : 0
 
   // ── Pre-call summary ────────────────────────────────────────────────────
 
@@ -451,36 +506,20 @@ export default function Backpage({ store }) {
             <div className="bp-time-label">Hours</div>
             <div className="bp-time-value">{production.workHours ?? 10}h</div>
           </div>
-          <div className="bp-time-block">
-            <div className="bp-time-label">Lunch</div>
-            <label className="bp-check-toggle">
-              <input
-                type="checkbox"
-                checked={lunchIncluded}
-                onChange={e => upsertDaySetting(day.id, 'lunchIncluded', e.target.checked)}
-              />
-              <span className={lunchIncluded ? 'bp-time-value bp-check-val' : 'bp-time-value bp-check-val is-off'}>
-                {lunchIncluded
-                  ? (effectiveDayType === 'CWD'  ? (production.cwdLunch  ?? 0)
-                   : effectiveDayType === 'SCWD' ? (production.scwdLunch ?? 30)
-                   :                               (production.swdLunch  ?? 60)) + ' min'
-                  : 'Off'}
-              </span>
-            </label>
-          </div>
           <div className="bp-time-divider" />
           <div className="bp-time-block">
+            <div className="bp-time-label">Lunch</div>
+            <div className="bp-time-value">
+              {totalLunch}
+              <span className="bp-time-sub">/{totalCrew}</span>
+            </div>
+          </div>
+          <div className="bp-time-block">
             <div className="bp-time-label">Scenechronize</div>
-            <label className="bp-check-toggle">
-              <input
-                type="checkbox"
-                checked={scenechronize}
-                onChange={e => upsertDaySetting(day.id, 'scenechronize', e.target.checked)}
-              />
-              <span className={scenechronize ? 'bp-time-value bp-check-val is-on' : 'bp-time-value bp-check-val is-off'}>
-                {scenechronize ? 'Active' : 'Off'}
-              </span>
-            </label>
+            <div className="bp-time-value">
+              {totalScenechronize}
+              <span className="bp-time-sub">/{totalCrew}</span>
+            </div>
           </div>
           <div className="bp-time-spacer" />
           {!day.generalCall && (
