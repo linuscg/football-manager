@@ -3625,6 +3625,13 @@ html, body {
 .pm-g-cell--booked      { background: color-mix(in srgb, var(--pm-accent), white 78%); }
 .pm-g-cell--hold        { background: color-mix(in srgb, var(--pm-warn),   white 75%); }
 .pm-g-cell--unavailable { background: color-mix(in srgb, var(--pm-danger), white 78%); }
+.pm-g-cell--cancelled   { background: #f3f4f6; }
+
+/* Icon colours for pm-g-cell system (cells use pm-g-cell, not gantt-cell) */
+.pm-g-cell--booked      .gantt-cell-icon { color: #16a34a; }
+.pm-g-cell--hold        .gantt-cell-icon { color: #d97706; }
+.pm-g-cell--unavailable .gantt-cell-icon { color: #dc2626; }
+.pm-g-cell--cancelled   .gantt-cell-icon { color: #6b7280; }
 
 .pm-g-mark {
   font-family: var(--pm-font-mono);

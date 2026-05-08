@@ -671,7 +671,11 @@ export default function CrewGantt({ production, shootDays }) {
 
     const key      = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
     const existing = bMap[key]
-    dragActionRef.current = (existing?.status === paintMode) ? null : paintMode
+    // Toggle off by re-clicking only for non-cancelled statuses.
+    // Cancelled cells must not be wiped by an accidental second click — use
+    // the Clear brush (Esc) to explicitly remove a cancelled booking.
+    const sameStatus = existing?.status === paintMode
+    dragActionRef.current = (sameStatus && paintMode !== 'cancelled') ? null : paintMode
 
     paintedInDrag.current.add(key)
     setBooking(resourceId, date, dragActionRef.current, dayId)

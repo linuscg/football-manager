@@ -122,6 +122,7 @@ function CrewRow({
   m, dayId, deptCall, deptWrap,
   dayCategory, sameDateDays,
   getMemberOverride, upsertMemberOverride,
+  onStatusSync,   // optional — only provided for Gantt (additional) crew
 }) {
   const override = getMemberOverride(dayId, m.id)
 
@@ -181,6 +182,7 @@ function CrewRow({
                 // → move them to this sub unit by writing the sub label on MAIN
                 if (mainSt === 'work' && newVal === 'work') {
                   upsertMemberOverride(mainDay.id, m.id, 'status', subUnitLabel(dayCategory))
+                  onStatusSync?.(m.id, 'sub-to-sub')
                   return  // own sub-day stays default (no row = 'work')
                 }
 
@@ -188,6 +190,7 @@ function CrewRow({
                 // → put them back on main by clearing the sub label from MAIN
                 if (newVal === 'MAIN') {
                   upsertMemberOverride(mainDay.id, m.id, 'status', 'work')
+                  onStatusSync?.(m.id, 'sub-to-main')
                   return  // own sub-day stays default
                 }
               }
@@ -195,6 +198,10 @@ function CrewRow({
 
             // Default: N/A, O/C, SPL, PREP, OTHER, or any status on own day
             upsertMemberOverride(dayId, m.id, 'status', newVal)
+            // Sync Gantt only for main-page changes (sub-unit writes handled above)
+            if (dayCategory === 'main') {
+              onStatusSync?.(m.id, 'main-change', newVal)
+            }
           }}
         >
           {visibleOptions.map(opt => (
@@ -298,6 +305,7 @@ function DeptSection({
   dayCategory, sameDateDays,
   getDeptSetting, upsertDeptSetting,
   getMemberOverride, upsertMemberOverride,
+  onStatusSync,
 }) {
   const setting     = getDeptSetting(dayId, dept)
   const preCallMins = setting.preCallMins ?? 0
@@ -417,6 +425,7 @@ function DeptSection({
               sameDateDays={sameDateDays}
               getMemberOverride={getMemberOverride}
               upsertMemberOverride={upsertMemberOverride}
+              onStatusSync={onStatusSync}
             />
           ))}
         </tbody>
@@ -430,7 +439,7 @@ function DeptSection({
 export default function Backpage({ store }) {
   const { production, shootDays } = store
   const { members }                    = useFulltimeCrewStore()
-  const { resources, bookings }        = useCrewStore()
+  const { resources, bookings, setBooking } = useCrewStore()
   const {
     loading: bpLoading,
     getDeptSetting,    upsertDeptSetting,
@@ -484,6 +493,45 @@ export default function Backpage({ store }) {
   const sameDateDays = day
     ? allDays.filter(d => d.date === day.date && d.id !== day.id)
     : []
+
+  // ── Gantt booking sync ─────────────────────────────────────────────────
+  // Called after a status change for an ADDITIONAL crew member (Gantt resource).
+  // Moves ✓/✗ bookings in the Gantt to match the new backpage status.
+  //
+  // On main page:
+  //   work   → rebook main (conflict cleanup removes any sub bookings)
+  //   SPL    → ✗ main + ✓ splinter
+  //   PREP   → ✗ main + ✓ prep
+  //   OTHER  → ✗ main + ✓ other
+  //   N/A/OC → ✗ main (leave sub bookings untouched)
+  //
+  // On sub-unit page (bidirectional writes already done to main override):
+  //   'work' selected (was MAIN) → ✗ main, sub stays ✓ (already booked there)
+  //   'MAIN' selected            → ✓ main, ✗ sub
+  function syncGantt(memberId, actionTag, payload) {
+    if (!day) return
+    if (actionTag === 'main-change') {
+      const newVal = payload          // the status written to main
+      if (newVal === 'work') {
+        setBooking(memberId, day.date, 'booked', null)   // rebook main, auto-cleanup
+      } else if (newVal === 'SPL' || newVal === 'PREP' || newVal === 'OTHER') {
+        const cat      = newVal === 'SPL' ? 'splinter' : newVal === 'PREP' ? 'prep' : 'other'
+        const targetDay = sameDateDays.find(d => d.dayCategory === cat)
+        setBooking(memberId, day.date, 'cancelled', null, true)          // ✗ main
+        if (targetDay) setBooking(memberId, day.date, 'booked', targetDay.id, true)  // ✓ sub
+      } else if (newVal === 'N/A' || newVal === 'O/C') {
+        setBooking(memberId, day.date, 'cancelled', null, true)          // ✗ main
+      }
+    } else if (actionTag === 'sub-to-sub') {
+      // User on sub page picked 'Work' (was MAIN) → they're now working sub
+      setBooking(memberId, day.date, 'cancelled', null, true)            // ✗ main
+      // Sub booking is already ✓ (they're in additionalMembers for this day)
+    } else if (actionTag === 'sub-to-main') {
+      // User on sub page picked 'MAIN' → back on main unit
+      setBooking(memberId, day.date, 'cancelled', day.id, true)          // ✗ sub
+      setBooking(memberId, day.date, 'booked', null, true)               // ✓ main
+    }
+  }
 
   // ── Group fulltime crew by department ──────────────────────────────────
   const FALLBACK = 'Unassigned'
@@ -810,6 +858,7 @@ export default function Backpage({ store }) {
                     upsertDeptSetting={upsertDeptSetting}
                     getMemberOverride={getMemberOverride}
                     upsertMemberOverride={upsertMemberOverride}
+                    onStatusSync={syncGantt}
                   />
                 ))}
               </div>

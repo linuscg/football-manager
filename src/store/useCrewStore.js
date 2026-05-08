@@ -225,7 +225,9 @@ export function useCrewStore() {
     }
   }
 
-  function setBooking(resourceId, dateStr, status, dayId = null) {
+  // skipConflicts: when true, skip the "one person per unit" conflict cleanup.
+  // Used by the backpage sync so main (✗) and sub (✓) can coexist simultaneously.
+  function setBooking(resourceId, dateStr, status, dayId = null, skipConflicts = false) {
     // Sub-unit bookings keyed by dayId; main bookings by (resourceId, date, no dayId)
     const existing = dayId
       ? bookings.find(b => b.resourceId === resourceId && b.dayId === dayId)
@@ -233,7 +235,8 @@ export function useCrewStore() {
 
     // One person can only be in one place at a time — when setting a booking,
     // clear any conflicting bookings on the same date for a different unit.
-    if (status !== null) {
+    // (Skip this when backpage is syncing both columns deliberately.)
+    if (status !== null && !skipConflicts) {
       const conflicts = bookings.filter(b =>
         b.resourceId === resourceId &&
         b.date === dateStr &&
