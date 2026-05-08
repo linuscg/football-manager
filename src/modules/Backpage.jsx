@@ -146,6 +146,11 @@ function CrewRow({
   const isOffWork = status !== 'work'  // any non-work status dims the row
   const isNA      = status === 'N/A'  // N/A additionally strikes through
 
+  // Hide the status option that describes this page's own unit
+  // (e.g. no 'SPL' on a splinter page, no 'PREP' on a prep page, no 'MAIN' on main)
+  const selfStatus = dayCategory === 'main' ? 'MAIN' : subUnitLabel(dayCategory)
+  const visibleOptions = STATUS_OPTIONS.filter(opt => opt !== selfStatus)
+
   const rowClass = [
     'bp-crew-row',
     (isOffWork || exclude) ? 'bp-crew-row--dimmed' : '',
@@ -192,7 +197,7 @@ function CrewRow({
             upsertMemberOverride(dayId, m.id, 'status', newVal)
           }}
         >
-          {STATUS_OPTIONS.map(opt => (
+          {visibleOptions.map(opt => (
             <option key={opt} value={opt}>
               {opt === 'work' ? 'Work' : opt}
             </option>
@@ -641,7 +646,7 @@ export default function Backpage({ store }) {
   }
 
   return (
-    <div className="bp-wrap">
+    <div className={`bp-wrap bp-wrap--${day?.dayCategory ?? 'main'}`}>
 
       {/* ── Day selector bar ──────────────────────────────────────────────── */}
       <div className="bp-selector-bar">

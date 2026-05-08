@@ -4644,6 +4644,58 @@ select.pm-input { cursor: pointer; }
   font-weight: 700;
 }
 
+/* ── Backpage: per-category colour theming ─────────────────────────── */
+
+/* Main (default — dark navy accent) */
+.bp-wrap--main .bp-selector-bar {
+  border-left: 4px solid #1a2741;
+}
+
+/* Splinter — purple */
+.bp-wrap--splinter .bp-selector-bar {
+  border-left: 4px solid #7c3aed;
+  background: #faf5ff;
+}
+.bp-wrap--splinter .bp-time-strip {
+  background: #faf5ff;
+  border-bottom-color: #ddd6fe;
+}
+.bp-wrap--splinter .bp-info-pill--cat {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #6d28d9;
+}
+
+/* Prep — amber */
+.bp-wrap--prep .bp-selector-bar {
+  border-left: 4px solid #f59e0b;
+  background: #fffbeb;
+}
+.bp-wrap--prep .bp-time-strip {
+  background: #fffbeb;
+  border-bottom-color: #fde68a;
+}
+.bp-wrap--prep .bp-info-pill--cat {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #d97706;
+}
+
+/* Other — cyan */
+.bp-wrap--other .bp-selector-bar {
+  border-left: 4px solid #0891b2;
+  background: #ecfeff;
+}
+.bp-wrap--other .bp-time-strip {
+  background: #ecfeff;
+  border-bottom-color: #a5f3fc;
+}
+.bp-wrap--other .bp-info-pill--cat {
+  background: #cffafe;
+  border-color: #a5f3fc;
+  color: #0e7490;
+}
+
 /* ── Per-member time input cells ───────────────────────────────── */
 .bp-time-cell {
   display: inline-flex;
