@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useFulltimeCrewStore } from '../store/useFulltimeCrewStore'
-import { useBackpageStore }     from '../store/useBackpageStore'
-import { exportBackpageXLSX }   from '../lib/exportBackpage'
+import { useFulltimeCrewStore }    from '../store/useFulltimeCrewStore'
+import { useBackpageStore }        from '../store/useBackpageStore'
+import { exportBackpageXLSX }      from '../lib/exportBackpage'
+import { generatePreCallSummary }  from '../lib/backpageSummary'
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
 
@@ -212,6 +213,7 @@ export default function Backpage({ store }) {
   } = useBackpageStore()
 
   const [exporting, setExporting] = useState(false)
+  const [summaryCopied, setSummaryCopied] = useState(false)
 
   // ── All non-non-shoot days (includes prep, splinter, main) ─────────────
   const allDays = shootDays
@@ -281,7 +283,34 @@ export default function Backpage({ store }) {
     }
   }
 
-  // ── Empty states ────────────────────────────────────────────────────────
+  // ── Pre-call summary ────────────────────────────────────────────────────
+
+  const preCallSummary = day
+    ? generatePreCallSummary({
+        dayId:             day.id,
+        depts,
+        groupMap,
+        getDeptSetting,
+        getMemberOverride,
+        generalCall:       day.generalCall,
+      })
+    : ''
+
+  async function copySummary() {
+    if (!preCallSummary) return
+    try {
+      await navigator.clipboard.writeText(preCallSummary)
+    } catch {
+      const el = document.createElement('textarea')
+      el.value = preCallSummary
+      document.body.appendChild(el); el.select(); document.execCommand('copy')
+      document.body.removeChild(el)
+    }
+    setSummaryCopied(true)
+    setTimeout(() => setSummaryCopied(false), 2000)
+  }
+
+  // ── Empty states ────────────────────────────────────────────────────
 
   if (allDays.length === 0) {
     return (
@@ -423,6 +452,29 @@ export default function Backpage({ store }) {
               upsertMemberOverride={upsertMemberOverride}
             />
           ))}
+        </div>
+      )}
+
+      {/* ── Pre-call summary bar ─────────────────────────────────────────── */}
+      {day && (
+        <div className="bp-summary-bar">
+          <div className="bp-summary-label">Pre-call Summary</div>
+          {preCallSummary ? (
+            <>
+              <div className="bp-summary-text">{preCallSummary}</div>
+              <button
+                className={`bp-summary-copy${summaryCopied ? ' copied' : ''}`}
+                onClick={copySummary}
+                title="Copy to clipboard"
+              >
+                {summaryCopied ? '✓ Copied' : '⎘ Copy'}
+              </button>
+            </>
+          ) : (
+            <div className="bp-summary-empty">
+              No pre-calls set — add a Pre-call offset to any department above, or override individual call times.
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,5 +1,8 @@
 import { useState, useMemo } from 'react'
-import { useCrewStore } from '../store/useCrewStore'
+import { useCrewStore }           from '../store/useCrewStore'
+import { useFulltimeCrewStore }   from '../store/useFulltimeCrewStore'
+import { useBackpageStore }       from '../store/useBackpageStore'
+import { generatePreCallSummary } from '../lib/backpageSummary'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -87,7 +90,9 @@ function todayDateStr() {
 
 export default function CallSheet({ store, castMembers = [] }) {
   const { shootDays, production } = store
-  const { resources, bookings } = useCrewStore()
+  const { resources, bookings }   = useCrewStore()
+  const { members: ftcMembers }   = useFulltimeCrewStore()
+  const { getDeptSetting, getMemberOverride } = useBackpageStore()
 
   // All days sorted chronologically, then by sortOrder within the same date
   const allDays = useMemo(
@@ -99,6 +104,7 @@ export default function CallSheet({ store, castMembers = [] }) {
     [shootDays]
   )
 
+  const [summaryCopied, setSummaryCopied] = useState(false)
   const [selectedId, setSelectedId] = useState(() => {
     const sorted = [...shootDays].sort((a, b) => {
       if (a.date < b.date) return -1
@@ -126,6 +132,35 @@ export default function CallSheet({ store, castMembers = [] }) {
                        :                               (production.swdLunch  ?? 60)
     return calcWrapTime(day.generalCall, production.workHours ?? 10, lunchMinutes)
   }, [day, production])
+
+  // ── Fulltime crew groupMap (for pre-call summary) ────────────────────────
+  const { ftcDepts, ftcGroupMap } = useMemo(() => {
+    const FALLBACK = 'Unassigned'
+    const map = {}
+    for (const m of ftcMembers) {
+      const key = m.department?.trim() || FALLBACK
+      if (!map[key]) map[key] = []
+      map[key].push(m)
+    }
+    const ftcDepts = Object.keys(map).sort((a, b) => {
+      if (a === FALLBACK) return 1
+      if (b === FALLBACK) return -1
+      return a.localeCompare(b)
+    })
+    return { ftcDepts, ftcGroupMap: map }
+  }, [ftcMembers])
+
+  const preCallSummary = useMemo(() => {
+    if (!day) return ''
+    return generatePreCallSummary({
+      dayId:             day.id,
+      depts:             ftcDepts,
+      groupMap:          ftcGroupMap,
+      getDeptSetting,
+      getMemberOverride,
+      generalCall:       day.generalCall,
+    })
+  }, [day, ftcDepts, ftcGroupMap, getDeptSetting, getMemberOverride])
 
   const statusOrder = { booked: 0, hold: 1, unavailable: 2 }
   function sortByStatusThenName(a, b) {
@@ -412,6 +447,23 @@ export default function CallSheet({ store, castMembers = [] }) {
                 </div>
               )
             })()}
+
+            {/* ── Pre-call summary ────────────────────────────────────────── */}
+            {preCallSummary && (
+              <div className="pm-cs-section cs-precall-section">
+                <div className="pm-cs-section-head">
+                  Pre-call Summary
+                  <button
+                    className={`cs-copy-btn no-print${summaryCopied ? ' copied' : ''}`}
+                    onClick={() => copyText(preCallSummary, setSummaryCopied)}
+                    title="Copy pre-call summary"
+                  >
+                    {summaryCopied ? '✓ Copied' : '⎘ Copy'}
+                  </button>
+                </div>
+                <div className="cs-precall-text">{preCallSummary}</div>
+              </div>
+            )}
 
             {/* ── Scenes ──────────────────────────────────────────────────── */}
             {day.scenes.length > 0 && (

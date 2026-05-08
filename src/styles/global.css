@@ -4697,3 +4697,84 @@ select.pm-input { cursor: pointer; }
   background: #fee2e2;
   color: #dc2626;
 }
+
+/* ── Backpage pre-call summary bar (sticky footer) ─────────────── */
+.bp-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: #1a2741;
+  border-top: 1px solid #0d1c30;
+  flex-shrink: 0;
+  min-height: 46px;
+  flex-wrap: wrap;
+}
+
+.bp-summary-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #60a5fa;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bp-summary-text {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #e2e8f0;
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.bp-summary-empty {
+  font-size: 11.5px;
+  color: #4e6080;
+  font-style: italic;
+  flex: 1;
+}
+
+.bp-summary-copy {
+  font-size: 11px;
+  font-weight: 600;
+  color: #93c5fd;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 5px;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.bp-summary-copy:hover {
+  background: rgba(255,255,255,0.12);
+  color: #ffffff;
+}
+.bp-summary-copy.copied {
+  color: #4ade80;
+  border-color: rgba(74,222,128,0.3);
+}
+
+/* ── CallSheet pre-call summary section ─────────────────────────── */
+.cs-precall-section {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe !important;
+  border-radius: 6px;
+}
+.cs-precall-section .pm-cs-section-head {
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 6px 6px 0 0;
+}
+.cs-precall-text {
+  padding: 10px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #1e3a8a;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
