@@ -4836,6 +4836,22 @@ select.pm-input { cursor: pointer; }
   cursor: pointer;
   margin: 0;
 }
+.bp-row-check--exclude {
+  accent-color: #ef4444;   /* red tint for the exclude checkbox */
+}
+
+/* ── Excluded crew row ─────────────────────────────────────────── */
+.bp-crew-row--excluded {
+  background: #f9fafb;
+}
+.bp-crew-row--excluded .bp-td {
+  color: #9ca3af;
+  opacity: 0.6;
+}
+.bp-crew-row--excluded .bp-td-name {
+  text-decoration: line-through;
+  text-decoration-color: #d1d5db;
+}
 
 /* Select-all label in dept table header */
 .bp-th-selectall {

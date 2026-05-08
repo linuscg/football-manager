@@ -23,6 +23,7 @@ function mapOverride(row) {
     wrapTime:      row.wrap_time      ?? null,
     lunch:         row.lunch          ?? true,
     scenechronize: row.scenechronize  ?? false,
+    exclude:       row.exclude        ?? false,
   }
 }
 
@@ -163,13 +164,15 @@ export function useBackpageStore() {
     wrapTime:      'wrap_time',
     lunch:         'lunch',
     scenechronize: 'scenechronize',
+    exclude:       'exclude',
   }
 
   // A row is "all defaults" if it carries no meaningful data worth storing
   function isDefaultOverride(o) {
     return o.callTime === null && o.wrapTime === null &&
            (o.lunch === true || o.lunch == null) &&
-           !o.scenechronize
+           !o.scenechronize &&
+           !o.exclude
   }
 
   async function upsertMemberOverride(dayId, memberId, field, value) {
@@ -200,7 +203,7 @@ export function useBackpageStore() {
     } else {
       // Don't create a row for a no-op (e.g. clearing an already-default value)
       const candidate = {
-        callTime: null, wrapTime: null, lunch: true, scenechronize: false,
+        callTime: null, wrapTime: null, lunch: true, scenechronize: false, exclude: false,
         [field]: norm,
       }
       if (isDefaultOverride(candidate)) return
@@ -216,6 +219,7 @@ export function useBackpageStore() {
           wrap_time:     candidate.wrapTime,
           lunch:         candidate.lunch,
           scenechronize: candidate.scenechronize,
+          exclude:       candidate.exclude,
         })
       if (err) { console.error('[backpage store] insert override:', err); loadAll() }
     }

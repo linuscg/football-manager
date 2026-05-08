@@ -122,3 +122,7 @@ alter table backpage_member_overrides
 -- member_id now accepts any UUID (fulltime_crew.id OR resources.id).
 alter table backpage_member_overrides
   drop constraint if exists backpage_member_overrides_member_id_fkey;
+
+-- Exclude flag: when true the person is greyed out on the backpage and in the export.
+alter table backpage_member_overrides
+  add column if not exists exclude boolean not null default false;

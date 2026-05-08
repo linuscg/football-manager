@@ -68,13 +68,14 @@ function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMember
   function commitCall() { upsertMemberOverride(dayId, m.id, 'callTime', lCall) }
   function commitWrap() { upsertMemberOverride(dayId, m.id, 'wrapTime', lWrap) }
 
-  const hasCallOv   = Boolean(lCall)
-  const hasWrapOv   = Boolean(lWrap)
-  const lunch        = override?.lunch         ?? true
+  const hasCallOv     = Boolean(lCall)
+  const hasWrapOv     = Boolean(lWrap)
+  const lunch         = override?.lunch         ?? true
   const scenechronize = override?.scenechronize ?? false
+  const exclude       = override?.exclude       ?? false
 
   return (
-    <tr className="bp-crew-row">
+    <tr className={`bp-crew-row${exclude ? ' bp-crew-row--excluded' : ''}`}>
       <td className="bp-td bp-td-name">{m.name || <span className="bp-empty-name">—</span>}</td>
       <td className="bp-td bp-td-role">{m.role}</td>
 
@@ -120,6 +121,17 @@ function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMember
             >×</button>
           )}
         </div>
+      </td>
+
+      {/* Exclude checkbox */}
+      <td className="bp-td bp-td-check">
+        <input
+          type="checkbox"
+          className="bp-row-check bp-row-check--exclude"
+          checked={exclude}
+          title={exclude ? 'Excluded — click to include' : 'Included — click to exclude'}
+          onChange={e => upsertMemberOverride(dayId, m.id, 'exclude', e.target.checked)}
+        />
       </td>
 
       {/* Lunch checkbox */}
@@ -232,6 +244,7 @@ function DeptSection({
             <th className="bp-th">Role</th>
             <th className="bp-th bp-th-time">Call</th>
             <th className="bp-th bp-th-time">Wrap</th>
+            <th className="bp-th bp-th-check" title="Exclude from backpage and export">Ex</th>
             <th className="bp-th bp-th-check" title="Lunch — click to toggle all">
               <label className="bp-th-selectall">
                 <span className="bp-th-check-label">L</span>
@@ -341,12 +354,18 @@ export default function Backpage({ store }) {
   // ── Additional crew (Gantt resources booked on this day) ───────────────
   const additionalMembers = useMemo(() => {
     if (!day) return []
+    const isMain = day.dayCategory === 'main'
     const bookedIds = new Set(
       bookings
-        .filter(b =>
-          (b.status === 'booked' || b.status === 'hold') &&
-          (b.dayId === day.id || (b.date === day.date && !b.dayId))
-        )
+        .filter(b => {
+          if (b.status !== 'booked' && b.status !== 'hold') return false
+          // Main unit bookings have no dayId — match by date only on main days.
+          // Sub-unit days (splinter/prep/other) must match their specific dayId
+          // so they never show crew booked on the main unit of the same date.
+          return isMain
+            ? (b.date === day.date && !b.dayId)
+            : (b.dayId === day.id)
+        })
         .map(b => b.resourceId)
     )
     return resources
@@ -394,6 +413,7 @@ export default function Backpage({ store }) {
                 role:     m.role,
                 callTime: ov?.callTime || deptCall || '',
                 wrapTime: ov?.wrapTime || deptWrap || '',
+                excluded: ov?.exclude  ?? false,
               }
             }),
           }

@@ -83,11 +83,12 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
       items.push({ type: 'dept', name: dept.name })
       for (const m of dept.members) {
         items.push({
-          type: 'crew',
-          name: m.name || '',
-          role: m.role || '',
-          call: m.callTime || '',
-          wrap: m.wrapTime || '',
+          type:     'crew',
+          name:     m.name     || '',
+          role:     m.role     || '',
+          call:     m.callTime || '',
+          wrap:     m.wrapTime || '',
+          excluded: m.excluded ?? false,
         })
       }
     }
@@ -142,14 +143,21 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
           }
           merge(ri, base, ri, base + 1)
         } else {
+          // Excluded members render in muted grey
+          const ex = item?.excluded ?? false
           for (let c = base; c < base + 4; c++) {
             const isTime = (c === base + 2 || c === base + 3)
             sty(ri, c, {
-              font: c === base     ? { sz: 9,   color: { rgb: '111827' }, name: 'Calibri' }
-                  : c === base + 1 ? { sz: 8.5, color: { rgb: '4B5563' }, name: 'Calibri' }
-                  : c === base + 2 ? { bold: true, sz: 9, color: { rgb: '111827' }, name: 'Calibri' }
-                  :                  { sz: 9, color: { rgb: '4B5563' }, name: 'Calibri' },
-              fill:      { patternType: 'solid', fgColor: { rgb: C.white } },
+              font: ex
+                ? { sz: c === base + 2 ? 9 : (c === base + 1 ? 8.5 : 9),
+                    italic: true,
+                    color: { rgb: 'AAAAAA' },
+                    name: 'Calibri' }
+                : c === base     ? { sz: 9,   color: { rgb: '111827' }, name: 'Calibri' }
+                : c === base + 1 ? { sz: 8.5, color: { rgb: '4B5563' }, name: 'Calibri' }
+                : c === base + 2 ? { bold: true, sz: 9, color: { rgb: '111827' }, name: 'Calibri' }
+                :                  { sz: 9, color: { rgb: '4B5563' }, name: 'Calibri' },
+              fill:      { patternType: 'solid', fgColor: { rgb: ex ? 'F3F4F6' : C.white } },
               border:    thinBorder(C.border),
               alignment: isTime
                 ? { horizontal: 'center', vertical: 'center' }

@@ -11,17 +11,30 @@ export default function Schedule({ store, actions }) {
   const { shootDays, production, castMembers } = store
   const { resources, bookings } = useCrewStore()
 
-  // Build date → sorted list of booked crew/equipment for that day
-  const additionalsByDate = {}
+  // Build two separate lookups so main-unit and sub-unit bookings don't bleed
+  // into each other when multiple day types share the same calendar date.
+  //   Main unit bookings  → no dayId in DB → keyed by date
+  //   Sub-unit bookings   → have a dayId   → keyed by dayId
+  const additionalsByDate  = {}   // main unit days
+  const additionalsByDayId = {}   // splinter / prep / other days
+
   for (const b of bookings) {
     const resource = resources.find(r => r.id === b.resourceId)
     if (!resource) continue
-    if (!additionalsByDate[b.date]) additionalsByDate[b.date] = []
-    additionalsByDate[b.date].push({ ...resource, bookingStatus: b.status })
+    if (b.dayId) {
+      if (!additionalsByDayId[b.dayId]) additionalsByDayId[b.dayId] = []
+      additionalsByDayId[b.dayId].push({ ...resource, bookingStatus: b.status })
+    } else {
+      if (!additionalsByDate[b.date]) additionalsByDate[b.date] = []
+      additionalsByDate[b.date].push({ ...resource, bookingStatus: b.status })
+    }
   }
-  // Sort each date's list: booked → hold → unavailable, then alphabetically
+
   const statusOrder = { booked: 0, hold: 1, unavailable: 2 }
-  for (const list of Object.values(additionalsByDate)) {
+  for (const list of [
+    ...Object.values(additionalsByDate),
+    ...Object.values(additionalsByDayId),
+  ]) {
     list.sort((a, b) =>
       (statusOrder[a.bookingStatus] - statusOrder[b.bookingStatus]) ||
       a.name.localeCompare(b.name)
@@ -185,7 +198,11 @@ export default function Schedule({ store, actions }) {
                       onUpdateDayExtra={actions.updateDayExtra}
                       onUpdateSceneCast={actions.updateSceneCast}
                       onToggleExpanded={handleToggleExpanded}
-                      additionals={additionalsByDate[day.date] ?? []}
+                      additionals={
+                        day.dayCategory === 'main'
+                          ? (additionalsByDate[day.date]  ?? [])
+                          : (additionalsByDayId[day.id]   ?? [])
+                      }
                       production={production}
                       castMembers={castMembers ?? []}
                     />
