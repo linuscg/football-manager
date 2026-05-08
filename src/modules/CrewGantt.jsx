@@ -512,11 +512,12 @@ export default function CrewGantt({ production, shootDays }) {
   const [isDragging,     setIsDragging]     = useState(false)
   const [hidePastDays,   setHidePastDays]   = useState(false)
 
-  const isDraggingRef  = useRef(false)
-  const dragActionRef  = useRef(paintMode)   // the status being applied for the current drag
-  const paintedInDrag  = useRef(new Set())   // keys painted this drag session
-  const scrollRef      = useRef(null)        // gantt-scroll container
-  const scrollInterval = useRef(null)
+  const isDraggingRef   = useRef(false)
+  const dragActionRef   = useRef(paintMode)   // the status being applied for the current drag
+  const paintedInDrag   = useRef(new Set())   // keys painted this drag session
+  const scrollRef       = useRef(null)        // gantt-scroll container
+  const scrollInterval  = useRef(null)
+  const dirtyResources  = useRef(new Set())   // resource IDs whose bookings changed via painting
 
   const {
     loading, error,
@@ -666,6 +667,8 @@ export default function CrewGantt({ production, shootDays }) {
     paintedInDrag.current = new Set()
     setIsDragging(true)
 
+    dirtyResources.current.add(resourceId)
+
     const key      = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
     const existing = bMap[key]
     dragActionRef.current = (existing?.status === paintMode) ? null : paintMode
@@ -681,6 +684,7 @@ export default function CrewGantt({ production, shootDays }) {
     const key = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
     if (paintedInDrag.current.has(key)) return
     paintedInDrag.current.add(key)
+    dirtyResources.current.add(resourceId)
     setBooking(resourceId, date, dragActionRef.current, dayId)
   }
 
@@ -696,6 +700,30 @@ export default function CrewGantt({ production, shootDays }) {
     window.addEventListener('mouseup', stop)
     return () => window.removeEventListener('mouseup', stop)
   }, [])
+
+  // ── Direction 1: Paint → Hire dates ───────────────────────────────────────
+  // When drag ends (isDragging becomes false), compute min/max 'booked' main-unit
+  // date for each painted resource and update their hire start/end if changed.
+
+  useEffect(() => {
+    if (isDragging) return
+    const toSync = [...dirtyResources.current]
+    if (!toSync.length) return
+    dirtyResources.current = new Set()
+
+    for (const resourceId of toSync) {
+      const myBookedDates = bookings
+        .filter(b => b.resourceId === resourceId && b.status === 'booked' && !b.dayId)
+        .map(b => b.date)
+        .sort()
+      const newStart = myBookedDates[0] ?? ''
+      const newEnd   = myBookedDates[myBookedDates.length - 1] ?? ''
+      const resource = resources.find(r => r.id === resourceId)
+      if (!resource) continue
+      if (newStart !== (resource.hireStartDate ?? '')) updateResource(resourceId, 'hireStartDate', newStart || null)
+      if (newEnd   !== (resource.hireEndDate   ?? '')) updateResource(resourceId, 'hireEndDate',   newEnd   || null)
+    }
+  }, [bookings, isDragging])   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-scroll when dragging near edges ───────────────────────────────────
 
@@ -805,6 +833,27 @@ export default function CrewGantt({ production, shootDays }) {
     const count = await importResources(activeTab, mapped)
     setImportMsg({ count, type: activeTab })
     setTimeout(() => setImportMsg(null), 4000)
+  }
+
+  // ── Direction 2: Hire dates → Paint ───────────────────────────────────────
+  // When a hire date field changes and both start + end are valid, auto-book
+  // all main-unit shoot days (not non-shoot) within that range.
+  // Does NOT add to dirtyResources so Direction 1 won't subsequently overwrite.
+
+  function handleUpdateResource(id, field, value) {
+    updateResource(id, field, value)
+    if (field !== 'hireStartDate' && field !== 'hireEndDate') return
+    const resource = resources.find(r => r.id === id)
+    if (!resource) return
+    const newStart = field === 'hireStartDate' ? value : (resource.hireStartDate || '')
+    const newEnd   = field === 'hireEndDate'   ? value : (resource.hireEndDate   || '')
+    if (!newStart || !newEnd || newStart > newEnd) return
+    const inRange = shootDays.filter(
+      d => d.dayCategory === 'main' && !d.isNonShootDay && d.date >= newStart && d.date <= newEnd
+    )
+    for (const day of inRange) {
+      setBooking(id, day.date, 'booked', null)
+    }
   }
 
   if (loading) return <div className="gantt-state-msg">Loading…</div>
@@ -1029,7 +1078,7 @@ export default function CrewGantt({ production, shootDays }) {
                         isDragging={isDragging}
                         onCellMouseDown={handleCellMouseDown}
                         onCellMouseEnter={handleCellMouseEnter}
-                        onUpdate={updateResource}
+                        onUpdate={handleUpdateResource}
                         onDelete={deleteResource}
                         onMoveUp={moveResourceUp}
                         onMoveDown={moveResourceDown}
