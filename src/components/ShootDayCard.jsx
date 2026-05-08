@@ -245,22 +245,16 @@ export default function ShootDayCard({
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="pm-day-head" onClick={() => setExpanded(e => !e)}>
-        <span
-          className="drag-handle"
-          onMouseDown={onHandleMouseDown}
-          onClick={e => e.stopPropagation()}
-          title="Drag to reorder"
-        >
-          ⠿
-        </span>
 
-        {/* Day tab */}
+        {/* Day tab — drag handle lives inside so colour extends into grab area */}
         {isPrep ? (
           <div className="pm-day-tab">
+            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
             <span className="pm-day-tab-label">PREP</span>
           </div>
         ) : isSplinter ? (
           <div className="pm-day-tab">
+            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
             <span className="pm-day-tab-label">SPLIT</span>
             {day.dayNumber != null && (
               <span className="pm-day-tab-num" style={{ fontSize: 18 }}>D{day.dayNumber}</span>
@@ -268,10 +262,12 @@ export default function ShootDayCard({
           </div>
         ) : day.isNonShootDay ? (
           <div className="pm-day-tab" style={{ background: 'var(--pm-tab-non-bg)' }}>
+            <span className="pm-day-tab-drag" style={{ color: 'rgba(0,0,0,0.2)' }} onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
             <span className="pm-day-tab-label" style={{ color: '#6b7280' }}>OFF</span>
           </div>
         ) : (
           <div className="pm-day-tab">
+            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
             <span className="pm-day-tab-label">DAY</span>
             <span className="pm-day-tab-num">{String(day.dayNumber ?? '—').padStart(2, '0')}</span>
           </div>
@@ -360,7 +356,8 @@ export default function ShootDayCard({
       {expanded && (
         <div className="pm-day-body">
           <div className="pm-field-grid">
-            {!day.isNonShootDay && !isPrep && (
+            {/* Day number — only for main shoot days */}
+            {category === 'main' && !day.isNonShootDay && (
               <div className="pm-field-group">
                 <label className="pm-field-label">Day #</label>
                 <input
@@ -385,160 +382,107 @@ export default function ShootDayCard({
               />
             </div>
 
-            {/* Non-shoot main days: description only */}
-            {day.isNonShootDay && !isPrep && (
+            {/* Description — for non-shoot and prep days */}
+            {(day.isNonShootDay || isPrep) && (
               <div className="pm-field-group">
                 <label className="pm-field-label">Description</label>
                 <input
                   className="pm-input"
                   type="text"
                   value={day.description}
-                  placeholder="e.g. Holiday, Travel day, Turnaround…"
-                  autoFocus
+                  placeholder={isPrep ? 'e.g. Camera tests, costume fittings, rigging…' : 'e.g. Holiday, Travel day, Turnaround…'}
                   onChange={e => onUpdate(day.id, 'description', e.target.value)}
                 />
               </div>
             )}
 
-            {/* Prep day fields: location(s) + description */}
-            {isPrep && (
-              <>
-                <div className="pm-field-group field-full">
-                  <label className="pm-field-label">Location(s)</label>
-                  {(day.locations ?? [day.location ?? '']).map((loc, i) => (
-                    <div key={i} className="location-row">
-                      <input
-                        className="pm-input"
-                        type="text"
-                        value={loc}
-                        placeholder={i === 0 ? 'Stage 4A, prep area…' : 'Additional location…'}
-                        onChange={e => {
-                          const next = [...(day.locations ?? [day.location ?? ''])]
-                          next[i] = e.target.value
-                          onUpdate(day.id, 'locations', next)
-                        }}
-                      />
-                      {(day.locations ?? []).length > 1 && (
-                        <button
-                          className="pm-icon-btn danger location-remove"
-                          title="Remove location"
-                          onClick={() => {
-                            const next = [...day.locations]
-                            next.splice(i, 1)
-                            onUpdate(day.id, 'locations', next)
-                          }}
-                        >✕</button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    className="pm-btn pm-btn--ghost pm-btn--sm btn-add-location"
-                    onClick={() => {
-                      const current = day.locations ?? [day.location ?? '']
-                      onUpdate(day.id, 'locations', [...current, ''])
-                    }}
-                  >+ Add location</button>
+            {/* General Call — all day types */}
+            <div className="pm-field-group">
+              <label className="pm-field-label">General Call</label>
+              <input
+                className="pm-input"
+                type="time"
+                value={day.generalCall}
+                onChange={e => onUpdate(day.id, 'generalCall', e.target.value)}
+              />
+            </div>
+
+            {/* Day Type + Wrap — all day types */}
+            <div className="pm-field-group">
+              <label className="pm-field-label">Day Type</label>
+              <select
+                className="pm-input"
+                value={day.dayType}
+                onChange={e => onUpdate(day.id, 'dayType', e.target.value)}
+              >
+                <option value="">Default ({production.defaultDayType || 'SWD'})</option>
+                {DAY_TYPES.map(dt => (
+                  <option key={dt.value} value={dt.value}>{dt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {wrapTime && (
+              <div className="pm-field-group">
+                <label className="pm-field-label">Est. Wrap</label>
+                <div className="field-wrap-time">
+                  {wrapTime}
+                  <span className="field-wrap-hint">
+                    {production.workHours ?? 10}h + {lunchMinutes}min lunch
+                  </span>
                 </div>
-                <div className="pm-field-group field-full">
-                  <label className="pm-field-label">Description</label>
+              </div>
+            )}
+
+            {/* Locations — all day types */}
+            <div className="pm-field-group field-full">
+              <label className="pm-field-label">Location(s)</label>
+              {(day.locations ?? [day.location ?? '']).map((loc, i) => (
+                <div key={i} className="location-row">
                   <input
                     className="pm-input"
                     type="text"
-                    value={day.description}
-                    placeholder="e.g. Camera tests, costume fittings, rigging…"
-                    onChange={e => onUpdate(day.id, 'description', e.target.value)}
-                  />
-                </div>
-              </>
-            )}
-
-            {!day.isNonShootDay && (
-              <>
-                <div className="pm-field-group">
-                  <label className="pm-field-label">General Call</label>
-                  <input
-                    className="pm-input"
-                    type="time"
-                    value={day.generalCall}
-                    onChange={e => onUpdate(day.id, 'generalCall', e.target.value)}
-                  />
-                </div>
-
-                <div className="pm-field-group">
-                  <label className="pm-field-label">Day Type</label>
-                  <select
-                    className="pm-input"
-                    value={day.dayType}
-                    onChange={e => onUpdate(day.id, 'dayType', e.target.value)}
-                  >
-                    <option value="">Default ({production.defaultDayType || 'SWD'})</option>
-                    {DAY_TYPES.map(dt => (
-                      <option key={dt.value} value={dt.value}>{dt.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {wrapTime && (
-                  <div className="pm-field-group">
-                    <label className="pm-field-label">Est. Wrap</label>
-                    <div className="field-wrap-time">
-                      {wrapTime}
-                      <span className="field-wrap-hint">
-                        {production.workHours ?? 10}h + {lunchMinutes}min lunch
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="pm-field-group field-full">
-                  <label className="pm-field-label">Location(s)</label>
-                  {(day.locations ?? [day.location ?? '']).map((loc, i) => (
-                    <div key={i} className="location-row">
-                      <input
-                        className="pm-input"
-                        type="text"
-                        value={loc}
-                        placeholder={i === 0 ? 'Stage 4A, Prague…' : 'Additional location…'}
-                        onChange={e => {
-                          const next = [...(day.locations ?? [day.location ?? ''])]
-                          next[i] = e.target.value
-                          onUpdate(day.id, 'locations', next)
-                        }}
-                      />
-                      {(day.locations ?? []).length > 1 && (
-                        <button
-                          className="pm-icon-btn danger location-remove"
-                          title="Remove location"
-                          onClick={() => {
-                            const next = [...day.locations]
-                            next.splice(i, 1)
-                            onUpdate(day.id, 'locations', next)
-                          }}
-                        >✕</button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    className="pm-btn pm-btn--ghost pm-btn--sm btn-add-location"
-                    onClick={() => {
-                      const current = day.locations ?? [day.location ?? '']
-                      onUpdate(day.id, 'locations', [...current, ''])
+                    value={loc}
+                    placeholder={i === 0 ? 'Stage 4A, Prague…' : 'Additional location…'}
+                    onChange={e => {
+                      const next = [...(day.locations ?? [day.location ?? ''])]
+                      next[i] = e.target.value
+                      onUpdate(day.id, 'locations', next)
                     }}
-                  >+ Add location</button>
-                </div>
-
-                <div className="pm-field-group">
-                  <label className="pm-field-label">Unit Base</label>
-                  <input
-                    className="pm-input"
-                    type="text"
-                    value={day.unitBase}
-                    placeholder="Stage car park"
-                    onChange={e => onUpdate(day.id, 'unitBase', e.target.value)}
                   />
+                  {(day.locations ?? []).length > 1 && (
+                    <button
+                      className="pm-icon-btn danger location-remove"
+                      title="Remove location"
+                      onClick={() => {
+                        const next = [...day.locations]
+                        next.splice(i, 1)
+                        onUpdate(day.id, 'locations', next)
+                      }}
+                    >✕</button>
+                  )}
                 </div>
-              </>
-            )}
+              ))}
+              <button
+                className="pm-btn pm-btn--ghost pm-btn--sm btn-add-location"
+                onClick={() => {
+                  const current = day.locations ?? [day.location ?? '']
+                  onUpdate(day.id, 'locations', [...current, ''])
+                }}
+              >+ Add location</button>
+            </div>
+
+            {/* Unit Base — all day types */}
+            <div className="pm-field-group">
+              <label className="pm-field-label">Unit Base</label>
+              <input
+                className="pm-input"
+                type="text"
+                value={day.unitBase}
+                placeholder="Stage car park"
+                onChange={e => onUpdate(day.id, 'unitBase', e.target.value)}
+              />
+            </div>
 
             <div className="pm-field-group field-full">
               <label className="pm-field-label">Notes</label>
@@ -551,51 +495,47 @@ export default function ShootDayCard({
             </div>
           </div>
 
-          {/* ── Scenes ──────────────────────────────────────────────────────── */}
-          {!day.isNonShootDay && (
-            <div className="pm-scenes">
-              <div className="pm-scenes-head">
-                <span className="pm-section-label">Scenes</span>
-                <button
-                  className="pm-btn pm-btn--ghost pm-btn--sm"
-                  onClick={() => onAddScene(day.id)}
-                >
-                  + Scene
-                </button>
-              </div>
-
-              {sceneCount === 0 && (
-                <p className="scenes-empty">
-                  No scenes — click + Scene to add one.
-                </p>
-              )}
-
-              {day.scenes.map(scene => (
-                <SceneRow
-                  key={scene.id}
-                  scene={scene}
-                  dayId={day.id}
-                  onUpdate={onUpdateScene}
-                  onDelete={onDeleteScene}
-                  castMembers={castMembers}
-                  onUpdateSceneCast={onUpdateSceneCast}
-                />
-              ))}
+          {/* ── Scenes — all day types ───────────────────────────────────────── */}
+          <div className="pm-scenes">
+            <div className="pm-scenes-head">
+              <span className="pm-section-label">Scenes</span>
+              <button
+                className="pm-btn pm-btn--ghost pm-btn--sm"
+                onClick={() => onAddScene(day.id)}
+              >
+                + Scene
+              </button>
             </div>
-          )}
 
-          {/* ── Additional Info (extras) ─────────────────────────────────────── */}
-          {!day.isNonShootDay && (
-            <ExtrasSection
-              day={day}
-              onAddDayExtra={onAddDayExtra}
-              onDeleteDayExtra={onDeleteDayExtra}
-              onUpdateDayExtra={onUpdateDayExtra}
-            />
-          )}
+            {sceneCount === 0 && (
+              <p className="scenes-empty">
+                No scenes — click + Scene to add one.
+              </p>
+            )}
+
+            {day.scenes.map(scene => (
+              <SceneRow
+                key={scene.id}
+                scene={scene}
+                dayId={day.id}
+                onUpdate={onUpdateScene}
+                onDelete={onDeleteScene}
+                castMembers={castMembers}
+                onUpdateSceneCast={onUpdateSceneCast}
+              />
+            ))}
+          </div>
+
+          {/* ── Additional Info (extras) — all day types ─────────────────────── */}
+          <ExtrasSection
+            day={day}
+            onAddDayExtra={onAddDayExtra}
+            onDeleteDayExtra={onDeleteDayExtra}
+            onUpdateDayExtra={onUpdateDayExtra}
+          />
 
           {/* ── Prep / Splinter actions (main days only) ─────────────────────── */}
-          {!day.isNonShootDay && category === 'main' && (
+          {category === 'main' && (
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f0f0ea', display: 'flex', gap: 8 }}>
               <button
                 className="pm-btn pm-btn--ghost pm-btn--sm"
@@ -614,9 +554,8 @@ export default function ShootDayCard({
             </div>
           )}
 
-          {/* ── Additionals ──────────────────────────────────────────────────── */}
-          {!day.isNonShootDay && (
-            <div className="additionals-section">
+          {/* ── Crew & Equipment from gantt — all day types ──────────────────── */}
+          <div className="additionals-section">
               <div
                 className="additionals-header"
                 onClick={() => setAdditionalsOpen(o => !o)}
@@ -677,7 +616,6 @@ export default function ShootDayCard({
                 </div>
               )}
             </div>
-          )}
         </div>
       )}
 

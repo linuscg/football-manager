@@ -3736,3 +3736,45 @@ html, body {
 /* Nav marker (numbered items in sidebar) */
 .pm-nav-icon { font-family: var(--pm-font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.04em; color: var(--pm-side-marker); width: 20px; flex-shrink: 0; }
 .pm-nav-item.is-active .pm-nav-icon { color: var(--pm-accent); }
+
+/* ─── Form inputs ───────────────────────────────────────────────── */
+.pm-input {
+  padding: 6px 10px;
+  border: 1px solid #e3e6ec;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--pm-fg);
+  background: #ffffff;
+  width: 100%;
+  transition: border-color 0.15s;
+  font-family: var(--pm-font-body);
+}
+.pm-input:focus {
+  outline: none;
+  border-color: #93a8e0;
+  box-shadow: 0 0 0 2px rgba(31, 58, 138, 0.08);
+}
+textarea.pm-input {
+  resize: vertical;
+  min-height: 64px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+select.pm-input { cursor: pointer; }
+
+/* ─── Prep / splinter tab colours ───────────────────────────────── */
+.pm-day--prep .pm-day-tab     { background: #d97706; }   /* amber */
+.pm-day--splinter .pm-day-tab { background: #7c3aed; }   /* purple */
+.pm-day--prep .pm-day-tab::before     { background: #92400e; }
+.pm-day--splinter .pm-day-tab::before { background: #4c1d95; }
+
+/* ─── Drag handle inside tab ────────────────────────────────────── */
+.pm-day-tab-drag {
+  color: rgba(255,255,255,0.28);
+  font-size: 13px;
+  margin-bottom: 4px;
+  cursor: grab;
+  user-select: none;
+  line-height: 1;
+}
+.pm-day-tab-drag:active { cursor: grabbing; }

@@ -110,11 +110,12 @@ export default function Schedule({ store, actions }) {
           {dateGroups.map(([, daysInGroup]) =>
             daysInGroup.map((day) => {
               const index = allOrdered.findIndex(d => d.id === day.id)
-              const isPrep = day.dayCategory === 'prep'
+              const isPrep     = day.dayCategory === 'prep'
+              const isSplinter = day.dayCategory === 'splinter'
               return (
                 <div
                   key={day.id}
-                  style={isPrep ? { marginLeft: 32 } : undefined}
+                  style={(isPrep || isSplinter) ? { marginLeft: 32 } : undefined}
                 >
                   <ShootDayCard
                     day={day}
