@@ -377,39 +377,35 @@ export default function Backpage({ store }) {
     if (!day || exporting) return
     setExporting(true)
     try {
-      // Merge fulltime + additional crew per dept for export
-      const allDeptNames = [
-        ...depts,
-        ...addDepts.filter(d => !depts.includes(d)),
-      ]
-
-      const exportDepts = allDeptNames.map(dept => {
-        const setting     = getDeptSetting(day.id, dept)
-        const preCallMins = setting.preCallMins ?? 0
-        const derigMins   = setting.derigMins   ?? 0
-        const deptCall    = day.generalCall ? addMins(day.generalCall, -preCallMins) : ''
-        const deptWrap    = wrapTime        ? addMins(wrapTime,         derigMins)   : ''
-
-        const mapMember = m => {
-          const ov = getMemberOverride(day.id, m.id)
+      function buildDeptRows(deptList, sourceMap, settingsKeyFn) {
+        return deptList.map(dept => {
+          const key         = settingsKeyFn(dept)
+          const setting     = getDeptSetting(day.id, key)
+          const preCallMins = setting.preCallMins ?? 0
+          const derigMins   = setting.derigMins   ?? 0
+          const deptCall    = day.generalCall ? addMins(day.generalCall, -preCallMins) : ''
+          const deptWrap    = wrapTime        ? addMins(wrapTime,         derigMins)   : ''
           return {
-            name:     m.name,
-            role:     m.role,
-            callTime: ov?.callTime || deptCall || '',
-            wrapTime: ov?.wrapTime || deptWrap || '',
+            name: key,
+            members: (sourceMap[dept] ?? []).map(m => {
+              const ov = getMemberOverride(day.id, m.id)
+              return {
+                name:     m.name,
+                role:     m.role,
+                callTime: ov?.callTime || deptCall || '',
+                wrapTime: ov?.wrapTime || deptWrap || '',
+              }
+            }),
           }
-        }
+        })
+      }
 
-        return {
-          name:    dept,
-          members: [
-            ...(groupMap[dept]    ?? []).map(mapMember),
-            ...(addGroupMap[dept] ?? []).map(mapMember),
-          ],
-        }
-      })
+      // Fulltime crew — settings key is just the dept name
+      const exportDepts    = buildDeptRows(depts,    groupMap,    d => d)
+      // Additional crew — settings key includes the "- Additional" suffix (matches UI)
+      const exportAddDepts = buildDeptRows(addDepts, addGroupMap, d => `${d} - Additional`)
 
-      await exportBackpageXLSX({ production, day, depts: exportDepts })
+      await exportBackpageXLSX({ production, day, depts: exportDepts, addDepts: exportAddDepts })
     } catch (err) {
       console.error('[backpage] export error:', err)
       alert('Export failed — check console for details.')
