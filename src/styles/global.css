@@ -3642,3 +3642,53 @@ html, body {
 /* Field grid — slightly tighter, crisper labels */
 .pm-field-label { color: var(--pm-muted); }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   RENAMED CLASS ALIASES — bridge old CSS → new pm-* JSX names
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Toggle switch (toggle-track → pm-toggle, toggle-thumb → pm-toggle-thumb) */
+.pm-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-top: 1px solid #f3f4f6;
+  cursor: pointer;
+  user-select: none;
+}
+.pm-toggle {
+  width: 34px;
+  height: 18px;
+  background: #e5e7eb;
+  border-radius: 9px;
+  position: relative;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.pm-toggle.on { background: #2563eb; }
+.pm-toggle-thumb {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: left 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.pm-toggle.on .pm-toggle-thumb { left: 19px; }
+
+/* Legend swatches (legend-swatch → pm-leg-sw, status as sibling class) */
+.pm-leg-sw {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.pm-leg-sw.booked      { background: #16a34a; }
+.pm-leg-sw.hold        { background: #d97706; }
+.pm-leg-sw.unavailable { background: #dc2626; }
+.pm-leg-sw.cancelled   { background: #9ca3af; }
