@@ -3907,7 +3907,6 @@ select.pm-input { cursor: pointer; }
   box-shadow: -2px 2px 8px rgba(30,58,95,0.10);
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  transform: rotate(180deg);
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
   line-height: 1;
 }
