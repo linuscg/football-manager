@@ -17,10 +17,10 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
     accent:    '2563EB',
     deptBg:    'E2E8F0',
     deptFg:    '1E293B',
-    addDeptBg: 'EDE9FE',   // soft violet tint for additional crew dept rows
+    addDeptBg: 'EDE9FE',
     addDeptFg: '3B0764',
     hdrBg:     '1A2741',
-    addHdrBg:  '4C1D95',   // deeper violet for additional crew column header
+    addHdrBg:  '4C1D95',
     white:     'FFFFFF',
     border:    'D1D5DB',
     hdrBdr:    '0F1C31',
@@ -35,11 +35,29 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
     return { top: s, left: s, bottom: s, right: s }
   }
 
+  // ── Dept sort — Producers → Directors → Production → A-Z ────────────────
+  //   Strips the " - Additional" suffix before comparing priority.
+  function deptPriority(name) {
+    const base = name.replace(/ - Additional$/i, '').trim().toLowerCase()
+    if (/^producers?$/.test(base)) return 0
+    if (/^directors?$/.test(base)) return 1
+    if (base === 'production')     return 2
+    return 3
+  }
+
+  function sortDeptArray(arr) {
+    return [...arr].sort((a, b) => {
+      const pa = deptPriority(a.name), pb = deptPriority(b.name)
+      if (pa !== pb) return pa - pb
+      return a.name.localeCompare(b.name)
+    })
+  }
+
   // ── Sheet state ──────────────────────────────────────────────────────────
-  const aoa      = []   // rows of cell values
-  const cellSty  = {}   // 'A1' → style object
-  const merges   = []   // {s:{r,c}, e:{r,c}}
-  const rowHts   = {}   // rowIndex → hpt
+  const aoa     = []
+  const cellSty = {}
+  const merges  = []
+  const rowHts  = {}
 
   const R = () => aoa.length - 1
 
@@ -48,9 +66,7 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
     if (hpt != null) rowHts[R()] = hpt
   }
 
-  function sty(r, c, s) {
-    cellSty[addr(r, c)] = s
-  }
+  function sty(r, c, s) { cellSty[addr(r, c)] = s }
 
   function addr(r, c) {
     return String.fromCharCode(65 + c) + (r + 1)
@@ -60,19 +76,27 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
     merges.push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } })
   }
 
-  // ── Build flat item list for a dept array ────────────────────────────────
+  // ── Build flat item list for a dept array (already sorted) ───────────────
   function buildItems(deptArray) {
     const items = []
     for (const dept of deptArray) {
       items.push({ type: 'dept', name: dept.name })
       for (const m of dept.members) {
-        items.push({ type: 'crew', name: m.name || '', role: m.role || '', call: m.callTime || '', wrap: m.wrapTime || '' })
+        items.push({
+          type: 'crew',
+          name: m.name || '',
+          role: m.role || '',
+          call: m.callTime || '',
+          wrap: m.wrapTime || '',
+        })
       }
     }
     return items
   }
 
-  // Distribute items into 3 roughly equal columns, only breaking on dept boundaries
+  // Distribute items into 3 roughly equal columns, breaking only on dept boundaries.
+  // Priority depts are at the top of the list, so they naturally land in the
+  // left column and the rest fill left → middle → right.
   function distribute3(items) {
     const target = Math.ceil(items.length / 3)
     const cols   = [[], [], []]
@@ -87,7 +111,7 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
     return cols
   }
 
-  // Render a 3-column data block (dept headers + crew rows) into the sheet
+  // Render a 3-column data block into the sheet
   function renderDataBlock(cols3, deptBg, deptFg) {
     const maxRows = Math.max(cols3[0].length, cols3[1].length, cols3[2].length)
     for (let r = 0; r < maxRows; r++) {
@@ -108,7 +132,9 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
         if (item?.type === 'dept') {
           for (let c = base; c < base + 4; c++) {
             sty(ri, c, {
-              font:      c === base ? { bold: true, sz: 9, color: { rgb: deptFg }, name: 'Calibri' } : { sz: 9 },
+              font:      c === base
+                ? { bold: true, sz: 9, color: { rgb: deptFg }, name: 'Calibri' }
+                : { sz: 9 },
               fill:      { patternType: 'solid', fgColor: { rgb: deptBg } },
               border:    thinBorder(C.border),
               alignment: { vertical: 'center' },
@@ -137,7 +163,10 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
 
   // Render a column-header row (NAME | POSITION | IN | OUT × 3)
   function renderColHeader(hdrBg) {
-    addRow(['NAME', 'POSITION', 'IN', 'OUT', 'NAME', 'POSITION', 'IN', 'OUT', 'NAME', 'POSITION', 'IN', 'OUT'], 19)
+    addRow(
+      ['NAME', 'POSITION', 'IN', 'OUT', 'NAME', 'POSITION', 'IN', 'OUT', 'NAME', 'POSITION', 'IN', 'OUT'],
+      19,
+    )
     const ri = R()
     for (let c = 0; c < 12; c++) {
       sty(ri, c, {
@@ -151,8 +180,7 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
 
   // ── Header rows ──────────────────────────────────────────────────────────
 
-  // Row 0: top padding
-  addRow(new Array(12).fill(''), 18)
+  addRow(new Array(12).fill(''), 14) // top padding
 
   // Row 1: BACK PAGE  |  PRODUCTION NAME
   const dateStr = day.date
@@ -160,61 +188,57 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
       })
     : ''
-  addRow(['BACK PAGE', '', '', '', '', '', (production.name || '').toUpperCase(), '', '', '', '', ''], 34)
-  sty(R(), 0, { font: { bold: true, sz: 22, color: { rgb: C.dark }, name: 'Calibri' }, alignment: { vertical: 'center' } })
-  sty(R(), 6, { font: { bold: true, sz: 12, color: { rgb: C.dark }, name: 'Calibri' }, alignment: { horizontal: 'right', vertical: 'center' } })
+  addRow(['BACK PAGE', '', '', '', '', '', (production.name || '').toUpperCase(), '', '', '', '', ''], 32)
+  sty(R(), 0, { font: { bold: true, sz: 20, color: { rgb: C.dark }, name: 'Calibri' }, alignment: { vertical: 'center' } })
+  sty(R(), 6, { font: { bold: true, sz: 11, color: { rgb: C.dark }, name: 'Calibri' }, alignment: { horizontal: 'right', vertical: 'center' } })
   merge(R(), 0, R(), 5); merge(R(), 6, R(), 11)
 
   // Row 2: date  |  shoot day label
   const sdLabel = day.dayCategory === 'main'
     ? `Shoot Day  ${day.dayNumber ?? '—'}   ·   MAIN UNIT`
     : (day.dayCategory || 'Day').toUpperCase()
-  addRow([dateStr, '', '', '', '', '', sdLabel, '', '', '', '', ''], 18)
-  sty(R(), 0, { font: { sz: 10, color: { rgb: C.gray }, name: 'Calibri' }, alignment: { vertical: 'center' } })
-  sty(R(), 6, { font: { bold: true, sz: 11, color: { rgb: C.dark }, name: 'Calibri' }, alignment: { horizontal: 'right', vertical: 'center' } })
+  addRow([dateStr, '', '', '', '', '', sdLabel, '', '', '', '', ''], 16)
+  sty(R(), 0, { font: { sz: 9, color: { rgb: C.gray }, name: 'Calibri' }, alignment: { vertical: 'center' } })
+  sty(R(), 6, { font: { bold: true, sz: 10, color: { rgb: C.dark }, name: 'Calibri' }, alignment: { horizontal: 'right', vertical: 'center' } })
   merge(R(), 0, R(), 5); merge(R(), 6, R(), 11)
 
   // Row 3: location  |  General Call
   const locText  = day.locations?.[0] || day.unitBase || ''
   const callText = day.generalCall ? `General Call:  ${day.generalCall}` : 'No general call set'
-  addRow([locText, '', '', '', '', '', callText, '', '', '', '', ''], 18)
-  sty(R(), 0, { font: { sz: 10, color: { rgb: C.gray }, name: 'Calibri' }, alignment: { vertical: 'center' } })
-  sty(R(), 6, { font: { bold: true, sz: 14, color: { rgb: C.accent }, name: 'Calibri' }, alignment: { horizontal: 'right', vertical: 'center' } })
+  addRow([locText, '', '', '', '', '', callText, '', '', '', '', ''], 16)
+  sty(R(), 0, { font: { sz: 9, color: { rgb: C.gray }, name: 'Calibri' }, alignment: { vertical: 'center' } })
+  sty(R(), 6, { font: { bold: true, sz: 13, color: { rgb: C.accent }, name: 'Calibri' }, alignment: { horizontal: 'right', vertical: 'center' } })
   merge(R(), 0, R(), 5); merge(R(), 6, R(), 11)
 
-  // Row 4: thin spacer
-  addRow(new Array(12).fill(''), 8)
+  // Thin spacer
+  addRow(new Array(12).fill(''), 6)
 
-  // Row 5: CREW label
-  addRow(['CREW', '', '', '', '', '', '', '', '', '', '', ''], 14)
-  sty(R(), 0, { font: { bold: true, sz: 8, color: { rgb: C.muted }, name: 'Calibri' } })
+  // CREW section label
+  addRow(['CREW', '', '', '', '', '', '', '', '', '', '', ''], 12)
+  sty(R(), 0, { font: { bold: true, sz: 7, color: { rgb: C.muted }, name: 'Calibri' } })
   merge(R(), 0, R(), 11)
 
-  // Row 6: fulltime column headers
+  // Fulltime column headers
   renderColHeader(C.hdrBg)
 
-  // ── Fulltime crew data rows ───────────────────────────────────────────────
-  const ftItems = buildItems(depts)
+  // ── Fulltime crew data (sorted) ───────────────────────────────────────────
+  const ftItems = buildItems(sortDeptArray(depts))
   if (ftItems.length > 0) {
     renderDataBlock(distribute3(ftItems), C.deptBg, C.deptFg)
   }
 
-  // ── Additional crew section ───────────────────────────────────────────────
+  // ── Additional crew section (sorted) ─────────────────────────────────────
   const hasAdd = addDepts.length > 0 && addDepts.some(d => d.members.length > 0)
   if (hasAdd) {
-    // Spacer
-    addRow(new Array(12).fill(''), 10)
+    addRow(new Array(12).fill(''), 8)  // spacer
 
-    // "ADDITIONAL CREW" section label
-    addRow(['ADDITIONAL CREW', '', '', '', '', '', '', '', '', '', '', ''], 14)
-    sty(R(), 0, { font: { bold: true, sz: 8, color: { rgb: C.muted }, name: 'Calibri' } })
+    addRow(['ADDITIONAL CREW', '', '', '', '', '', '', '', '', '', '', ''], 12)
+    sty(R(), 0, { font: { bold: true, sz: 7, color: { rgb: C.muted }, name: 'Calibri' } })
     merge(R(), 0, R(), 11)
 
-    // Additional crew column headers (different shade)
     renderColHeader(C.addHdrBg)
 
-    // Additional crew data rows
-    const addItems = buildItems(addDepts)
+    const addItems = buildItems(sortDeptArray(addDepts))
     renderDataBlock(distribute3(addItems), C.addDeptBg, C.addDeptFg)
   }
 
@@ -228,13 +252,28 @@ export async function exportBackpageXLSX({ production, day, depts, addDepts = []
 
   ws['!merges'] = merges
 
+  // Column widths — balanced for A4 landscape; fitToWidth below handles scaling
   ws['!cols'] = [
-    { wch: 30 }, { wch: 34 }, { wch: 9 }, { wch: 9 },
-    { wch: 30 }, { wch: 34 }, { wch: 9 }, { wch: 9 },
-    { wch: 30 }, { wch: 34 }, { wch: 9 }, { wch: 9 },
+    { wch: 26 }, { wch: 22 }, { wch: 7 }, { wch: 7 },
+    { wch: 26 }, { wch: 22 }, { wch: 7 }, { wch: 7 },
+    { wch: 26 }, { wch: 22 }, { wch: 7 }, { wch: 7 },
   ]
 
-  ws['!rows'] = aoa.map((_, i) => ({ hpt: rowHts[i] ?? 18 }))
+  ws['!rows'] = aoa.map((_, i) => ({ hpt: rowHts[i] ?? 15.5 }))
+
+  // A4 landscape, fit content to 1 page wide (Excel auto-scales height)
+  ws['!pageSetup'] = {
+    paperSize:   9,           // A4
+    orientation: 'landscape',
+    fitToPage:   true,
+    fitToWidth:  1,
+    fitToHeight: 0,           // unlimited height — 1-2 pages tall
+  }
+  ws['!margins'] = {
+    left: 0.35, right: 0.35,
+    top:  0.35, bottom: 0.35,
+    header: 0,  footer: 0,
+  }
 
   // ── Write and download ───────────────────────────────────────────────────
   const wb = XLSX.utils.book_new()
