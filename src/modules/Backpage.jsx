@@ -56,9 +56,60 @@ function dayOptionLabel(d) {
 
 // ─── CrewRow ──────────────────────────────────────────────────────────────────
 
-const STATUS_OPTIONS = ['work', 'O/C', 'SPL', 'N/A', 'PREP']
+const STATUS_OPTIONS = ['work', 'O/C', 'SPL', 'N/A', 'PREP', 'MAIN']
 
-function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMemberOverride }) {
+/**
+ * Derive the effective (displayed) status for a crew member, cross-referencing
+ * sibling days that fall on the same date.
+ *
+ * Sub-unit pages (splinter / prep / other):
+ *   • If main unit says "work" → show "MAIN" (they're on main)
+ *   • If main unit says "SPL"/"PREP" → they've been sent to sub, show own
+ *   • N/A / O/C on main carries through to sub
+ *
+ * Main-unit page:
+ *   • N/A / O/C on any sub-unit day carries through to main (when own is "work")
+ *
+ * Own N/A / O/C always wins over derivation.
+ */
+function getEffectiveStatus(dayId, dayCategory, sameDateDays, memberId, ownOverride, getMemberOverride) {
+  const ownSt = ownOverride?.status ?? 'work'
+
+  // Own explicit absence always wins
+  if (ownSt === 'N/A' || ownSt === 'O/C') return ownSt
+
+  if (dayCategory !== 'main' && sameDateDays?.length > 0) {
+    // Sub-unit: derive from the main unit's status for this member
+    const mainDay = sameDateDays.find(d => d.dayCategory === 'main')
+    if (mainDay) {
+      const mainSt = getMemberOverride(mainDay.id, memberId)?.status ?? 'work'
+      // Carry absence through from main
+      if (mainSt === 'N/A' || mainSt === 'O/C') return mainSt
+      // Main says "work" → member is on main unit (show MAIN on sub)
+      // only auto-derive when sub has no call-time override (a call time means
+      // the coordinator explicitly put them on sub)
+      if (mainSt === 'work' && ownSt === 'work' && !ownOverride?.callTime) return 'MAIN'
+      // mainSt is SPL / PREP → sent to sub; use own status
+      return ownSt
+    }
+  }
+
+  if (dayCategory === 'main' && sameDateDays?.length > 0 && ownSt === 'work') {
+    // Main: carry through N/A / O/C from any sub-unit day
+    for (const sd of sameDateDays) {
+      const subSt = getMemberOverride(sd.id, memberId)?.status ?? 'work'
+      if (subSt === 'N/A' || subSt === 'O/C') return subSt
+    }
+  }
+
+  return ownSt
+}
+
+function CrewRow({
+  m, dayId, deptCall, deptWrap,
+  dayCategory, sameDateDays,
+  getMemberOverride, upsertMemberOverride,
+}) {
   const override = getMemberOverride(dayId, m.id)
 
   const [lCall, setLCall] = useState(override?.callTime ?? '')
@@ -75,10 +126,12 @@ function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMember
   const lunch         = override?.lunch         ?? true
   const scenechronize = override?.scenechronize ?? false
   const exclude       = override?.exclude       ?? false
-  const status        = override?.status        ?? 'work'
 
-  const isOffWork = status !== 'work'   // any non-work status dims the row
-  const isNA      = status === 'N/A'   // N/A additionally strikes through
+  // Effective (displayed) status — may be derived from sibling days
+  const status = getEffectiveStatus(dayId, dayCategory, sameDateDays, m.id, override, getMemberOverride)
+
+  const isOffWork = status !== 'work'  // any non-work status dims the row
+  const isNA      = status === 'N/A'  // N/A additionally strikes through
 
   const rowClass = [
     'bp-crew-row',
@@ -91,11 +144,12 @@ function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMember
       <td className="bp-td bp-td-name">{m.name || <span className="bp-empty-name">—</span>}</td>
       <td className="bp-td bp-td-role">{m.role}</td>
 
-      {/* Status dropdown */}
+      {/* Status dropdown — shows derived status; writes to own-day override */}
       <td className="bp-td bp-td-status">
         <select
           className={`bp-status-select${isOffWork ? ' is-offwork' : ''}`}
           value={status}
+          title={status === 'MAIN' ? 'Auto-derived: on main unit (set from main day)' : undefined}
           onChange={e => upsertMemberOverride(dayId, m.id, 'status', e.target.value)}
         >
           {STATUS_OPTIONS.map(opt => (
@@ -196,6 +250,7 @@ function CrewRow({ m, dayId, deptCall, deptWrap, getMemberOverride, upsertMember
 
 function DeptSection({
   dept, members, dayId, generalCall, wrapTime,
+  dayCategory, sameDateDays,
   getDeptSetting, upsertDeptSetting,
   getMemberOverride, upsertMemberOverride,
 }) {
@@ -313,6 +368,8 @@ function DeptSection({
               dayId={dayId}
               deptCall={deptCall}
               deptWrap={deptWrap}
+              dayCategory={dayCategory}
+              sameDateDays={sameDateDays}
               getMemberOverride={getMemberOverride}
               upsertMemberOverride={upsertMemberOverride}
             />
@@ -374,6 +431,12 @@ export default function Backpage({ store }) {
   const scenechronize    = daySetting?.scenechronize  ?? false
   const effectiveDayType = day ? (day.dayType || production.defaultDayType || 'SWD') : null
   const wrapTime         = day ? calcWrapTime(day.generalCall, day.dayType, production, lunchIncluded) : null
+
+  // ── Same-date sibling days (for cross-day status derivation) ───────────
+  // e.g. main + splinter on same calendar date → statuses cross-reference
+  const sameDateDays = day
+    ? allDays.filter(d => d.date === day.date && d.id !== day.id)
+    : []
 
   // ── Group fulltime crew by department ──────────────────────────────────
   const FALLBACK = 'Unassigned'
@@ -446,7 +509,8 @@ export default function Backpage({ store }) {
             name: key,
             members: (sourceMap[dept] ?? []).map(m => {
               const ov = getMemberOverride(day.id, m.id)
-              const st        = ov?.status ?? 'work'
+              // Use the same cross-day derivation as the UI
+              const st        = getEffectiveStatus(day.id, day.dayCategory, sameDateDays, m.id, ov, getMemberOverride)
               const isOffWork = st !== 'work'
               return {
                 name:     m.name,
@@ -665,6 +729,8 @@ export default function Backpage({ store }) {
                 dayId={day.id}
                 generalCall={day.generalCall}
                 wrapTime={wrapTime}
+                dayCategory={day.dayCategory}
+                sameDateDays={sameDateDays}
                 getDeptSetting={getDeptSetting}
                 upsertDeptSetting={upsertDeptSetting}
                 getMemberOverride={getMemberOverride}
@@ -691,6 +757,8 @@ export default function Backpage({ store }) {
                     dayId={day.id}
                     generalCall={day.generalCall}
                     wrapTime={wrapTime}
+                    dayCategory={day.dayCategory}
+                    sameDateDays={sameDateDays}
                     getDeptSetting={getDeptSetting}
                     upsertDeptSetting={upsertDeptSetting}
                     getMemberOverride={getMemberOverride}
