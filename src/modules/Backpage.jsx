@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useFulltimeCrewStore }    from '../store/useFulltimeCrewStore'
+import { useCrewStore }            from '../store/useCrewStore'
 import { useBackpageStore }        from '../store/useBackpageStore'
 import { exportBackpageXLSX }      from '../lib/exportBackpage'
 import { generatePreCallSummary }  from '../lib/backpageSummary'
@@ -279,7 +280,8 @@ function DeptSection({
 
 export default function Backpage({ store }) {
   const { production, shootDays } = store
-  const { members }               = useFulltimeCrewStore()
+  const { members }                    = useFulltimeCrewStore()
+  const { resources, bookings }        = useCrewStore()
   const {
     loading: bpLoading,
     getDeptSetting,    upsertDeptSetting,
@@ -336,31 +338,77 @@ export default function Backpage({ store }) {
     return a.localeCompare(b)
   })
 
+  // ── Additional crew (Gantt resources booked on this day) ───────────────
+  const additionalMembers = useMemo(() => {
+    if (!day) return []
+    const bookedIds = new Set(
+      bookings
+        .filter(b =>
+          (b.status === 'booked' || b.status === 'hold') &&
+          (b.dayId === day.id || (b.date === day.date && !b.dayId))
+        )
+        .map(b => b.resourceId)
+    )
+    return resources
+      .filter(r => r.type === 'crew' && bookedIds.has(r.id))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+  }, [day, resources, bookings])
+
+  const addGroupMap = useMemo(() => {
+    const map = {}
+    for (const m of additionalMembers) {
+      const key = m.department.trim() || FALLBACK
+      if (!map[key]) map[key] = []
+      map[key].push(m)
+    }
+    return map
+  }, [additionalMembers])
+
+  const addDepts = useMemo(() =>
+    Object.keys(addGroupMap).sort((a, b) => {
+      if (a === FALLBACK) return 1
+      if (b === FALLBACK) return -1
+      return a.localeCompare(b)
+    })
+  , [addGroupMap])
+
   // ── Excel export ───────────────────────────────────────────────────────
   async function handleExport() {
     if (!day || exporting) return
     setExporting(true)
     try {
-      const exportDepts = depts.map(dept => {
+      // Merge fulltime + additional crew per dept for export
+      const allDeptNames = [
+        ...depts,
+        ...addDepts.filter(d => !depts.includes(d)),
+      ]
+
+      const exportDepts = allDeptNames.map(dept => {
         const setting     = getDeptSetting(day.id, dept)
         const preCallMins = setting.preCallMins ?? 0
         const derigMins   = setting.derigMins   ?? 0
         const deptCall    = day.generalCall ? addMins(day.generalCall, -preCallMins) : ''
         const deptWrap    = wrapTime        ? addMins(wrapTime,         derigMins)   : ''
 
+        const mapMember = m => {
+          const ov = getMemberOverride(day.id, m.id)
+          return {
+            name:     m.name,
+            role:     m.role,
+            callTime: ov?.callTime || deptCall || '',
+            wrapTime: ov?.wrapTime || deptWrap || '',
+          }
+        }
+
         return {
           name:    dept,
-          members: groupMap[dept].map(m => {
-            const ov = getMemberOverride(day.id, m.id)
-            return {
-              name:     m.name,
-              role:     m.role,
-              callTime: ov?.callTime || deptCall || '',
-              wrapTime: ov?.wrapTime || deptWrap || '',
-            }
-          }),
+          members: [
+            ...(groupMap[dept]    ?? []).map(mapMember),
+            ...(addGroupMap[dept] ?? []).map(mapMember),
+          ],
         }
       })
+
       await exportBackpageXLSX({ production, day, depts: exportDepts })
     } catch (err) {
       console.error('[backpage] export error:', err)
@@ -370,13 +418,14 @@ export default function Backpage({ store }) {
     }
   }
 
-  // ── Lunch / Scenechronize totals ────────────────────────────────────────
-  const totalCrew         = members.length
-  const totalLunch        = day
-    ? members.filter(m => (getMemberOverride(day.id, m.id)?.lunch ?? true)).length
+  // ── Lunch / Scenechronize totals (fulltime + additional) ───────────────
+  const allDayMembers      = day ? [...members, ...additionalMembers] : []
+  const totalCrew          = allDayMembers.length
+  const totalLunch         = day
+    ? allDayMembers.filter(m => (getMemberOverride(day.id, m.id)?.lunch ?? true)).length
     : 0
   const totalScenechronize = day
-    ? members.filter(m => (getMemberOverride(day.id, m.id)?.scenechronize ?? false)).length
+    ? allDayMembers.filter(m => (getMemberOverride(day.id, m.id)?.scenechronize ?? false)).length
     : 0
 
   // ── Pre-call summary ────────────────────────────────────────────────────
@@ -536,12 +585,12 @@ export default function Backpage({ store }) {
         </div>
       )}
 
-      {/* ── Department sections ───────────────────────────────────────────── */}
+      {/* ── Fulltime crew sections ────────────────────────────────────────── */}
       {day && (
         <div className="bp-body">
           {depts.map(dept => (
             <DeptSection
-              key={dept}
+              key={`ftc-${dept}`}
               dept={dept}
               members={groupMap[dept]}
               dayId={day.id}
@@ -554,6 +603,33 @@ export default function Backpage({ store }) {
             />
           ))}
         </div>
+      )}
+
+      {/* ── Additional crew (Gantt bookings) ─────────────────────────────── */}
+      {day && additionalMembers.length > 0 && (
+        <>
+          <div className="bp-additional-header">
+            <span className="bp-additional-title">Additional Crew</span>
+            <span className="bp-additional-count">{additionalMembers.length}</span>
+            <span className="bp-additional-sub">booked via Crew Gantt</span>
+          </div>
+          <div className="bp-body">
+            {addDepts.map(dept => (
+              <DeptSection
+                key={`add-${dept}`}
+                dept={dept}
+                members={addGroupMap[dept]}
+                dayId={day.id}
+                generalCall={day.generalCall}
+                wrapTime={wrapTime}
+                getDeptSetting={getDeptSetting}
+                upsertDeptSetting={upsertDeptSetting}
+                getMemberOverride={getMemberOverride}
+                upsertMemberOverride={upsertMemberOverride}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {/* ── Pre-call summary bar ─────────────────────────────────────────── */}
