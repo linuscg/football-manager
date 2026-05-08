@@ -73,6 +73,12 @@ export default function App() {
     addDayExtra, deleteDayExtra, updateDayExtra,
   }
 
+  useEffect(() => {
+    document.title = store.production.name
+      ? `Football Manager — ${store.production.name}`
+      : 'Football Manager'
+  }, [store.production.name])
+
   if (loading) return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -92,12 +98,6 @@ export default function App() {
       <span style={{ color: '#9ca3af' }}>{error}</span>
     </div>
   )
-
-  useEffect(() => {
-    document.title = store.production.name
-      ? `Football Manager — ${store.production.name}`
-      : 'Football Manager'
-  }, [store.production.name])
 
   const isGantt     = currentModule === 'crew'
   const isCallsheet = currentModule === 'callsheet'
