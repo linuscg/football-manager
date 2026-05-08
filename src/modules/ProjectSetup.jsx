@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useCrewStore } from '../store/useCrewStore'
+import { useHodsStore } from '../store/useHodsStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -111,38 +111,38 @@ function CastMemberRow({ member, index, total, onUpdate, onDelete, onMoveUp, onM
   )
 }
 
-// ─── CrewMemberRow — local state to avoid focus loss ─────────────────────────
+// ─── HodRow — local state to avoid focus loss ────────────────────────────────
 
-function CrewMemberRow({ resource, onUpdate, onDelete }) {
-  const [lName,  setLName]  = useState(resource.name)
-  const [lRole,  setLRole]  = useState(resource.role)
-  const [lPhone, setLPhone] = useState(resource.contactPhone)
-  const [lEmail, setLEmail] = useState(resource.contactEmail)
+function HodRow({ hod, onUpdate, onDelete }) {
+  const [lName,  setLName]  = useState(hod.name)
+  const [lTitle, setLTitle] = useState(hod.title)
+  const [lPhone, setLPhone] = useState(hod.phone)
+  const [lEmail, setLEmail] = useState(hod.email)
 
-  useEffect(() => setLName(resource.name),          [resource.name])
-  useEffect(() => setLRole(resource.role),          [resource.role])
-  useEffect(() => setLPhone(resource.contactPhone), [resource.contactPhone])
-  useEffect(() => setLEmail(resource.contactEmail), [resource.contactEmail])
+  useEffect(() => setLName(hod.name),   [hod.name])
+  useEffect(() => setLTitle(hod.title), [hod.title])
+  useEffect(() => setLPhone(hod.phone), [hod.phone])
+  useEffect(() => setLEmail(hod.email), [hod.email])
 
   return (
     <div className="cast-member-row">
       <input className="pm-input" value={lName} placeholder="Name"
         onChange={e => setLName(e.target.value)}
-        onBlur={() => { if (lName !== resource.name) onUpdate(resource.id, 'name', lName) }}
+        onBlur={() => { if (lName !== hod.name) onUpdate(hod.id, 'name', lName) }}
         style={{ flex: 2 }} />
-      <input className="pm-input" value={lRole} placeholder="Title / Role"
-        onChange={e => setLRole(e.target.value)}
-        onBlur={() => { if (lRole !== resource.role) onUpdate(resource.id, 'role', lRole) }}
+      <input className="pm-input" value={lTitle} placeholder="Title / Role"
+        onChange={e => setLTitle(e.target.value)}
+        onBlur={() => { if (lTitle !== hod.title) onUpdate(hod.id, 'title', lTitle) }}
         style={{ flex: 2 }} />
       <input className="pm-input" value={lPhone} placeholder="Phone"
         onChange={e => setLPhone(e.target.value)}
-        onBlur={() => { if (lPhone !== resource.contactPhone) onUpdate(resource.id, 'contactPhone', lPhone) }}
+        onBlur={() => { if (lPhone !== hod.phone) onUpdate(hod.id, 'phone', lPhone) }}
         style={{ flex: 1.5 }} />
       <input className="pm-input" value={lEmail} placeholder="Email" type="email"
         onChange={e => setLEmail(e.target.value)}
-        onBlur={() => { if (lEmail !== resource.contactEmail) onUpdate(resource.id, 'contactEmail', lEmail) }}
+        onBlur={() => { if (lEmail !== hod.email) onUpdate(hod.id, 'email', lEmail) }}
         style={{ flex: 2 }} />
-      <button className="pm-icon-btn danger" onClick={() => onDelete(resource.id)} title="Remove">✕</button>
+      <button className="pm-icon-btn danger" onClick={() => onDelete(hod.id)} title="Remove">✕</button>
     </div>
   )
 }
@@ -166,8 +166,7 @@ export default function ProjectSetup({
   const [fxLoading,    setFxLoading]    = useState(false)
   const [fxError,      setFxError]      = useState(null)
 
-  const { resources, addResource, deleteResource, updateResource } = useCrewStore()
-  const crewMembers = resources.filter(r => r.type === 'crew')
+  const { hods, addHod, deleteHod, updateHod } = useHodsStore()
 
   const shootStart = production.shootStartDate
   const shootEnd   = production.shootEndDate
@@ -563,41 +562,41 @@ export default function ProjectSetup({
         </div>
       </div>
 
-      {/* ── Crew ─────────────────────────────────────────────────────────────── */}
+      {/* ── HODs ─────────────────────────────────────────────────────────────── */}
       <div className="setup-card">
         <div className="setup-phase-header">
           <span className="setup-phase-icon">🎬</span>
           <span className="setup-phase-label" style={{ color: '#374151' }}>
-            Crew
-            {crewMembers.length > 0 && (
+            Heads of Department
+            {hods.length > 0 && (
               <span className="setup-phase-badge" style={{ background: '#2563eb', marginLeft: 8 }}>
-                {crewMembers.length}
+                {hods.length}
               </span>
             )}
           </span>
         </div>
 
-        {crewMembers.length === 0 && (
+        {hods.length === 0 && (
           <p className="setup-card-hint" style={{ marginBottom: 10 }}>
-            Add crew members here to populate the contact directory. Full booking management is in <strong>Crew &amp; Equipment</strong>.
+            Key contacts for the production. Separate from the full crew roster in Crew &amp; Equipment.
           </p>
         )}
 
-        {crewMembers.map(r => (
-          <CrewMemberRow
-            key={r.id}
-            resource={r}
-            onUpdate={updateResource}
-            onDelete={deleteResource}
+        {hods.map(h => (
+          <HodRow
+            key={h.id}
+            hod={h}
+            onUpdate={updateHod}
+            onDelete={deleteHod}
           />
         ))}
 
         <button
           className="pm-btn pm-btn--ghost pm-btn--sm"
           style={{ marginTop: 10 }}
-          onClick={() => addResource('crew')}
+          onClick={addHod}
         >
-          + Add Crew Member
+          + Add HOD
         </button>
       </div>
     </div>

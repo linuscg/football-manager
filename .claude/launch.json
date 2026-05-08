@@ -2,10 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "football-manager",
+      "name": "production-manager",
       "runtimeExecutable": "/Users/linus/.nvm/versions/node/v24.15.0/bin/npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5173"],
-      "port": 5173
+      "runtimeArgs": ["run", "dev", "--", "--port", "7890"],
+      "cwd": "/Users/linus/Desktop/Football Manager",
+      "port": 7890
     }
   ]
 }

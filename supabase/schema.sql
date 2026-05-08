@@ -52,3 +52,15 @@ alter table production add column if not exists episode_count integer;
 
 -- Episode number on scenes (for TV episode assignment)
 alter table scenes add column if not exists episode_number integer;
+
+-- Heads of Department (separate from crew/resources table)
+create table if not exists hods (
+  id            uuid primary key default gen_random_uuid(),
+  production_id uuid references production(id) on delete cascade,
+  name          text not null default '',
+  title         text not null default '',
+  phone         text not null default '',
+  email         text not null default '',
+  sort_order    integer not null default 0,
+  created_at    timestamptz default now()
+);

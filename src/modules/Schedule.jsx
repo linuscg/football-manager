@@ -27,9 +27,32 @@ export default function Schedule({ store, actions }) {
   const [newestId, setNewestId] = useState(null)
   const listBottomRef = useRef(null)
 
+  // Persist which cards are expanded across tab switches and refreshes
+  const [expandedIds, setExpandedIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fm_schedule_expanded')
+      return new Set(saved ? JSON.parse(saved) : [])
+    } catch { return new Set() }
+  })
+
+  function handleToggleExpanded(id, isExpanded) {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (isExpanded) next.add(id); else next.delete(id)
+      localStorage.setItem('fm_schedule_expanded', JSON.stringify([...next]))
+      return next
+    })
+  }
+
   function handleAddDay() {
     const id = actions.addShootDay()
     setNewestId(id)
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      localStorage.setItem('fm_schedule_expanded', JSON.stringify([...next]))
+      return next
+    })
   }
 
   // Scroll the new card into view after it renders.
@@ -121,7 +144,7 @@ export default function Schedule({ store, actions }) {
                     day={day}
                     index={index}
                     totalDays={totalDays}
-                    defaultExpanded={day.id === newestId}
+                    defaultExpanded={expandedIds.has(day.id)}
                     onUpdate={actions.updateShootDay}
                     onDelete={actions.deleteShootDay}
                     onMoveUp={actions.moveDayUp}
@@ -136,6 +159,7 @@ export default function Schedule({ store, actions }) {
                     onDeleteDayExtra={actions.deleteDayExtra}
                     onUpdateDayExtra={actions.updateDayExtra}
                     onUpdateSceneCast={actions.updateSceneCast}
+                    onToggleExpanded={handleToggleExpanded}
                     additionals={additionalsByDate[day.date] ?? []}
                     production={production}
                     castMembers={castMembers ?? []}

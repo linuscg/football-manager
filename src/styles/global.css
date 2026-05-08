@@ -1950,6 +1950,8 @@ textarea.field-input {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 14px 16px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .budget-card-primary {
@@ -1980,6 +1982,10 @@ textarea.field-input {
   color: #111827;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .budget-card-sub {
@@ -2367,6 +2373,11 @@ textarea.field-input {
   gap: 5px;
   align-items: center;
   margin-bottom: 5px;
+  overflow: visible;
+}
+
+.scene-row--tv {
+  grid-template-columns: 60px 54px 1fr 64px 1fr 72px 64px 90px 28px;
 }
 
 .cast-cell {

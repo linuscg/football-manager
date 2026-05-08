@@ -35,8 +35,9 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
     onUpdateSceneCast(dayId, scene.id, next)
   }
 
+  const isTv = production?.format === 'tv' && (production?.episodeCount ?? 0) > 0
   return (
-    <div className="scene-row">
+    <div className={`scene-row${isTv ? ' scene-row--tv' : ''}`}>
       {/* Scene number */}
       <input
         className="scene-input"

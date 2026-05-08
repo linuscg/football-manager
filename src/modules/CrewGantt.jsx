@@ -496,8 +496,15 @@ function ResourceRow({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CrewGantt({ production, shootDays }) {
-  const [activeTab,      setActiveTab]      = useState('crew')
-  const [expandedPhases, setExpandedPhases] = useState({ prep: true, shoot: true, wrap: true })
+  const [activeTab, setActiveTab] = useState(() =>
+    localStorage.getItem('fm_gantt_tab') ?? 'crew'
+  )
+  const [expandedPhases, setExpandedPhases] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fm_gantt_phases')
+      return saved ? JSON.parse(saved) : { prep: true, shoot: true, wrap: true }
+    } catch { return { prep: true, shoot: true, wrap: true } }
+  })
   const [paintMode,      setPaintMode]      = useState('booked')   // the selected brush
   const [isDragging,     setIsDragging]     = useState(false)
   const [notices,        setNotices]        = useState([])
@@ -604,7 +611,11 @@ export default function CrewGantt({ production, shootDays }) {
   // ── Phase toggle ───────────────────────────────────────────────────────────
 
   function togglePhase(phaseId) {
-    setExpandedPhases(s => ({ ...s, [phaseId]: !s[phaseId] }))
+    setExpandedPhases(s => {
+      const next = { ...s, [phaseId]: !s[phaseId] }
+      localStorage.setItem('fm_gantt_phases', JSON.stringify(next))
+      return next
+    })
   }
 
   function collapseBeforeToday() {
@@ -614,8 +625,14 @@ export default function CrewGantt({ production, shootDays }) {
         const end = production[phase.endKey]
         if (end && end < today) next[phase.id] = false
       }
+      localStorage.setItem('fm_gantt_phases', JSON.stringify(next))
       return next
     })
+  }
+
+  function switchTab(tab) {
+    setActiveTab(tab)
+    localStorage.setItem('fm_gantt_tab', tab)
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
@@ -836,9 +853,9 @@ export default function CrewGantt({ production, shootDays }) {
 
         <div className="gantt-tabs">
           <button className={`gantt-tab${activeTab === 'crew'      ? ' active' : ''}`}
-            onClick={() => setActiveTab('crew')}>Crew</button>
+            onClick={() => switchTab('crew')}>Crew</button>
           <button className={`gantt-tab${activeTab === 'equipment' ? ' active' : ''}`}
-            onClick={() => setActiveTab('equipment')}>Equipment</button>
+            onClick={() => switchTab('equipment')}>Equipment</button>
         </div>
 
         <div className="gantt-toolbar">

@@ -166,6 +166,7 @@ export default function ShootDayCard({
   onDeleteDayExtra,
   onUpdateDayExtra,
   onUpdateSceneCast,
+  onToggleExpanded,
   additionals = [],
   production = {},
   castMembers = [],
@@ -244,7 +245,7 @@ export default function ShootDayCard({
       onDrop={handleDrop}
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="pm-day-head" onClick={() => setExpanded(e => !e)}>
+      <div className="pm-day-head" onClick={() => setExpanded(e => { const next = !e; onToggleExpanded?.(day.id, next); return next })}>
 
         {/* Day tab — drag handle lives inside so colour extends into grab area */}
         {isPrep ? (

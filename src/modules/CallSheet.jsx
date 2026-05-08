@@ -473,6 +473,17 @@ export default function CallSheet({ store, castMembers = [] }) {
               </div>
             )}
 
+            {/* ── Notes ───────────────────────────────────────────────────── */}
+            {day.notes && (
+              <div className="pm-cs-section">
+                <div className="pm-cs-section-head">
+                  Notes
+                  <CopyBtn getText={notesTSV} />
+                </div>
+                <div className="cs-notes">{day.notes}</div>
+              </div>
+            )}
+
             {/* ── Prep / Splinter Unit(s) ─────────────────────────────────── */}
             {prepUnitGroups.map(({ prepDay, items }) => {
               const isSplinter = prepDay.dayCategory === 'splinter'
@@ -543,17 +554,6 @@ export default function CallSheet({ store, castMembers = [] }) {
                 </div>
               )
             })}
-
-            {/* ── Notes ───────────────────────────────────────────────────── */}
-            {day.notes && (
-              <div className="pm-cs-section">
-                <div className="pm-cs-section-head">
-                  Notes
-                  <CopyBtn getText={notesTSV} />
-                </div>
-                <div className="cs-notes">{day.notes}</div>
-              </div>
-            )}
 
             {/* ── Truly empty state ───────────────────────────────────────── */}
             {day.scenes.length === 0 && crewGroups.length === 0 &&
