@@ -2737,23 +2737,26 @@ html, body {
   display: flex;
   align-items: stretch;
   height: 42px;
-  background: var(--pm-side-bg);
-  border-bottom: 1px solid #192338;
+  background: #0a1628;          /* noticeably darker/deeper than sidebar #0e1726 */
+  border-bottom: 1px solid #0d1c30;
   flex-shrink: 0;
 }
 
 .pm-tab-bar-brand {
   display: flex;
   align-items: center;
-  padding: 0 20px 0 22px;
-  font-family: var(--pm-font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: var(--pm-accent);
+  justify-content: center;
+  width: 52px;
   flex-shrink: 0;
-  border-right: 1px solid #192338;
+  border-right: 1px solid #0d1c30;
   user-select: none;
+}
+
+.pm-tab-bar-logo {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  opacity: 0.9;
 }
 
 .pm-tab-bar-tabs {
@@ -2764,11 +2767,11 @@ html, body {
 .pm-tab-btn {
   display: flex;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 22px;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--pm-side-nav);
+  color: #4e6080;
   font-family: var(--pm-font-body);
   font-size: 12.5px;
   font-weight: 500;

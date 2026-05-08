@@ -9,10 +9,28 @@ import Budget      from './modules/Budget'
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
 const TOP_TABS = [
-  { id: 'fm',         label: 'Football Manager' },
   { id: 'setup',      label: 'Project Setup'    },
+  { id: 'fm',         label: 'Football Manager' },
   { id: 'crew-times', label: 'Crew Times'       },
 ]
+
+// ─── Project Setup nav ────────────────────────────────────────────────────────
+
+const SETUP_NAV = [
+  { id: 'setup-list',     num: '01', label: 'Project List' },
+  { id: 'setup-main',     num: '02', label: 'Project Setup' },
+  { id: 'setup-account',  num: '03', label: 'Account'       },
+  { id: 'setup-settings', num: '04', label: 'Settings'      },
+  { id: 'setup-admin',    num: '05', label: 'Admin'         },
+]
+
+const SETUP_MODULE_SUB = {
+  'setup-list':     'All productions',
+  'setup-main':     'Production setup',
+  'setup-account':  'User account',
+  'setup-settings': 'App settings',
+  'setup-admin':    'Administration',
+}
 
 // ─── Football Manager nav ─────────────────────────────────────────────────────
 
@@ -53,10 +71,7 @@ function todayFull() {
 function getInitialTopTab() {
   const saved = localStorage.getItem('fm_top_tab')
   if (saved && TOP_TABS.find(t => t.id === saved)) return saved
-  // Legacy: if the old module was 'setup', land on setup tab
-  const savedModule = localStorage.getItem('fm_current_module')
-  if (savedModule === 'setup') return 'setup'
-  return 'fm'
+  return 'setup'
 }
 
 function getInitialFmModule() {
@@ -65,22 +80,29 @@ function getInitialFmModule() {
   return 'schedule'
 }
 
+function getInitialSetupModule() {
+  const saved = localStorage.getItem('fm_setup_module')
+  if (saved && SETUP_NAV.find(n => n.id === saved)) return saved
+  return 'setup-main'
+}
+
 function getInitialCtModule() {
   const saved = localStorage.getItem('fm_ct_module')
   if (saved && CT_NAV.find(n => n.id === saved)) return saved
   return 'ct-crew'
 }
 
-// ─── Crew Times placeholder (replaced in Step 2+) ────────────────────────────
+// ─── Placeholder for unbuilt pages ───────────────────────────────────────────
 
-function CtPlaceholder({ label, sub }) {
+function UnderConstruction({ label }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100%', flexDirection: 'column', gap: 10,
+      height: '100%', flexDirection: 'column', gap: 12,
     }}>
+      <div style={{ fontSize: 32, opacity: 0.25 }}>🚧</div>
       <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{label}</div>
-      <div style={{ fontSize: 12, color: '#9ca3af' }}>{sub} — coming soon</div>
+      <div style={{ fontSize: 12, color: '#9ca3af' }}>Under construction</div>
     </div>
   )
 }
@@ -89,6 +111,7 @@ function CtPlaceholder({ label, sub }) {
 
 export default function App() {
   const [topTab,       setTopTab]       = useState(getInitialTopTab)
+  const [setupModule,  setSetupModule]  = useState(getInitialSetupModule)
   const [fmModule,     setFmModule]     = useState(getInitialFmModule)
   const [ctModule,     setCtModule]     = useState(getInitialCtModule)
   const [prodMenuOpen, setProdMenuOpen] = useState(false)
@@ -97,6 +120,11 @@ export default function App() {
     setTopTab(id)
     localStorage.setItem('fm_top_tab', id)
     setProdMenuOpen(false)
+  }
+
+  function navigateSetup(id) {
+    setSetupModule(id)
+    localStorage.setItem('fm_setup_module', id)
   }
 
   function navigateFm(id) {
@@ -159,20 +187,38 @@ export default function App() {
     </div>
   )
 
-  // ── Derived state for topbar ───────────────────────────────────────────────
+  // ── Derived state ──────────────────────────────────────────────────────────
 
   const isGantt     = topTab === 'fm' && fmModule === 'crew'
   const isCallsheet = topTab === 'fm' && fmModule === 'callsheet'
 
+  const activeNav = topTab === 'setup'
+    ? SETUP_NAV
+    : topTab === 'fm'
+      ? FM_NAV
+      : CT_NAV
+
+  const activeModule = topTab === 'setup'
+    ? setupModule
+    : topTab === 'fm'
+      ? fmModule
+      : ctModule
+
+  function handleNavClick(id) {
+    if (topTab === 'setup')      navigateSetup(id)
+    if (topTab === 'fm')         navigateFm(id)
+    if (topTab === 'crew-times') navigateCt(id)
+  }
+
   const topbarEyebrow = (() => {
-    if (topTab === 'setup')      return 'Project Setup'
+    if (topTab === 'setup')      return SETUP_NAV.find(n => n.id === setupModule)?.label ?? ''
     if (topTab === 'fm')         return FM_NAV.find(n => n.id === fmModule)?.label ?? ''
     if (topTab === 'crew-times') return CT_NAV.find(n => n.id === ctModule)?.label ?? ''
     return ''
   })()
 
   const topbarSub = (() => {
-    if (topTab === 'setup') return 'Production setup'
+    if (topTab === 'setup') return SETUP_MODULE_SUB[setupModule] ?? ''
     if (topTab === 'fm') {
       const base = FM_MODULE_SUB[fmModule] ?? ''
       return fmModule === 'schedule' && store.shootDays.length > 0
@@ -189,6 +235,7 @@ export default function App() {
     setProdMenuOpen(false)
     await createProduction()
     navigateTopTab('setup')
+    navigateSetup('setup-main')
   }
 
   async function handleDeleteProduction(id) {
@@ -199,22 +246,14 @@ export default function App() {
     await deleteProduction(id)
   }
 
-  // ── Sidebar nav (changes per top tab) ─────────────────────────────────────
-
-  const activeNav = topTab === 'fm' ? FM_NAV : topTab === 'crew-times' ? CT_NAV : []
-  const activeModule = topTab === 'fm' ? fmModule : topTab === 'crew-times' ? ctModule : null
-
-  function handleNavClick(id) {
-    if (topTab === 'fm')         navigateFm(id)
-    if (topTab === 'crew-times') navigateCt(id)
-  }
-
   return (
     <div className="pm-app" onClick={() => setProdMenuOpen(false)}>
 
       {/* ── Top tab bar ─────────────────────────────────────────────────────── */}
       <nav className="pm-tab-bar" onClick={e => e.stopPropagation()}>
-        <div className="pm-tab-bar-brand">FM</div>
+        <div className="pm-tab-bar-brand">
+          <img src="/favicon.svg" alt="FM" className="pm-tab-bar-logo" />
+        </div>
         <div className="pm-tab-bar-tabs">
           {TOP_TABS.map(tab => (
             <button
@@ -269,10 +308,9 @@ export default function App() {
                     )}
                   </div>
                 ))}
-                <button
-                  className="sidebar-prod-new"
-                  onClick={handleCreateProduction}
-                >+ New production</button>
+                <button className="sidebar-prod-new" onClick={handleCreateProduction}>
+                  + New production
+                </button>
               </div>
             )}
           </div>
@@ -326,7 +364,7 @@ export default function App() {
           <div className={`pm-content${isGantt ? ' pm-content--gantt' : ''}${isCallsheet ? ' pm-content--cs' : ''}`}>
 
             {/* ── Project Setup tab ─────────────────────────────────────────── */}
-            {topTab === 'setup' && (
+            {topTab === 'setup' && setupModule === 'setup-main' && (
               <ProjectSetup
                 production={store.production}
                 shootDays={store.shootDays}
@@ -340,16 +378,16 @@ export default function App() {
                 onImportCastMembers={importCastMembers}
               />
             )}
+            {topTab === 'setup' && setupModule !== 'setup-main' && (
+              <UnderConstruction label={SETUP_NAV.find(n => n.id === setupModule)?.label ?? ''} />
+            )}
 
             {/* ── Football Manager tab ──────────────────────────────────────── */}
             {topTab === 'fm' && fmModule === 'schedule' && (
               <Schedule store={store} actions={scheduleActions} />
             )}
             {topTab === 'fm' && fmModule === 'crew' && (
-              <CrewGantt
-                production={store.production}
-                shootDays={store.shootDays}
-              />
+              <CrewGantt production={store.production} shootDays={store.shootDays} />
             )}
             {topTab === 'fm' && fmModule === 'callsheet' && (
               <CallSheet store={store} castMembers={store.castMembers} />
@@ -360,13 +398,13 @@ export default function App() {
 
             {/* ── Crew Times tab ────────────────────────────────────────────── */}
             {topTab === 'crew-times' && ctModule === 'ct-crew' && (
-              <CtPlaceholder label="Fulltime Crew" sub="Full-time crew list" />
+              <UnderConstruction label="Fulltime Crew" />
             )}
             {topTab === 'crew-times' && ctModule === 'ct-backpage' && (
-              <CtPlaceholder label="Backpage" sub="Daily back page" />
+              <UnderConstruction label="Backpage" />
             )}
             {topTab === 'crew-times' && ctModule === 'ct-timesheets' && (
-              <CtPlaceholder label="Timesheets" sub="Weekly timesheets" />
+              <UnderConstruction label="Timesheets" />
             )}
 
           </div>
