@@ -186,8 +186,8 @@ export default function App() {
 
         <div className="pm-sidebar-foot">
           <div className="pm-stamp">
-            <div className="pm-stamp-line">Rev. {store.shootDays.length > 0 ? store.shootDays.length : '—'}</div>
-            <div className="pm-stamp-date">{todayStamp()}</div>
+            <div className="pm-stamp-line">Alpha v 0.1</div>
+            <div className="pm-stamp-date">{__BUILD_DATE__}</div>
           </div>
           <div className="pm-foot-meta">
             {store.shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay).length} shoot day{store.shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay).length !== 1 ? 's' : ''}
