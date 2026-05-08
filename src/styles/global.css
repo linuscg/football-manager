@@ -2652,25 +2652,41 @@ textarea.field-input {
 .cs-splinter-badge { background: #7c3aed; }
 .cs-other-badge    { background: #0891b2; }
 
-/* ── Call sheet stamp variants (per day category) ──────────────────────────── */
-.pm-cs-stamp--prep {
-  border-color: #d97706;
-  outline-color: #d97706;
-  color: #d97706;
+/* ── Call sheet header: coloured backgrounds per day category ───────────────── */
+.pm-cs-header--prep {
+  --pm-cs-head-bg:     #7c2d12;
+  --pm-cs-head-rule:   1px solid #9a3412;
+  --pm-cs-head-eyebrow:#f5b98a;
+  --pm-cs-head-meta:   #f5b98a;
 }
-.pm-cs-stamp--splinter {
-  border-color: #7c3aed;
-  outline-color: #7c3aed;
-  color: #7c3aed;
+.pm-cs-header--splinter {
+  --pm-cs-head-bg:     #3b0764;
+  --pm-cs-head-rule:   1px solid #4c1d95;
+  --pm-cs-head-eyebrow:#c4b5fd;
+  --pm-cs-head-meta:   #c4b5fd;
 }
-.pm-cs-stamp--other {
-  border-color: #0891b2;
-  outline-color: #0891b2;
-  color: #0891b2;
+.pm-cs-header--other {
+  --pm-cs-head-bg:     #083344;
+  --pm-cs-head-rule:   1px solid #164e63;
+  --pm-cs-head-eyebrow:#7dd3e8;
+  --pm-cs-head-meta:   #7dd3e8;
 }
-.pm-cs-daynum--prep     { color: #d97706; }
-.pm-cs-daynum--splinter { color: #7c3aed; }
-.pm-cs-daynum--other    { color: #0891b2; }
+
+/* Stamp on coloured headers — white outline + white text */
+.pm-cs-header--prep .pm-cs-stamp,
+.pm-cs-header--splinter .pm-cs-stamp,
+.pm-cs-header--other .pm-cs-stamp {
+  border-color:   rgba(255,255,255,0.55);
+  outline-color:  rgba(255,255,255,0.55);
+  color:          #ffffff;
+}
+
+/* Day label under stamp — softer white */
+.pm-cs-daynum--prep,
+.pm-cs-daynum--splinter,
+.pm-cs-daynum--other {
+  color: rgba(255,255,255,0.7);
+}
 
 /* ═══════════════════════════════════════════════════════
    DIRECTION D — BLUEPRINT (pm-* design system classes)

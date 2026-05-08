@@ -331,7 +331,7 @@ export default function CallSheet({ store, castMembers = [] }) {
           <div className="pm-cs-doc">
 
             {/* ── Header ──────────────────────────────────────────────────── */}
-            <div className="pm-cs-header">
+            <div className={`pm-cs-header${isPrep ? ' pm-cs-header--prep' : isSplinter ? ' pm-cs-header--splinter' : isOther ? ' pm-cs-header--other' : ''}`}>
               <div className="cs-header-left">
                 <div className="pm-cs-prod">{production.name || 'Untitled Production'}</div>
                 <div className="cs-date-line">{formatDateFull(day.date)}</div>
