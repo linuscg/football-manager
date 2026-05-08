@@ -86,19 +86,36 @@ function todayDateStr() {
 }
 
 export default function CallSheet({ store, castMembers = [] }) {
-  const { shootDays, production } = store  // shootDays needed for prep unit lookup
+  const { shootDays, production } = store
   const { resources, bookings } = useCrewStore()
 
-  // Only real shoot days (not non-shoot days)
-  const shootingDays = useMemo(
-    () => shootDays.filter(d => !d.isNonShootDay && d.dayCategory === 'main'),
+  // All days sorted chronologically, then by sortOrder within the same date
+  const allDays = useMemo(
+    () => [...shootDays].sort((a, b) => {
+      if (a.date < b.date) return -1
+      if (a.date > b.date) return  1
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    }),
     [shootDays]
   )
 
-  const [selectedId, setSelectedId] = useState(() => shootingDays[0]?.id ?? null)
+  const [selectedId, setSelectedId] = useState(() => {
+    const sorted = [...shootDays].sort((a, b) => {
+      if (a.date < b.date) return -1
+      if (a.date > b.date) return  1
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    })
+    // Default to first main day; fall back to first day of any type
+    return sorted.find(d => d.dayCategory === 'main')?.id ?? sorted[0]?.id ?? null
+  })
 
-  const day = shootingDays.find(d => d.id === selectedId) ?? shootingDays[0] ?? null
-  const currentIdx = shootingDays.findIndex(d => d.id === day?.id)
+  const day        = allDays.find(d => d.id === selectedId) ?? allDays[0] ?? null
+  const currentIdx = allDays.findIndex(d => d.id === day?.id)
+
+  const isMain     = day?.dayCategory === 'main'
+  const isPrep     = day?.dayCategory === 'prep'
+  const isSplinter = day?.dayCategory === 'splinter'
+  const isOther    = day?.dayCategory === 'other'
 
   // Wrap time for the selected day
   const wrapTime = useMemo(() => {
@@ -116,34 +133,44 @@ export default function CallSheet({ store, castMembers = [] }) {
            a.name.localeCompare(b.name)
   }
 
-  // Main unit bookings (no dayId = not prep-specific)
+  // Bookings for the selected day:
+  //   main days  → matched by date (no dayId)
+  //   non-main   → matched by dayId
   const dayBookings = useMemo(() => {
     if (!day) return []
     return bookings
-      .filter(b => b.date === day.date && !b.dayId && b.status !== 'cancelled')
+      .filter(b => {
+        if (isMain) return b.date === day.date && !b.dayId && b.status !== 'cancelled'
+        return b.dayId === day.id && b.status !== 'cancelled'
+      })
       .map(b => {
         const resource = resources.find(r => r.id === b.resourceId)
         return resource ? { ...resource, bookingStatus: b.status } : null
       })
       .filter(Boolean)
-  }, [day, bookings, resources])
+  }, [day, isMain, bookings, resources])
 
-  // Prep and splinter unit bookings for the same date (keyed by dayId)
-  const prepUnitGroups = useMemo(() => {
-    if (!day) return []
-    const prepDays = shootDays.filter(d => d.date === day.date && (d.dayCategory === 'prep' || d.dayCategory === 'splinter'))
-    return prepDays.map(prepDay => {
+  // Sub-unit groups (prep / splinter / other on the same date) —
+  // shown only when the selected day is a main unit day
+  const subUnitGroups = useMemo(() => {
+    if (!day || !isMain) return []
+    const subDays = shootDays.filter(d =>
+      d.date === day.date &&
+      (d.dayCategory === 'prep' || d.dayCategory === 'splinter' || d.dayCategory === 'other')
+    )
+    return subDays.map(subDay => {
       const items = bookings
-        .filter(b => b.dayId === prepDay.id && b.status !== 'cancelled')
+        .filter(b => b.dayId === subDay.id && b.status !== 'cancelled')
         .map(b => {
           const resource = resources.find(r => r.id === b.resourceId)
           return resource ? { ...resource, bookingStatus: b.status } : null
         })
         .filter(Boolean)
         .sort(sortByStatusThenName)
-      return { prepDay, items }
-    }).filter(g => g.items.length > 0)
-  }, [day, shootDays, bookings, resources])
+      return { subDay, items }
+    })
+    // Show even if no bookings — so the section header/description still appears
+  }, [day, isMain, shootDays, bookings, resources])
 
   // Crew grouped by department
   const crewGroups = useMemo(() => {
@@ -214,12 +241,12 @@ export default function CallSheet({ store, castMembers = [] }) {
 
   // ── Empty state ─────────────────────────────────────────────────────────────
 
-  if (shootingDays.length === 0) {
+  if (allDays.length === 0) {
     return (
       <div className="pm-module">
         <div className="empty-state">
           <div className="empty-state-icon">☰</div>
-          <div className="empty-state-text">No shoot days yet.</div>
+          <div className="empty-state-text">No days scheduled yet.</div>
           <div className="empty-state-sub">Add shoot days in the Schedule tab first.</div>
         </div>
       </div>
@@ -229,7 +256,7 @@ export default function CallSheet({ store, castMembers = [] }) {
   // ── Jump to today ───────────────────────────────────────────────────────────
 
   const todayStr  = todayDateStr()
-  const todayDay  = shootingDays.find(d => d.date === todayStr)
+  const todayDay  = allDays.find(d => d.date === todayStr)
   const isOnToday = day?.date === todayStr
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -249,7 +276,7 @@ export default function CallSheet({ store, castMembers = [] }) {
         <button
           className="pm-btn pm-btn--ghost pm-btn--sm"
           disabled={currentIdx <= 0}
-          onClick={() => setSelectedId(shootingDays[currentIdx - 1].id)}
+          onClick={() => setSelectedId(allDays[currentIdx - 1].id)}
         >
           ← Prev
         </button>
@@ -259,17 +286,33 @@ export default function CallSheet({ store, castMembers = [] }) {
           value={day?.id ?? ''}
           onChange={e => setSelectedId(e.target.value)}
         >
-          {shootingDays.map(d => (
-            <option key={d.id} value={d.id}>
-              {`Day ${d.dayNumber} — ${formatDateShort(d.date)}${(d.locations ?? [d.location]).filter(Boolean)[0] ? ` · ${(d.locations ?? [d.location]).filter(Boolean)[0]}` : ''}`}
-            </option>
-          ))}
+          {allDays.map(d => {
+            const datePart = formatDateShort(d.date)
+            const loc = (d.locations ?? [d.location]).filter(Boolean)[0]
+            if (d.dayCategory === 'main') {
+              return (
+                <option key={d.id} value={d.id}>
+                  {`Day ${d.dayNumber} — ${datePart}${loc ? ` · ${loc}` : ''}`}
+                </option>
+              )
+            }
+            const catLabel = d.dayCategory === 'prep' ? 'Prep'
+                           : d.dayCategory === 'splinter' ? 'Splinter'
+                           : 'Other'
+            const labelPart = d.dayLabel ? ` ${d.dayLabel}` : ''
+            const descPart  = d.description ? ` · ${d.description}` : ''
+            return (
+              <option key={d.id} value={d.id}>
+                {`${catLabel}${labelPart} — ${datePart}${descPart}`}
+              </option>
+            )
+          })}
         </select>
 
         <button
           className="pm-btn pm-btn--ghost pm-btn--sm"
-          disabled={currentIdx >= shootingDays.length - 1}
-          onClick={() => setSelectedId(shootingDays[currentIdx + 1].id)}
+          disabled={currentIdx >= allDays.length - 1}
+          onClick={() => setSelectedId(allDays[currentIdx + 1].id)}
         >
           Next →
         </button>
@@ -294,10 +337,24 @@ export default function CallSheet({ store, castMembers = [] }) {
                 <div className="cs-date-line">{formatDateFull(day.date)}</div>
               </div>
               <div className="cs-header-center">
-                <div className="pm-cs-stamp">CALL SHEET</div>
-                {day.dayNumber != null && (
-                  <div className="pm-cs-daynum">Shoot Day {day.dayNumber}</div>
-                )}
+                {isMain && <>
+                  <div className="pm-cs-stamp">CALL SHEET</div>
+                  {day.dayNumber != null && (
+                    <div className="pm-cs-daynum">Shoot Day {day.dayNumber}</div>
+                  )}
+                </>}
+                {isPrep && <>
+                  <div className="pm-cs-stamp pm-cs-stamp--prep">PREP DAY</div>
+                  {day.dayLabel && <div className="pm-cs-daynum pm-cs-daynum--prep">{day.dayLabel}</div>}
+                </>}
+                {isSplinter && <>
+                  <div className="pm-cs-stamp pm-cs-stamp--splinter">SPLINTER UNIT</div>
+                  {day.dayLabel && <div className="pm-cs-daynum pm-cs-daynum--splinter">{day.dayLabel}</div>}
+                </>}
+                {isOther && <>
+                  <div className="pm-cs-stamp pm-cs-stamp--other">OTHER</div>
+                  {day.dayLabel && <div className="pm-cs-daynum pm-cs-daynum--other">{day.dayLabel}</div>}
+                </>}
               </div>
               <div className="cs-header-right">
                 {day.generalCall ? (
@@ -323,10 +380,16 @@ export default function CallSheet({ store, castMembers = [] }) {
             {/* ── Info strip ──────────────────────────────────────────────── */}
             {(() => {
               const locs = (day.locations ?? [day.location]).filter(Boolean)
-              const showStrip = locs.length > 0 || day.unitBase
+              const showStrip = locs.length > 0 || day.unitBase || (!isMain && day.description)
               if (!showStrip) return null
               return (
                 <div className="pm-cs-strip">
+                  {!isMain && day.description && (
+                    <div className="pm-cs-strip-item">
+                      <span className="pm-cs-strip-label">Description</span>
+                      <span className="pm-cs-strip-val">{day.description}</span>
+                    </div>
+                  )}
                   {locs.length === 1 && (
                     <div className="pm-cs-strip-item">
                       <span className="pm-cs-strip-label">Location</span>
@@ -503,22 +566,38 @@ export default function CallSheet({ store, castMembers = [] }) {
               </div>
             )}
 
-            {/* ── Prep / Splinter Unit(s) ─────────────────────────────────── */}
-            {prepUnitGroups.map(({ prepDay, items }) => {
-              const isSplinter = prepDay.dayCategory === 'splinter'
-              const prepCrew   = items.filter(r => r.type === 'crew')
-              const prepEquip  = items.filter(r => r.type === 'equipment')
-              const prepLoc    = (prepDay.locations ?? []).filter(Boolean)[0] || prepDay.description || ''
+            {/* ── Sub-unit sections (prep / splinter / other on same date) ── */}
+            {subUnitGroups.map(({ subDay, items }) => {
+              const cat      = subDay.dayCategory
+              const subCrew  = items.filter(r => r.type === 'crew')
+              const subEquip = items.filter(r => r.type === 'equipment')
+              const subLoc   = (subDay.locations ?? []).filter(Boolean)[0] || ''
+              const subDesc  = subDay.description || ''
+              const subInfo  = [subDay.dayLabel, subLoc || subDesc].filter(Boolean).join(' · ')
+
+              const sectionClass = cat === 'splinter' ? 'cs-section-splinter'
+                                 : cat === 'other'    ? 'cs-section-other'
+                                 :                      'cs-section-prep'
+              const badgeClass   = cat === 'splinter' ? 'cs-splinter-badge'
+                                 : cat === 'other'    ? 'cs-other-badge'
+                                 :                      'cs-prep-badge'
+              const badgeLabel   = cat === 'splinter' ? 'SPLINTER UNIT'
+                                 : cat === 'other'    ? 'OTHER'
+                                 :                      'PREP UNIT'
+
               return (
-                <div key={prepDay.id} className={`pm-cs-section ${isSplinter ? 'cs-section-splinter' : 'cs-section-prep'}`}>
+                <div key={subDay.id} className={`pm-cs-section ${sectionClass}`}>
                   <div className="pm-cs-section-head">
-                    <span className={isSplinter ? 'cs-splinter-badge' : 'cs-prep-badge'}>
-                      {isSplinter ? 'SPLINTER UNIT' : 'PREP UNIT'}
-                    </span>
-                    {prepLoc && <span style={{ fontWeight: 400, fontSize: 12, color: '#6b7280', marginLeft: 8 }}>{prepLoc}</span>}
-                    <span className="cs-section-count">{items.length}</span>
+                    <span className={badgeClass}>{badgeLabel}</span>
+                    {subInfo && <span style={{ fontWeight: 400, fontSize: 12, color: '#6b7280', marginLeft: 8 }}>{subInfo}</span>}
+                    {items.length > 0 && <span className="cs-section-count">{items.length}</span>}
                   </div>
-                  {prepCrew.length > 0 && (
+
+                  {items.length === 0 && (
+                    <p className="cs-empty" style={{ marginTop: 6 }}>No crew or equipment booked for this unit yet.</p>
+                  )}
+
+                  {subCrew.length > 0 && (
                     <div className="cs-group">
                       <div className="cs-group-header">Crew</div>
                       <table className="pm-cs-tbl">
@@ -529,7 +608,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                           <th className="cs-th cs-th-status">Status</th>
                         </tr></thead>
                         <tbody>
-                          {prepCrew.sort(sortByStatusThenName).map(r => (
+                          {subCrew.sort(sortByStatusThenName).map(r => (
                             <tr key={r.id} className="cs-tr">
                               <td className="cs-td cs-td-name">{r.name}</td>
                               <td className="cs-td cs-td-role">{r.role || '—'}</td>
@@ -545,7 +624,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                       </table>
                     </div>
                   )}
-                  {prepEquip.length > 0 && (
+                  {subEquip.length > 0 && (
                     <div className="cs-group">
                       <div className="cs-group-header">Equipment</div>
                       <table className="pm-cs-tbl">
@@ -555,7 +634,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                           <th className="cs-th cs-th-status">Status</th>
                         </tr></thead>
                         <tbody>
-                          {prepEquip.sort(sortByStatusThenName).map(r => (
+                          {subEquip.sort(sortByStatusThenName).map(r => (
                             <tr key={r.id} className="cs-tr">
                               <td className="cs-td cs-td-name">{r.name}</td>
                               <td className="cs-td cs-td-role">{r.category || '—'}</td>
@@ -576,7 +655,7 @@ export default function CallSheet({ store, castMembers = [] }) {
 
             {/* ── Truly empty state ───────────────────────────────────────── */}
             {day.scenes.length === 0 && crewGroups.length === 0 &&
-             equipGroups.length === 0 && prepUnitGroups.length === 0 && !day.notes && extrasWithEntries.length === 0 && (
+             equipGroups.length === 0 && subUnitGroups.length === 0 && !day.notes && extrasWithEntries.length === 0 && (
               <div className="cs-empty">
                 No scenes, crew, or equipment booked for this day yet.
               </div>
