@@ -140,11 +140,17 @@ create table if not exists catering_collections (
   person_id      uuid,       -- null for ad-hoc entries
   person_name    text not null default '',
   person_type    text not null default 'fulltime', -- fulltime | additional | cast | adhoc
+  person_role    text not null default '',
+  person_dept    text not null default '',
   collected      boolean not null default false,
   collected_at   timestamptz,
   note           text not null default '',
   created_at     timestamptz default now()
 );
+
+-- Migration: add role/dept columns if table already exists
+alter table catering_collections add column if not exists person_role text not null default '';
+alter table catering_collections add column if not exists person_dept text not null default '';
 
 -- At most one collection record per known person per day
 create unique index if not exists catering_unique_person_day

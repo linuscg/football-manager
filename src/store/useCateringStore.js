@@ -9,6 +9,8 @@ function mapRecord(row) {
     personId:    row.person_id   ?? null,
     personName:  row.person_name ?? '',
     personType:  row.person_type ?? 'fulltime',
+    personRole:  row.person_role ?? '',
+    personDept:  row.person_dept ?? '',
     collected:   row.collected   ?? false,
     collectedAt: row.collected_at ?? null,
     note:        row.note        ?? '',
@@ -85,12 +87,13 @@ export function useCateringStore() {
     _upsertKnown(dayId, personId, personName, personType, { note })
   }
 
-  async function addAdhoc(dayId, name) {
+  async function addAdhoc(dayId, name, role = '', dept = '') {
     const prodId = getCurrentProductionId()
     const newId  = crypto.randomUUID()
     const newRec = {
       id: newId, production_id: prodId, day_id: dayId,
       person_id: null, person_name: name, person_type: 'adhoc',
+      person_role: role, person_dept: dept,
       collected: false, collected_at: null, note: '',
     }
     setRecords(rs => [...rs, mapRecord(newRec)])

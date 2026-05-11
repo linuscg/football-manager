@@ -48,11 +48,6 @@ function PersonRow({ person, onToggle, onNoteChange, onDelete }) {
   const collected   = person.collected
   const collectedAt = person.collectedAt
 
-  // Keep local note in sync if it changes externally (e.g. realtime)
-  if (localNote !== person.note && document.activeElement?.dataset?.personId !== person.key) {
-    // Only sync when not focused
-  }
-
   return (
     <div className={`cat-row${collected ? ' cat-row--done' : ''}`}>
 
@@ -72,6 +67,9 @@ function PersonRow({ person, onToggle, onNoteChange, onDelete }) {
           <span className="cat-collected-time">collected {fmtTime(collectedAt)}</span>
         )}
       </div>
+
+      {/* Dept */}
+      <span className="cat-dept">{person.dept || '—'}</span>
 
       {/* Role */}
       <span className="cat-role">{person.role || '—'}</span>
@@ -139,8 +137,17 @@ export default function Catering({ store }) {
   // ── Search + add adhoc UI ───────────────────────────────────────────────────
 
   const [search,       setSearch]       = useState('')
-  const [addingName,   setAddingName]   = useState('')
   const [showAddInput, setShowAddInput] = useState(false)
+  const [addingName,   setAddingName]   = useState('')
+  const [addingRole,   setAddingRole]   = useState('')
+  const [addingDept,   setAddingDept]   = useState('')
+
+  function resetAddForm() {
+    setAddingName('')
+    setAddingRole('')
+    setAddingDept('')
+    setShowAddInput(false)
+  }
 
   // ── Build person list ───────────────────────────────────────────────────────
 
@@ -176,7 +183,6 @@ export default function Catering({ store }) {
     for (const booking of activeOnDay) {
       const resource = resources.find(r => r.id === booking.resourceId && r.type === 'crew')
       if (!resource) continue
-      // Skip if already on the fulltime list
       if (list.some(p => p.id === resource.id)) continue
       const rec      = getRecord(day.id, resource.id)
       const entitled = getMemberOverride(day.id, resource.id)?.lunch ?? true
@@ -209,7 +215,7 @@ export default function Catering({ store }) {
         id:          c.id,
         name:        c.name,
         role:        c.castNumber != null ? `Cast #${c.castNumber}` : 'Cast',
-        dept:        '',
+        dept:        'Cast',
         type:        'cast',
         entitled:    true,
         collected:   rec?.collected   ?? false,
@@ -223,10 +229,10 @@ export default function Catering({ store }) {
     for (const rec of getAdhoc(day.id)) {
       list.push({
         key:         `adhoc-${rec.id}`,
-        id:          rec.id,      // adhoc uses record id as key
+        id:          rec.id,
         name:        rec.personName,
-        role:        '',
-        dept:        '',
+        role:        rec.personRole ?? '',
+        dept:        rec.personDept ?? '',
         type:        'adhoc',
         entitled:    true,
         collected:   rec.collected   ?? false,
@@ -236,7 +242,6 @@ export default function Catering({ store }) {
       })
     }
 
-    // Sort alphabetically by name
     list.sort((a, b) => a.name.localeCompare(b.name))
     return list
   }, [day, ftcMembers, resources, bookings, castMembers, getRecord, getAdhoc, getMemberOverride])
@@ -284,9 +289,8 @@ export default function Catering({ store }) {
   async function handleAddPerson() {
     const name = addingName.trim()
     if (!name || !day) return
-    await addAdhoc(day.id, name)
-    setAddingName('')
-    setShowAddInput(false)
+    await addAdhoc(day.id, name, addingRole.trim(), addingDept.trim())
+    resetAddForm()
   }
 
   // ── Excel export ─────────────────────────────────────────────────────────────
@@ -295,9 +299,10 @@ export default function Catering({ store }) {
     if (!day) return
     const XLSX = (await import('xlsx-js-style')).default
 
-    const headers = ['Name', 'Role', 'Type', 'Entitled to Lunch', 'Collected', 'Time Collected', 'Note']
+    const headers = ['Name', 'Department', 'Role', 'Type', 'Entitled to Lunch', 'Collected', 'Time Collected', 'Note']
     const rows = persons.map(p => [
       p.name,
+      p.dept || '',
       p.role || '',
       TYPE_LABEL[p.type] ?? p.type,
       p.entitled ? 'Yes' : 'No',
@@ -307,7 +312,7 @@ export default function Catering({ store }) {
     ])
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
-    ws['!cols'] = [{ wch: 28 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 30 }]
+    ws['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 30 }]
 
     const dateLabel = day.date
       ? new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).replace(' ', '')
@@ -375,7 +380,7 @@ export default function Catering({ store }) {
       {showAddInput && (
         <div className="cat-add-bar">
           <input
-            className="cat-add-input"
+            className="cat-add-input cat-add-input--name"
             type="text"
             placeholder="Full name…"
             value={addingName}
@@ -383,11 +388,33 @@ export default function Catering({ store }) {
             onChange={e => setAddingName(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter')  handleAddPerson()
-              if (e.key === 'Escape') { setShowAddInput(false); setAddingName('') }
+              if (e.key === 'Escape') resetAddForm()
+            }}
+          />
+          <input
+            className="cat-add-input cat-add-input--dept"
+            type="text"
+            placeholder="Department…"
+            value={addingDept}
+            onChange={e => setAddingDept(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter')  handleAddPerson()
+              if (e.key === 'Escape') resetAddForm()
+            }}
+          />
+          <input
+            className="cat-add-input cat-add-input--role"
+            type="text"
+            placeholder="Role…"
+            value={addingRole}
+            onChange={e => setAddingRole(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter')  handleAddPerson()
+              if (e.key === 'Escape') resetAddForm()
             }}
           />
           <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={handleAddPerson}>Add</button>
-          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => { setShowAddInput(false); setAddingName('') }}>Cancel</button>
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={resetAddForm}>Cancel</button>
         </div>
       )}
 
@@ -395,6 +422,7 @@ export default function Catering({ store }) {
       <div className="cat-list-head">
         <div className="cat-col-check" />
         <div className="cat-col-name">Name</div>
+        <div className="cat-col-dept">Dept</div>
         <div className="cat-col-role">Role</div>
         <div className="cat-col-type">Type</div>
         <div className="cat-col-note">Note</div>

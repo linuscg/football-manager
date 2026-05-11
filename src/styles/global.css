@@ -5350,8 +5350,6 @@ select.pm-input { cursor: pointer; }
   flex-shrink: 0;
 }
 .cat-add-input {
-  flex: 1;
-  max-width: 320px;
   height: 32px;
   padding: 0 10px;
   border: 1px solid #93c5fd;
@@ -5361,11 +5359,14 @@ select.pm-input { cursor: pointer; }
   background: #fff;
 }
 .cat-add-input:focus { outline: none; border-color: #6366f1; }
+.cat-add-input--name { flex: 2; min-width: 160px; }
+.cat-add-input--dept { flex: 1; min-width: 120px; }
+.cat-add-input--role { flex: 1; min-width: 120px; }
 
 /* ── Column headers ─────────────────────────────────────────────────────── */
 .cat-list-head {
   display: grid;
-  grid-template-columns: 38px 1fr 180px 110px 1fr 32px;
+  grid-template-columns: 38px 1fr 160px 180px 110px 1fr 32px;
   align-items: center;
   padding: 0 16px;
   height: 32px;
@@ -5382,6 +5383,7 @@ select.pm-input { cursor: pointer; }
 }
 .cat-col-check { }
 .cat-col-name  { }
+.cat-col-dept  { }
 .cat-col-role  { }
 .cat-col-type  { }
 .cat-col-note  { }
@@ -5403,7 +5405,7 @@ select.pm-input { cursor: pointer; }
 /* ── Person row ─────────────────────────────────────────────────────────── */
 .cat-row {
   display: grid;
-  grid-template-columns: 38px 1fr 180px 110px 1fr 32px;
+  grid-template-columns: 38px 1fr 160px 180px 110px 1fr 32px;
   align-items: center;
   padding: 5px 0;
   border-bottom: 1px solid #f3f4f6;
@@ -5457,6 +5459,16 @@ select.pm-input { cursor: pointer; }
   font-size: 10.5px;
   color: #6b7280;
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Dept ───────────────────────────────────────────────────────────────── */
+.cat-dept {
+  font-size: 12px;
+  color: #374151;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Role ───────────────────────────────────────────────────────────────── */

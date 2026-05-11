@@ -16,6 +16,7 @@ const TOP_TABS = [
   { id: 'setup',      label: 'Project Setup'    },
   { id: 'fm',         label: 'Football Manager' },
   { id: 'crew-times', label: 'Crew Times'       },
+  { id: 'catering',   label: 'Catering'         },
 ]
 
 // ─── Project Setup nav ────────────────────────────────────────────────────────
@@ -58,14 +59,12 @@ const CT_NAV = [
   { id: 'ct-crew',       num: '01', label: 'Fulltime Crew' },
   { id: 'ct-backpage',   num: '02', label: 'Backpage'      },
   { id: 'ct-timesheets', num: '03', label: 'Timesheets'    },
-  { id: 'ct-catering',   num: '04', label: 'Catering'      },
 ]
 
 const CT_MODULE_SUB = {
   'ct-crew':       'Full-time crew list',
   'ct-backpage':   'Daily back page',
   'ct-timesheets': 'Weekly timesheets',
-  'ct-catering':   'Lunch collection',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -202,7 +201,9 @@ export default function App() {
     ? SETUP_NAV
     : topTab === 'fm'
       ? FM_NAV
-      : CT_NAV
+      : topTab === 'crew-times'
+        ? CT_NAV
+        : []
 
   const activeModule = topTab === 'setup'
     ? setupModule
@@ -220,6 +221,7 @@ export default function App() {
     if (topTab === 'setup')      return SETUP_NAV.find(n => n.id === setupModule)?.label ?? ''
     if (topTab === 'fm')         return FM_NAV.find(n => n.id === fmModule)?.label ?? ''
     if (topTab === 'crew-times') return CT_NAV.find(n => n.id === ctModule)?.label ?? ''
+    if (topTab === 'catering')   return 'Catering'
     return ''
   })()
 
@@ -232,6 +234,7 @@ export default function App() {
         : base
     }
     if (topTab === 'crew-times') return CT_MODULE_SUB[ctModule] ?? ''
+    if (topTab === 'catering')   return 'Lunch collection'
     return ''
   })()
 
@@ -412,7 +415,9 @@ export default function App() {
             {topTab === 'crew-times' && ctModule === 'ct-timesheets' && (
               <Timesheets store={store} />
             )}
-            {topTab === 'crew-times' && ctModule === 'ct-catering' && (
+
+            {/* ── Catering tab ──────────────────────────────────────────────── */}
+            {topTab === 'catering' && (
               <Catering store={store} />
             )}
 
