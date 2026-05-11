@@ -79,13 +79,25 @@ export default function Timesheets({ store }) {
     getDeptSetting, getMemberOverride, getDaySetting,
   } = useBackpageStore()
 
-  // ── Week navigation ───────────────────────────────────────────────────────
+  // ── Week navigation (persisted to localStorage) ───────────────────────────
 
-  const [weekMonday, setWeekMonday] = useState(() => getMonday(new Date()))
+  const [weekMonday, setWeekMonday] = useState(() => {
+    const saved = localStorage.getItem('fm_ts_week')
+    if (saved) {
+      const d = new Date(saved + 'T00:00:00')
+      if (!isNaN(d)) return d
+    }
+    return getMonday(new Date())
+  })
 
-  function prevWeek() { setWeekMonday(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n }) }
-  function nextWeek() { setWeekMonday(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n }) }
-  function goToday()  { setWeekMonday(getMonday(new Date())) }
+  function _setWeek(d) {
+    setWeekMonday(d)
+    localStorage.setItem('fm_ts_week', toDateStr(d))
+  }
+
+  function prevWeek() { _setWeek(new Date(weekMonday.getFullYear(), weekMonday.getMonth(), weekMonday.getDate() - 7)) }
+  function nextWeek() { _setWeek(new Date(weekMonday.getFullYear(), weekMonday.getMonth(), weekMonday.getDate() + 7)) }
+  function goToday()  { _setWeek(getMonday(new Date())) }
 
   const weekDates = useMemo(() => getWeekDates(weekMonday), [weekMonday])
 
