@@ -23,6 +23,7 @@ export default function AdminPage({ currentProductionId, session, memberRole }) 
 
   // Inline remove confirmation — stores the userId being confirmed
   const [confirmRemove, setConfirmRemove] = useState(null)
+  const [removeError,   setRemoveError]   = useState(null)
 
   // ── Fetch members + pending invites ─────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -101,12 +102,17 @@ export default function AdminPage({ currentProductionId, session, memberRole }) 
 
   // ── Remove member ────────────────────────────────────────────────────────────
   async function handleRemoveMember(userId) {
+    setRemoveError(null)
     const { error } = await supabase
       .from('production_members')
       .delete()
       .eq('production_id', currentProductionId)
       .eq('user_id', userId)
-    if (error) console.error('[AdminPage] remove member:', error)
+    if (error) {
+      setRemoveError(`Delete failed: ${error.message} (code: ${error.code})`)
+      setConfirmRemove(null)
+      return
+    }
     setConfirmRemove(null)
     loadData()
   }
@@ -180,6 +186,12 @@ export default function AdminPage({ currentProductionId, session, memberRole }) 
       {/* ── Current members ─────────────────────────────────────────────────── */}
       <div className="admin-section">
         <h2 className="admin-section-title">Team Members</h2>
+
+        {removeError && (
+          <div className="admin-send-result admin-send-result--err" style={{ marginBottom: 12 }}>
+            {removeError}
+          </div>
+        )}
 
         {dataLoading ? (
           <p className="admin-loading">Loading…</p>
