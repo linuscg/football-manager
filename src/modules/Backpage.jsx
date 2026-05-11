@@ -523,6 +523,8 @@ export default function Backpage({ store }) {
     const allSubBks = bookings.filter(b => b.resourceId === memberId && b.date === date && b.dayId)
     const thisDayBk = bookings.find(b => b.resourceId === memberId && b.dayId === day.id)
 
+    console.log('[syncGantt]', { actionTag, payload, memberId, date, mainBk, allSubBks, sameDateDays })
+
     // Helper — upsert a booking for a given day slot
     async function ensureBooked(targetDayId) {
       const existing = targetDayId
@@ -581,8 +583,10 @@ export default function Backpage({ store }) {
       } else if (newVal === 'SPL' || newVal === 'PREP' || newVal === 'OTHER') {
         const cat       = newVal === 'SPL' ? 'splinter' : newVal === 'PREP' ? 'prep' : 'other'
         const targetDay = sameDateDays.find(d => d.dayCategory === cat)
+        console.log('[syncGantt] targeting sub unit:', { cat, targetDay, sameDateDays })
         await cancel(null)                                    // ✗ main
         if (targetDay) await ensureBooked(targetDay.id)       // ✓ sub
+        else console.warn('[syncGantt] no targetDay found for', cat)
       } else if (newVal === 'N/A' || newVal === 'O/C') {
         await cancel(null)                                    // ✗ main
       }
