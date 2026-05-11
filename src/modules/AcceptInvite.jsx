@@ -20,7 +20,7 @@ export default function AcceptInvite({ token, session }) {
     async function loadInvite() {
       const { data, error } = await supabase
         .from('invites')
-        .select('*, productions(name)')
+        .select('*, production(name)')
         .eq('token', token)
         .eq('accepted', false)
         .gte('expires_at', new Date().toISOString())
@@ -153,13 +153,13 @@ export default function AcceptInvite({ token, session }) {
         <div className="login-card" style={{ textAlign: 'center', padding: '48px 32px' }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>🎉</div>
           <h1 className="login-title" style={{ fontSize: 20 }}>You're all set!</h1>
-          <p className="login-sub">Taking you to {invite.productions?.name || 'the app'}…</p>
+          <p className="login-sub">Taking you to {invite.production?.name || 'the app'}…</p>
         </div>
       </div>
     )
   }
 
-  const productionName = invite.productions?.name || 'the production'
+  const productionName = invite.production?.name || 'the production'
   const roleLabel = invite.role.charAt(0).toUpperCase() + invite.role.slice(1)
 
   // ── Form ──────────────────────────────────────────────────────────────────────
