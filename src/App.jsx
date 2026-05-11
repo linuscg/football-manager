@@ -7,6 +7,7 @@ import CallSheet    from './modules/CallSheet'
 import Budget       from './modules/Budget'
 import FulltimeCrew from './modules/FulltimeCrew'
 import Backpage     from './modules/Backpage'
+import Timesheets   from './modules/Timesheets'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -406,7 +407,7 @@ export default function App() {
               <Backpage store={store} />
             )}
             {topTab === 'crew-times' && ctModule === 'ct-timesheets' && (
-              <UnderConstruction label="Timesheets" />
+              <Timesheets store={store} />
             )}
 
           </div>

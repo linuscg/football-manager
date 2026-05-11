@@ -2707,8 +2707,6 @@ textarea.field-input {
    Three directions, all sharing the same component DOM in app-mocks.jsx
    ════════════════════════════════════════════════════════════════ */
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&family=Söhne&family=JetBrains+Mono:wght@400;500;600&display=swap");
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
@@ -5016,4 +5014,227 @@ select.pm-input { cursor: pointer; }
   font-size: 11px;
   color: #9ca3af;
   font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TIMESHEETS MODULE  (.ts-*)
+   ═══════════════════════════════════════════════════════════════ */
+
+.ts-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────── */
+.ts-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.ts-bar-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-week-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  min-width: 180px;
+  text-align: center;
+}
+
+/* ── Scrollable table area ───────────────────────────────────── */
+.ts-scroll {
+  flex: 1;
+  overflow: auto;
+}
+
+/* ── Table ───────────────────────────────────────────────────── */
+.ts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  table-layout: fixed;
+}
+
+/* ── Header row ─────────────────────────────────────────────── */
+.ts-th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.ts-th-name  { width: 160px; min-width: 140px; }
+.ts-th-role  { width: 140px; min-width: 120px; }
+.ts-th-dept  { width: 130px; min-width: 110px; }
+.ts-th-day   {
+  width: 108px;
+  min-width: 90px;
+  text-align: center;
+  color: #6b7280;
+  font-weight: 500;
+}
+.ts-th-day--weekend {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+.ts-th-day--active {
+  color: #111827;
+  font-weight: 600;
+}
+
+.ts-col-wday {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+.ts-col-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-top: 1px;
+}
+.ts-col-sub {
+  display: flex;
+  justify-content: space-around;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* ── Department header row ──────────────────────────────────── */
+.ts-dept-row {
+  background: #f3f4f6;
+}
+.ts-dept-cell {
+  padding: 5px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* ── Section header (Additional Crew) ───────────────────────── */
+.ts-section-row {
+  background: #eff6ff;
+}
+.ts-section-cell {
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #2563eb;
+  border-bottom: 1px solid #bfdbfe;
+  border-top: 2px solid #bfdbfe;
+}
+
+/* ── Data row ───────────────────────────────────────────────── */
+.ts-row {
+  border-bottom: 1px solid #f3f4f6;
+}
+.ts-row:hover {
+  background: #f9fafb;
+}
+
+.ts-td {
+  padding: 5px 8px;
+  vertical-align: middle;
+  border-right: 1px solid #f0f0f0;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-td-name { font-weight: 600; }
+.ts-td-role { color: #6b7280; font-size: 12px; }
+.ts-td-dept { color: #9ca3af; font-size: 11px; }
+.ts-td-day  { text-align: center; background: #fcfcfc; }
+.ts-td--noday { background: #f9fafb; }
+
+/* ── Time pair ──────────────────────────────────────────────── */
+.ts-times {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.ts-time {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.ts-time--in  { color: #059669; }
+.ts-time--out { color: #dc2626; }
+.ts-time-sep  { font-size: 10px; color: #d1d5db; }
+
+/* ── Badges (status / excluded) ─────────────────────────────── */
+.ts-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+}
+.ts-badge--na   { background: #fee2e2; color: #b91c1c; }
+.ts-badge--oc   { background: #fef9c3; color: #92400e; }
+.ts-badge--excl { background: #f3f4f6; color: #9ca3af; }
+
+/* ── Dash (no call / not booked) ───────────────────────────── */
+.ts-dash {
+  font-size: 11px;
+  color: #d1d5db;
+}
+
+/* ── Empty state ────────────────────────────────────────────── */
+.ts-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 10px;
+}
+.ts-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+.ts-empty-sub {
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+  max-width: 340px;
 }
