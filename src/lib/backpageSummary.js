@@ -1,13 +1,16 @@
 /**
  * generatePreCallSummary
  *
- * Produces a copy-pastable pre-call summary grouped by dept + role, e.g.
- * "3x Electrics: Electrician - 30min pre-call; 1x Production - Additional: Additional APOC - 43min pre-call"
+ * Groups ALL crew (including those with individual call-time overrides)
+ * by department → role → effective pre-call minutes, e.g.
  *
- * Inclusion rules:
- *   • Dept pre-call > 0 → group members by role, show count
- *   • Members with an individual call-time override → listed separately by role
- *   • Members with dept pre-call = 0 and no override → omitted
+ * "Production: 1x APOC - 43min pre-call, 1x APOC - 30min pre-call;
+ *  Production - Additional: 1x APOC - 30min pre-call"
+ *
+ * Effective pre-call:
+ *   • Individual call-time override → generalCall minus overrideTime (in mins)
+ *   • No override                   → dept preCallMins setting
+ *   • Either resolves to 0 or less  → member omitted
  *
  * @param {object} opts
  *   dayId            – selected day UUID
@@ -18,8 +21,6 @@
  *   getDeptSetting   – (dayId, settingsKey) => { preCallMins, derigMins }
  *   getMemberOverride– (dayId, memberId) => override | null
  *   generalCall      – "HH:MM" or null
- *
- * @returns {string}
  */
 
 function fmtMins(mins) {
@@ -32,6 +33,15 @@ function fmtMins(mins) {
   return parts.join(' ')
 }
 
+// How many minutes before generalCall is overrideTime? Returns null if ≤ 0.
+function preCallFromOverride(generalCall, overrideTime) {
+  if (!generalCall || !overrideTime) return null
+  const [gh, gm] = generalCall.split(':').map(Number)
+  const [oh, om] = overrideTime.split(':').map(Number)
+  const diff = (gh * 60 + gm) - (oh * 60 + om)
+  return diff > 0 ? diff : null
+}
+
 export function generatePreCallSummary({
   dayId,
   depts       = [], groupMap    = {},
@@ -41,17 +51,11 @@ export function generatePreCallSummary({
 }) {
   if (!dayId) return ''
 
-  // Collected entries: { preCallMins, text }
-  const entries    = []
-  const indivParts = []
+  // Collected dept entries: { maxPreCallMins, text }
+  const entries = []
 
-  /**
-   * Process one set of depts.
-   * settingsKeyFn(deptName) → the key used for getDeptSetting (e.g. "Grips" or "Grips - Additional")
-   * displayKeyFn(deptName)  → what to show before the colon (same as settingsKey here)
-   */
   function processGroup(deptList, sourceMap, settingsKeyFn) {
-    // Sort depts by preCallMins descending so the summary reads largest first
+    // Sort depts by their dept-level preCallMins descending (rough ordering)
     const sorted = [...deptList].sort((a, b) => {
       const pa = getDeptSetting(dayId, settingsKeyFn(a)).preCallMins ?? 0
       const pb = getDeptSetting(dayId, settingsKeyFn(b)).preCallMins ?? 0
@@ -60,51 +64,55 @@ export function generatePreCallSummary({
 
     for (const dept of sorted) {
       const key         = settingsKeyFn(dept)
-      const preCallMins = getDeptSetting(dayId, key).preCallMins ?? 0
+      const deptPreCall = getDeptSetting(dayId, key).preCallMins ?? 0
       const members     = sourceMap[dept] ?? []
 
-      // Individual call-time overrides — show separately by role
-      const withOverride = members.filter(m => getMemberOverride(dayId, m.id)?.callTime)
-      for (const m of withOverride) {
-        const callTime = getMemberOverride(dayId, m.id)?.callTime
-        if (!callTime) continue
-        const role  = m.role?.trim() || key
-        const label = `${key}: ${role}`
-        indivParts.push(`${label} - ${callTime}`)
-      }
+      // Build groups keyed by "role|preCallMins"
+      const groups = {}
 
-      if (preCallMins <= 0) continue
+      for (const m of members) {
+        const override = getMemberOverride(dayId, m.id)
+        if (override?.exclude) continue
 
-      // Group remaining members by role — all roles for this dept become ONE entry
-      const withoutOverride = members.filter(m => !getMemberOverride(dayId, m.id)?.callTime)
-      const roleMap = {}
-      for (const m of withoutOverride) {
+        // Effective pre-call for this person
+        const effectiveMins = override?.callTime
+          ? preCallFromOverride(generalCall, override.callTime)
+          : (deptPreCall > 0 ? deptPreCall : null)
+
+        if (!effectiveMins) continue
+
         const role = m.role?.trim() || '(no role)'
-        roleMap[role] = (roleMap[role] ?? 0) + 1
+        const gKey = `${role}|${effectiveMins}`
+        if (!groups[gKey]) groups[gKey] = { role, preCallMins: effectiveMins, count: 0 }
+        groups[gKey].count++
       }
 
-      if (Object.keys(roleMap).length === 0) continue
+      if (Object.keys(groups).length === 0) continue
 
-      // e.g. "3x Electrician, 2x Best Boy"
-      const rolePart = Object.entries(roleMap)
-        .map(([role, count]) => `${count}x ${role}`)
-        .join(', ')
+      // Sort role-groups within this dept by pre-call descending
+      const roleGroups = Object.values(groups)
+        .sort((a, b) => b.preCallMins - a.preCallMins)
+
+      const roleParts = roleGroups.map(g =>
+        `${g.count}x ${g.role} - ${fmtMins(g.preCallMins)} pre-call`
+      )
+
+      const maxPreCall = roleGroups[0].preCallMins
 
       entries.push({
-        preCallMins,
-        text: `${key}: ${rolePart} - ${fmtMins(preCallMins)} pre-call`,
+        maxPreCall,
+        text: `${key}: ${roleParts.join(', ')}`,
       })
     }
   }
 
-  // Fulltime crew — settings key is just the dept name
+  // Fulltime crew (settings key = dept name)
   processGroup(depts,    groupMap,    d => d)
-  // Additional crew — settings key has the "- Additional" suffix
+  // Additional crew (settings key has "- Additional" suffix)
   processGroup(addDepts, addGroupMap, d => `${d} - Additional`)
 
-  // Sort entries by preCallMins descending (largest pre-call first)
-  entries.sort((a, b) => b.preCallMins - a.preCallMins)
+  // Sort all dept entries by their largest pre-call descending
+  entries.sort((a, b) => b.maxPreCall - a.maxPreCall)
 
-  const allParts = [...entries.map(e => e.text), ...indivParts]
-  return allParts.join('; ')
+  return entries.map(e => e.text).join('; ')
 }
