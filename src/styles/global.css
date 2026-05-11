@@ -5913,3 +5913,418 @@ select.pm-input { cursor: pointer; }
   transition: color 0.1s, background 0.1s;
 }
 .pm-signout-btn:hover { color: #dc2626; background: #fee2e2; border-color: #fca5a5; }
+
+/* ───────────────────────── User menu dropdown ─────────────────────────── */
+.pm-user-wrap {
+  position: relative;
+}
+.pm-topbar-user {
+  cursor: pointer;
+  border: none;
+}
+.pm-user-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
+  padding: 8px 0;
+  z-index: 200;
+}
+.pm-user-menu-name {
+  padding: 8px 14px 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+.pm-user-menu-email {
+  padding: 0 14px 8px;
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pm-user-menu-sep {
+  height: 1px;
+  background: #f3f4f6;
+  margin: 2px 0;
+}
+.pm-user-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.pm-user-menu-item:hover { background: #f9fafb; }
+.pm-user-menu-item--danger { color: #dc2626; }
+.pm-user-menu-item--danger:hover { background: #fef2f2; }
+
+/* ───────────────────────── Account page ─────────────────────────── */
+.acct-wrap {
+  max-width: 560px;
+  padding: 8px 0 60px;
+}
+.acct-section {
+  padding: 24px 0;
+}
+.acct-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px;
+}
+.acct-section-sub {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 20px;
+}
+.acct-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.acct-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.acct-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.acct-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.acct-input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #111827;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.acct-input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px #e0e7ff; }
+.acct-input--readonly { background: #f9fafb; color: #6b7280; cursor: default; }
+.acct-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  margin: 0;
+}
+.acct-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #dc2626;
+}
+.acct-success {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #166534;
+  margin-bottom: 12px;
+}
+.acct-actions { display: flex; gap: 10px; }
+.acct-btn {
+  height: 36px;
+  padding: 0 18px;
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.acct-btn:hover:not(:disabled) { background: #4f46e5; }
+.acct-btn:disabled { opacity: 0.5; cursor: default; }
+.acct-btn--secondary {
+  background: transparent;
+  color: #6366f1;
+  border: 1px solid #6366f1;
+}
+.acct-btn--secondary:hover:not(:disabled) { background: #eef2ff; }
+.acct-divider { height: 1px; background: #f3f4f6; }
+
+/* ───────────────────────── Project list page ─────────────────────────── */
+.projlist-wrap { max-width: 700px; padding: 8px 0 60px; }
+.projlist-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.projlist-title {
+  font-size: 15px; font-weight: 700; color: #111827; margin: 0 0 4px;
+}
+.projlist-sub { font-size: 13px; color: #6b7280; margin: 0; }
+.projlist-new-btn {
+  height: 34px;
+  padding: 0 14px;
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.projlist-new-btn:hover { background: #4f46e5; }
+.projlist-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: #9ca3af;
+}
+.projlist-empty-title { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+.projlist-empty-sub   { font-size: 13px; }
+.projlist-list { display: flex; flex-direction: column; gap: 8px; }
+.projlist-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.projlist-row:hover { border-color: #a5b4fc; box-shadow: 0 2px 8px rgba(99,102,241,0.08); }
+.projlist-row--active {
+  border-color: #6366f1;
+  background: #fafafe;
+  cursor: default;
+}
+.projlist-row-l  { flex: 1; min-width: 0; }
+.projlist-row-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.projlist-current-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #e0e7ff;
+  color: #4338ca;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.projlist-row-meta { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+.projlist-row-r { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.projlist-role-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+.projlist-switch-btn {
+  height: 28px;
+  padding: 0 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.projlist-switch-btn:hover { background: #e5e7eb; }
+
+/* ───────────────────────── Admin page ─────────────────────────── */
+.admin-wrap { max-width: 660px; padding: 8px 0 60px; }
+.admin-no-access {
+  text-align: center;
+  padding: 80px 24px;
+  color: #9ca3af;
+}
+.admin-no-access-title { font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+.admin-no-access-sub   { font-size: 13px; }
+.admin-section { padding: 24px 0; }
+.admin-section-title { font-size: 15px; font-weight: 700; color: #111827; margin: 0 0 4px; }
+.admin-section-sub   { font-size: 13px; color: #6b7280; margin: 0 0 18px; }
+.admin-divider { height: 1px; background: #f3f4f6; }
+.admin-loading, .admin-empty { font-size: 13px; color: #9ca3af; }
+
+/* Invite form */
+.admin-invite-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.admin-invite-input {
+  flex: 1;
+  min-width: 200px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #111827;
+  background: #fff;
+  transition: border-color 0.15s;
+}
+.admin-invite-input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px #e0e7ff; }
+.admin-invite-select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #111827;
+  background: #fff;
+  cursor: pointer;
+}
+.admin-invite-btn {
+  height: 36px;
+  padding: 0 16px;
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.admin-invite-btn:hover:not(:disabled) { background: #4f46e5; }
+.admin-invite-btn:disabled { opacity: 0.5; cursor: default; }
+.admin-send-result {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+.admin-send-result--err {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+/* Members list */
+.admin-member-list  { display: flex; flex-direction: column; gap: 6px; }
+.admin-member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.admin-member-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--pm-accent);
+  color: #fff;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.admin-member-info { flex: 1; min-width: 0; }
+.admin-member-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-member-you {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #f3f4f6;
+  color: #6b7280;
+  padding: 1px 6px;
+  border-radius: 20px;
+}
+.admin-member-role { flex-shrink: 0; }
+.admin-role-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  display: inline-block;
+}
+.admin-role-select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-member-remove {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #d1d5db;
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.1s, background 0.1s, border-color 0.1s;
+}
+.admin-member-remove:hover { color: #dc2626; background: #fef2f2; border-color: #fca5a5; }
+
+/* Pending invites */
+.admin-invite-list { display: flex; flex-direction: column; gap: 6px; }
+.admin-invite-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.admin-invite-row--expired { opacity: 0.55; }
+.admin-invite-email {
+  flex: 1;
+  font-size: 13px;
+  color: #374151;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-invite-status      { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+.admin-invite-status--exp { color: #f97316; }

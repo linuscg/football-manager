@@ -1,18 +1,22 @@
 import { useState, useEffect } from 'react'
-import { useScheduleStore } from './store/useScheduleStore'
-import { useAuthStore }    from './store/useAuthStore'
-import Login               from './modules/Login'
-import AcceptInvite        from './modules/AcceptInvite'
-import Schedule     from './modules/Schedule'
-import CrewGantt    from './modules/CrewGantt'
-import ProjectSetup from './modules/ProjectSetup'
-import CallSheet    from './modules/CallSheet'
-import Budget       from './modules/Budget'
-import FulltimeCrew from './modules/FulltimeCrew'
-import Backpage     from './modules/Backpage'
-import Timesheets   from './modules/Timesheets'
-import Catering         from './modules/Catering'
-import CateringNumbers  from './modules/CateringNumbers'
+import { useScheduleStore }  from './store/useScheduleStore'
+import { useAuthStore }      from './store/useAuthStore'
+import { useProfileStore }   from './store/useProfileStore'
+import Login                 from './modules/Login'
+import AcceptInvite          from './modules/AcceptInvite'
+import Schedule              from './modules/Schedule'
+import CrewGantt             from './modules/CrewGantt'
+import ProjectSetup          from './modules/ProjectSetup'
+import CallSheet             from './modules/CallSheet'
+import Budget                from './modules/Budget'
+import FulltimeCrew          from './modules/FulltimeCrew'
+import Backpage              from './modules/Backpage'
+import Timesheets            from './modules/Timesheets'
+import Catering              from './modules/Catering'
+import CateringNumbers       from './modules/CateringNumbers'
+import AccountPage           from './modules/AccountPage'
+import ProjectListPage       from './modules/ProjectListPage'
+import AdminPage             from './modules/AdminPage'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -174,6 +178,7 @@ function AppShell({ session, signOut }) {
   const [ctModule,     setCtModule]     = useState(getInitialCtModule)
   const [catModule,    setCatModule]    = useState(getInitialCatModule)
   const [prodMenuOpen, setProdMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   function navigateTopTab(id) {
     setTopTab(id)
@@ -202,7 +207,7 @@ function AppShell({ session, signOut }) {
   }
 
   const {
-    loading, error, store,
+    loading: schedLoading, error, store,
     productions, currentProductionId,
     createProduction, deleteProduction, switchProduction,
     updateProduction,
@@ -215,6 +220,18 @@ function AppShell({ session, signOut }) {
     addDayExtra, deleteDayExtra, updateDayExtra,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
   } = useScheduleStore()
+
+  const { profile, memberRole, updateProfile } = useProfileStore(
+    session.user.id,
+    currentProductionId,
+  )
+
+  // Initials: prefer name from profile, fall back to email
+  const initials = profile?.first_name && profile?.last_name
+    ? (profile.first_name[0] + profile.last_name[0]).toUpperCase()
+    : (session.user.email || 'U').slice(0, 2).toUpperCase()
+
+  const loading = schedLoading
 
   const scheduleActions = {
     addShootDay, deleteShootDay, updateShootDay,
@@ -256,8 +273,13 @@ function AppShell({ session, signOut }) {
   const isGantt     = topTab === 'fm' && fmModule === 'crew'
   const isCallsheet = topTab === 'fm' && fmModule === 'callsheet'
 
+  // Hide Admin nav item from plain members
+  const visibleSetupNav = SETUP_NAV.filter(n =>
+    n.id !== 'setup-admin' || memberRole === 'owner' || memberRole === 'admin'
+  )
+
   const activeNav = topTab === 'setup'
-    ? SETUP_NAV
+    ? visibleSetupNav
     : topTab === 'fm'
       ? FM_NAV
       : topTab === 'crew-times'
@@ -320,7 +342,7 @@ function AppShell({ session, signOut }) {
   }
 
   return (
-    <div className="pm-app" onClick={() => setProdMenuOpen(false)}>
+    <div className="pm-app" onClick={() => { setProdMenuOpen(false); setUserMenuOpen(false) }}>
 
       {/* ── Top tab bar ─────────────────────────────────────────────────────── */}
       <nav className="pm-tab-bar" onClick={e => e.stopPropagation()}>
@@ -428,16 +450,59 @@ function AppShell({ session, signOut }) {
             </div>
             <div className="pm-topbar-r">
               <span className="pm-topbar-rev">{todayFull()}</span>
-              <span className="pm-topbar-user" title={session.user.email}>
-                {(session.user.email || 'U').slice(0, 2).toUpperCase()}
-              </span>
-              <button className="pm-signout-btn" onClick={signOut} title="Sign out">↩</button>
+
+              {/* User avatar + dropdown */}
+              <div
+                className="pm-user-wrap"
+                onClick={e => { e.stopPropagation(); setUserMenuOpen(o => !o) }}
+              >
+                <button className="pm-topbar-user" title={session.user.email}>
+                  {initials}
+                </button>
+
+                {userMenuOpen && (
+                  <div className="pm-user-menu" onClick={e => e.stopPropagation()}>
+                    {(profile?.first_name || profile?.last_name) && (
+                      <div className="pm-user-menu-name">
+                        {[profile.first_name, profile.last_name].filter(Boolean).join(' ')}
+                      </div>
+                    )}
+                    <div className="pm-user-menu-email">{session.user.email}</div>
+                    <div className="pm-user-menu-sep" />
+                    <button
+                      className="pm-user-menu-item"
+                      onClick={() => {
+                        navigateTopTab('setup')
+                        navigateSetup('setup-account')
+                        setUserMenuOpen(false)
+                      }}
+                    >
+                      Account settings
+                    </button>
+                    <button
+                      className="pm-user-menu-item pm-user-menu-item--danger"
+                      onClick={signOut}
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </header>
 
           <div className={`pm-content${isGantt ? ' pm-content--gantt' : ''}${isCallsheet ? ' pm-content--cs' : ''}`}>
 
             {/* ── Project Setup tab ─────────────────────────────────────────── */}
+            {topTab === 'setup' && setupModule === 'setup-list' && (
+              <ProjectListPage
+                productions={productions}
+                currentProductionId={currentProductionId}
+                onSwitch={id => { switchProduction(id); setProdMenuOpen(false) }}
+                onCreate={handleCreateProduction}
+                memberRole={memberRole}
+              />
+            )}
             {topTab === 'setup' && setupModule === 'setup-main' && (
               <ProjectSetup
                 production={store.production}
@@ -452,8 +517,22 @@ function AppShell({ session, signOut }) {
                 onImportCastMembers={importCastMembers}
               />
             )}
-            {topTab === 'setup' && setupModule !== 'setup-main' && (
-              <UnderConstruction label={SETUP_NAV.find(n => n.id === setupModule)?.label ?? ''} />
+            {topTab === 'setup' && setupModule === 'setup-account' && (
+              <AccountPage
+                session={session}
+                profile={profile}
+                onUpdateProfile={updateProfile}
+              />
+            )}
+            {topTab === 'setup' && setupModule === 'setup-admin' && (
+              <AdminPage
+                currentProductionId={currentProductionId}
+                session={session}
+                memberRole={memberRole}
+              />
+            )}
+            {topTab === 'setup' && setupModule === 'setup-settings' && (
+              <UnderConstruction label="Settings" />
             )}
 
             {/* ── Football Manager tab ──────────────────────────────────────── */}
