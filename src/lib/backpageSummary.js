@@ -75,7 +75,7 @@ export function generatePreCallSummary({
 
       if (preCallMins <= 0) continue
 
-      // Group remaining members by role
+      // Group remaining members by role — all roles for this dept become ONE entry
       const withoutOverride = members.filter(m => !getMemberOverride(dayId, m.id)?.callTime)
       const roleMap = {}
       for (const m of withoutOverride) {
@@ -83,12 +83,17 @@ export function generatePreCallSummary({
         roleMap[role] = (roleMap[role] ?? 0) + 1
       }
 
-      for (const [role, count] of Object.entries(roleMap)) {
-        entries.push({
-          preCallMins,
-          text: `${count}x ${key}: ${role} - ${fmtMins(preCallMins)} pre-call`,
-        })
-      }
+      if (Object.keys(roleMap).length === 0) continue
+
+      // e.g. "3x Electrician, 2x Best Boy"
+      const rolePart = Object.entries(roleMap)
+        .map(([role, count]) => `${count}x ${role}`)
+        .join(', ')
+
+      entries.push({
+        preCallMins,
+        text: `${key}: ${rolePart} - ${fmtMins(preCallMins)} pre-call`,
+      })
     }
   }
 
