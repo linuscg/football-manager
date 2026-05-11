@@ -131,3 +131,24 @@ alter table backpage_member_overrides
 -- Non-work statuses dim the row; N/A additionally strikes through.
 alter table backpage_member_overrides
   add column if not exists status text not null default 'work';
+
+-- Catering lunch tracking
+create table if not exists catering_collections (
+  id             uuid primary key default gen_random_uuid(),
+  production_id  uuid references production(id) on delete cascade,
+  day_id         uuid references shoot_days(id) on delete cascade,
+  person_id      uuid,       -- null for ad-hoc entries
+  person_name    text not null default '',
+  person_type    text not null default 'fulltime', -- fulltime | additional | cast | adhoc
+  collected      boolean not null default false,
+  collected_at   timestamptz,
+  note           text not null default '',
+  created_at     timestamptz default now()
+);
+
+-- At most one collection record per known person per day
+create unique index if not exists catering_unique_person_day
+  on catering_collections (day_id, person_id)
+  where person_id is not null;
+
+alter publication supabase_realtime add table catering_collections;

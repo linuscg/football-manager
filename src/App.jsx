@@ -8,6 +8,7 @@ import Budget       from './modules/Budget'
 import FulltimeCrew from './modules/FulltimeCrew'
 import Backpage     from './modules/Backpage'
 import Timesheets   from './modules/Timesheets'
+import Catering    from './modules/Catering'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -57,12 +58,14 @@ const CT_NAV = [
   { id: 'ct-crew',       num: '01', label: 'Fulltime Crew' },
   { id: 'ct-backpage',   num: '02', label: 'Backpage'      },
   { id: 'ct-timesheets', num: '03', label: 'Timesheets'    },
+  { id: 'ct-catering',   num: '04', label: 'Catering'      },
 ]
 
 const CT_MODULE_SUB = {
   'ct-crew':       'Full-time crew list',
   'ct-backpage':   'Daily back page',
   'ct-timesheets': 'Weekly timesheets',
+  'ct-catering':   'Lunch collection',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -408,6 +411,9 @@ export default function App() {
             )}
             {topTab === 'crew-times' && ctModule === 'ct-timesheets' && (
               <Timesheets store={store} />
+            )}
+            {topTab === 'crew-times' && ctModule === 'ct-catering' && (
+              <Catering store={store} />
             )}
 
           </div>
