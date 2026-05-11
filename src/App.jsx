@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useScheduleStore } from './store/useScheduleStore'
 import { useAuthStore }    from './store/useAuthStore'
 import Login               from './modules/Login'
+import AcceptInvite        from './modules/AcceptInvite'
 import Schedule     from './modules/Schedule'
 import CrewGantt    from './modules/CrewGantt'
 import ProjectSetup from './modules/ProjectSetup'
@@ -138,6 +139,9 @@ function UnderConstruction({ label }) {
 export default function App() {
   const { session, loading: authLoading, error: authError, signIn, signOut } = useAuthStore()
 
+  // Detect invite token in URL (?invite=TOKEN)
+  const inviteToken = new URLSearchParams(window.location.search).get('invite')
+
   if (session === undefined) {
     return (
       <div style={{
@@ -147,6 +151,11 @@ export default function App() {
         Loading…
       </div>
     )
+  }
+
+  // If there's a valid invite token and the user is authenticated (via magic link), show accept flow
+  if (inviteToken && session) {
+    return <AcceptInvite token={inviteToken} session={session} />
   }
 
   if (session === null) {
