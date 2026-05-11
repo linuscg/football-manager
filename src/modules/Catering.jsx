@@ -460,7 +460,7 @@ export default function Catering({ store }) {
   ${entitledCount > 0 ? `
   <div class="stat-box stat-box--pct">
     <div class="stat-label">Collection rate</div>
-    <div class="stat-value">${Math.round((persons.filter(p => p.collected && p.entitled).length / entitledCount) * 100)}%</div>
+    <div class="stat-value">${Math.round((collCount / entitledCount) * 100)}%</div>
     <div class="stat-sub">of entitled crew</div>
   </div>` : ''}
   <div class="stat-box">
