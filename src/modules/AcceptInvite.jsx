@@ -179,30 +179,28 @@ export default function AcceptInvite({ token, session }) {
 
         <form className="login-form" onSubmit={handleSubmit}>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div className="login-field">
-              <label className="login-label">First name</label>
-              <input
-                className="login-input"
-                type="text"
-                value={firstName}
-                onChange={e => setFirstName(e.target.value)}
-                placeholder="Jane"
-                autoFocus
-                required
-              />
-            </div>
-            <div className="login-field">
-              <label className="login-label">Last name</label>
-              <input
-                className="login-input"
-                type="text"
-                value={lastName}
-                onChange={e => setLastName(e.target.value)}
-                placeholder="Smith"
-                required
-              />
-            </div>
+          <div className="login-field">
+            <label className="login-label">First name</label>
+            <input
+              className="login-input"
+              type="text"
+              value={firstName}
+              onChange={e => setFirstName(e.target.value)}
+              placeholder="Jane"
+              autoFocus
+              required
+            />
+          </div>
+          <div className="login-field">
+            <label className="login-label">Last name</label>
+            <input
+              className="login-input"
+              type="text"
+              value={lastName}
+              onChange={e => setLastName(e.target.value)}
+              placeholder="Smith"
+              required
+            />
           </div>
 
           <div className="login-field" style={{ marginTop: 4 }}>
