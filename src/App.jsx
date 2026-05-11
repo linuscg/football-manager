@@ -38,7 +38,7 @@ const SETUP_NAV = [
   { id: 'setup-main',     num: '02', label: 'Project Setup'   },
   { id: 'setup-account',  num: '03', label: 'Account'         },
   { id: 'setup-settings', num: '04', label: 'Settings'        },
-  { id: 'setup-admin',    num: '05', label: 'Invite Users'    },
+  { id: 'setup-admin',    num: '05', label: 'User Management' },
   { id: 'setup-requests', num: '06', label: 'Invite Requests' },
 ]
 
@@ -47,7 +47,7 @@ const SETUP_MODULE_SUB = {
   'setup-main':     'Production setup',
   'setup-account':  'User account',
   'setup-settings': 'App settings',
-  'setup-admin':    'Administration',
+  'setup-admin':    'User management',
   'setup-requests': 'Invite requests',
 }
 
