@@ -5648,3 +5648,150 @@ select.pm-input { cursor: pointer; }
   text-align: center;
   max-width: 340px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CATERING NUMBERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.catn-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.catn-table-wrap {
+  flex: 1;
+  overflow: auto;
+}
+
+.catn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.catn-th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+  background: #f3f4f6;
+  border-bottom: 2px solid #e5e7eb;
+  white-space: nowrap;
+}
+.catn-th--num  { text-align: center; }
+.catn-th--addl { color: #6366f1; }
+.catn-th--total { color: #111827; }
+.catn-th--adj  { color: #15803d; }
+
+/* ── Body rows ──────────────────────────────────────────────────────────── */
+.catn-row { border-bottom: 1px solid #f3f4f6; }
+.catn-row:hover { background: #f9fafb; }
+
+/* Subtle tint per day type */
+.catn-row--prep     { background: #fffbeb; }
+.catn-row--prep:hover { background: #fef3c7; }
+.catn-row--splinter { background: #eff6ff; }
+.catn-row--splinter:hover { background: #dbeafe; }
+.catn-row--other    { background: #f5f3ff; }
+.catn-row--other:hover { background: #ede9fe; }
+
+.catn-td {
+  padding: 10px 14px;
+  vertical-align: middle;
+}
+.catn-td--day { min-width: 220px; }
+.catn-td--num { text-align: center; font-variant-numeric: tabular-nums; font-weight: 500; }
+.catn-td--addl { text-align: center; }
+
+.catn-td--total {
+  font-weight: 700;
+  color: #111827;
+  background: #f9fafb;
+}
+.catn-td--adj {
+  font-weight: 700;
+  color: #15803d;
+  background: #f0fdf4;
+}
+
+.catn-zero { color: #d1d5db; }
+
+/* ── Day label ──────────────────────────────────────────────────────────── */
+.catn-day-primary {
+  display: block;
+  font-weight: 600;
+  color: #111827;
+}
+.catn-day-sub {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+
+/* ── Additionals input ──────────────────────────────────────────────────── */
+.catn-addl-input {
+  width: 64px;
+  height: 30px;
+  padding: 0 8px;
+  text-align: center;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  background: #fff;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.catn-addl-input::-webkit-inner-spin-button,
+.catn-addl-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.catn-addl-input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px #e0e7ff; }
+.catn-addl-input::placeholder { color: #d1d5db; }
+
+/* ── Footer totals ──────────────────────────────────────────────────────── */
+.catn-foot-row { border-top: 2px solid #e5e7eb; background: #f3f4f6; }
+.catn-td--foot-label {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+}
+.catn-td--foot {
+  font-weight: 700;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.catn-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+}
+.catn-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+.catn-empty-sub {
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+  max-width: 340px;
+}

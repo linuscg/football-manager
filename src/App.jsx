@@ -8,7 +8,8 @@ import Budget       from './modules/Budget'
 import FulltimeCrew from './modules/FulltimeCrew'
 import Backpage     from './modules/Backpage'
 import Timesheets   from './modules/Timesheets'
-import Catering    from './modules/Catering'
+import Catering         from './modules/Catering'
+import CateringNumbers  from './modules/CateringNumbers'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -51,6 +52,18 @@ const FM_MODULE_SUB = {
   crew:      'Booking gantt',
   callsheet: 'Call sheet',
   budget:    'Cost tracking',
+}
+
+// ─── Catering nav ────────────────────────────────────────────────────────────
+
+const CAT_NAV = [
+  { id: 'cat-list',    num: '01', label: 'Catering List'    },
+  { id: 'cat-numbers', num: '02', label: 'Catering Numbers' },
+]
+
+const CAT_MODULE_SUB = {
+  'cat-list':    'Lunch collection',
+  'cat-numbers': 'Daily meal counts',
 }
 
 // ─── Crew Times nav ───────────────────────────────────────────────────────────
@@ -97,6 +110,12 @@ function getInitialCtModule() {
   return 'ct-crew'
 }
 
+function getInitialCatModule() {
+  const saved = localStorage.getItem('fm_cat_module')
+  if (saved && CAT_NAV.find(n => n.id === saved)) return saved
+  return 'cat-list'
+}
+
 // ─── Placeholder for unbuilt pages ───────────────────────────────────────────
 
 function UnderConstruction({ label }) {
@@ -119,6 +138,7 @@ export default function App() {
   const [setupModule,  setSetupModule]  = useState(getInitialSetupModule)
   const [fmModule,     setFmModule]     = useState(getInitialFmModule)
   const [ctModule,     setCtModule]     = useState(getInitialCtModule)
+  const [catModule,    setCatModule]    = useState(getInitialCatModule)
   const [prodMenuOpen, setProdMenuOpen] = useState(false)
 
   function navigateTopTab(id) {
@@ -140,6 +160,11 @@ export default function App() {
   function navigateCt(id) {
     setCtModule(id)
     localStorage.setItem('fm_ct_module', id)
+  }
+
+  function navigateCat(id) {
+    setCatModule(id)
+    localStorage.setItem('fm_cat_module', id)
   }
 
   const {
@@ -203,25 +228,30 @@ export default function App() {
       ? FM_NAV
       : topTab === 'crew-times'
         ? CT_NAV
-        : []
+        : topTab === 'catering'
+          ? CAT_NAV
+          : []
 
   const activeModule = topTab === 'setup'
     ? setupModule
     : topTab === 'fm'
       ? fmModule
-      : ctModule
+      : topTab === 'crew-times'
+        ? ctModule
+        : catModule
 
   function handleNavClick(id) {
     if (topTab === 'setup')      navigateSetup(id)
     if (topTab === 'fm')         navigateFm(id)
     if (topTab === 'crew-times') navigateCt(id)
+    if (topTab === 'catering')   navigateCat(id)
   }
 
   const topbarEyebrow = (() => {
     if (topTab === 'setup')      return SETUP_NAV.find(n => n.id === setupModule)?.label ?? ''
     if (topTab === 'fm')         return FM_NAV.find(n => n.id === fmModule)?.label ?? ''
     if (topTab === 'crew-times') return CT_NAV.find(n => n.id === ctModule)?.label ?? ''
-    if (topTab === 'catering')   return 'Catering'
+    if (topTab === 'catering')   return CAT_NAV.find(n => n.id === catModule)?.label ?? 'Catering'
     return ''
   })()
 
@@ -234,7 +264,7 @@ export default function App() {
         : base
     }
     if (topTab === 'crew-times') return CT_MODULE_SUB[ctModule] ?? ''
-    if (topTab === 'catering')   return 'Lunch collection'
+    if (topTab === 'catering')   return CAT_MODULE_SUB[catModule] ?? ''
     return ''
   })()
 
@@ -417,8 +447,11 @@ export default function App() {
             )}
 
             {/* ── Catering tab ──────────────────────────────────────────────── */}
-            {topTab === 'catering' && (
+            {topTab === 'catering' && catModule === 'cat-list' && (
               <Catering store={store} />
+            )}
+            {topTab === 'catering' && catModule === 'cat-numbers' && (
+              <CateringNumbers store={store} />
             )}
 
           </div>
