@@ -535,6 +535,7 @@ function AppShell({ session, signOut }) {
                 onSwitch={id => { switchProduction(id); setProdMenuOpen(false) }}
                 onCreate={handleCreateProduction}
                 memberRole={memberRole}
+                userId={session.user.id}
               />
             )}
             {topTab === 'setup' && setupModule === 'setup-main' && (

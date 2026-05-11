@@ -38,6 +38,7 @@ export default function ProjectListPage({
   onSwitch,
   onCreate,
   memberRole,
+  userId,
 }) {
   const [memberships,  setMemberships]  = useState([])
   const [expandedId,   setExpandedId]   = useState(null)
@@ -45,11 +46,13 @@ export default function ProjectListPage({
   const [loadingId,    setLoadingId]    = useState(null)
 
   useEffect(() => {
+    if (!userId) return
     supabase
       .from('production_members')
       .select('production_id, role')
+      .eq('user_id', userId)
       .then(({ data }) => setMemberships(data ?? []))
-  }, [])
+  }, [userId])
 
   async function handleToggle(prodId) {
     if (expandedId === prodId) { setExpandedId(null); return }
