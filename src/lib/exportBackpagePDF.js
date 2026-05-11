@@ -186,7 +186,7 @@ export function exportBackpagePDF({ production, day, depts, addDepts = [] }) {
 
   /* ── Page setup ── */
   @page {
-    size: A4 landscape;
+    size: A4 portrait;
     margin: 12mm 10mm;
   }
   body {
@@ -364,7 +364,7 @@ export function exportBackpagePDF({ production, day, depts, addDepts = [] }) {
 
 <div class="print-bar">
   <button class="print-btn" onclick="window.print()">🖨 Save as PDF / Print</button>
-  <span class="print-hint">Choose "Save as PDF" in the print dialog · Layout: A4 Landscape</span>
+  <span class="print-hint">Choose "Save as PDF" in the print dialog · Layout: A4 Portrait</span>
 </div>
 
 <div class="page">
