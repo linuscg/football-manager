@@ -88,13 +88,14 @@ export function useCateringStore() {
   }
 
   async function addAdhoc(dayId, name, role = '', dept = '') {
-    const prodId = getCurrentProductionId()
-    const newId  = crypto.randomUUID()
+    const prodId      = getCurrentProductionId()
+    const newId       = crypto.randomUUID()
+    const collectedAt = new Date().toISOString()
     const newRec = {
       id: newId, production_id: prodId, day_id: dayId,
       person_id: null, person_name: name, person_type: 'adhoc',
       person_role: role, person_dept: dept,
-      collected: false, collected_at: null, note: '',
+      collected: true, collected_at: collectedAt, note: '',
     }
     setRecords(rs => [...rs, mapRecord(newRec)])
     const { error } = await supabase.from('catering_collections').insert(newRec)

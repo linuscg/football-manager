@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useFulltimeCrewStore } from '../store/useFulltimeCrewStore'
 import { useCrewStore }         from '../store/useCrewStore'
 import { useBackpageStore }     from '../store/useBackpageStore'
@@ -277,9 +277,24 @@ export default function Catering({ store }) {
 
   // ── Stats ───────────────────────────────────────────────────────────────────
 
-  const totalEntitled      = persons.filter(p => p.entitled).length
-  const totalCollected     = persons.filter(p => p.collected && p.entitled).length
-  const adhocCollected     = persons.filter(p => p.collected && !p.entitled).length
+  const totalEntitled  = persons.filter(p => p.entitled).length
+  const totalCollected = persons.filter(p => p.collected).length   // includes ad-hoc
+
+  // ── Keyboard shortcut: 'A' opens add-person form ────────────────────────────
+
+  useEffect(() => {
+    function onKey(e) {
+      // Ignore if typing in any input/textarea/select
+      const tag = document.activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault()
+        setShowAddInput(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -505,15 +520,7 @@ export default function Catering({ store }) {
               ({Math.round((totalCollected / totalEntitled) * 100)}%)
             </span>
           )}
-          {adhocCollected > 0 && (
-            <>
-              <span className="cat-report-sep">·</span>
-              <span className="cat-report-stat">
-                <strong>{adhocCollected}</strong> ad-hoc
-              </span>
-            </>
-          )}
-          {(totalCollected > 0 || adhocCollected > 0) && (
+          {totalCollected > 0 && (
             <span className="cat-report-times">
               {persons.filter(p => p.collected && p.collectedAt).map(p =>
                 `${p.name}: ${fmtTime(p.collectedAt)}`
