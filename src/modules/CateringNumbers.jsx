@@ -133,7 +133,7 @@ export default function CateringNumbers({ store }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ day, ftCount, addCount, castCount, addl, total, adjusted }) => {
+            {rows.map(({ day, ftCount, addCount, castCount, addl, total, adjusted, collected }) => {
               const { primary, sub } = dayLabel(day)
               return (
                 <tr key={day.id} className={`catn-row catn-row--${day.dayCategory}`}>
