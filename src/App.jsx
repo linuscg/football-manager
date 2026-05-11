@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useScheduleStore } from './store/useScheduleStore'
+import { useAuthStore }    from './store/useAuthStore'
+import Login               from './modules/Login'
 import Schedule     from './modules/Schedule'
 import CrewGantt    from './modules/CrewGantt'
 import ProjectSetup from './modules/ProjectSetup'
@@ -134,12 +136,31 @@ function UnderConstruction({ label }) {
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const { session, loading: authLoading, error: authError, signIn, signOut } = useAuthStore()
+
   const [topTab,       setTopTab]       = useState(getInitialTopTab)
   const [setupModule,  setSetupModule]  = useState(getInitialSetupModule)
   const [fmModule,     setFmModule]     = useState(getInitialFmModule)
   const [ctModule,     setCtModule]     = useState(getInitialCtModule)
   const [catModule,    setCatModule]    = useState(getInitialCatModule)
   const [prodMenuOpen, setProdMenuOpen] = useState(false)
+
+  // ── Auth gate ─────────────────────────────────────────────────────────────
+  // session === undefined means we're still checking (don't flash login screen)
+  if (session === undefined) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', color: '#9ca3af', fontSize: 14,
+      }}>
+        Loading…
+      </div>
+    )
+  }
+
+  if (session === null) {
+    return <Login onSignIn={signIn} loading={authLoading} error={authError} />
+  }
 
   function navigateTopTab(id) {
     setTopTab(id)
@@ -394,9 +415,10 @@ export default function App() {
             </div>
             <div className="pm-topbar-r">
               <span className="pm-topbar-rev">{todayFull()}</span>
-              <span className="pm-topbar-user">
-                {(store.production.name || 'P').slice(0, 2).toUpperCase()}
+              <span className="pm-topbar-user" title={session.user.email}>
+                {(session.user.email || 'U').slice(0, 2).toUpperCase()}
               </span>
+              <button className="pm-signout-btn" onClick={signOut} title="Sign out">↩</button>
             </div>
           </header>
 
