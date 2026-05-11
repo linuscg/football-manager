@@ -100,18 +100,30 @@ function getEffectiveStatus(dayId, dayCategory, sameDateDays, memberId, ownOverr
 
 /**
  * Status derivation for ADDITIONAL crew (Gantt resources).
- * The Gantt booking is the source of truth for unit assignment.
- *   booked / hold  → 'work'
- *   unavailable    → 'N/A'
- *   cancelled      → whatever label is stored in backpage_member_overrides
- *                    (e.g. 'SPL', 'O/C', 'PREP' — set when they were moved/cancelled)
+ *
+ * The override is written synchronously in the same event as any status
+ * change, so it always reflects "current intent" even before the async
+ * Gantt booking update has propagated via realtime. We therefore trust
+ * the override first, and only fall back to the Gantt booking status
+ * when there is no override (or the override is 'work').
+ *
+ *   override set & non-work → return it immediately (optimistic feedback)
+ *   booked / hold, no override → 'work'
+ *   unavailable              → 'N/A'
+ *   cancelled, override='work' (restore in progress) → 'work'
+ *   cancelled, no override   → 'O/C'
  */
 function additionalCrewStatus(ganttBooking, override) {
   if (!ganttBooking) return 'work'
+  const ov = override?.status
+  // Non-work override wins — provides immediate UI feedback while Gantt syncs
+  if (ov && ov !== 'work') return ov
+  // No override (or override cleared to 'work'): derive from booking
   const s = ganttBooking.status
   if (s === 'booked' || s === 'hold') return 'work'
   if (s === 'unavailable') return 'N/A'
-  return override?.status || 'O/C'   // cancelled
+  // Cancelled: if override is 'work' the restore is in-flight → show work optimistically
+  return ov === 'work' ? 'work' : 'O/C'
 }
 
 function CrewRow({
