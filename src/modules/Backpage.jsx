@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useFulltimeCrewStore }    from '../store/useFulltimeCrewStore'
 import { useCrewStore }            from '../store/useCrewStore'
 import { useBackpageStore }        from '../store/useBackpageStore'
 import { exportBackpageXLSX }      from '../lib/exportBackpage'
 import { generatePreCallSummary }  from '../lib/backpageSummary'
-import { supabase }                from '../lib/supabase'
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
 
@@ -98,18 +97,19 @@ function getEffectiveStatus(dayId, dayCategory, sameDateDays, memberId, ownOverr
   return ownSt
 }
 
-// (additionalCrewStatus removed — status is now derived in the parent via
-//  additionalStatusMap, purely from Gantt bookings, with no override involvement)
+// Status for additional (Gantt) crew: just read the override, default to 'work'.
+// The three allowed values are 'work', 'O/C', and 'N/A'.
+function additionalCrewStatus(override) {
+  const s = override?.status
+  if (s === 'O/C' || s === 'N/A') return s
+  return 'work'
+}
 
 function CrewRow({
   m, dayId, deptCall, deptWrap,
   dayCategory, sameDateDays,
   getMemberOverride, upsertMemberOverride,
-  // Additional (Gantt) crew — all three required together:
-  isAdditional,        // bool
-  ganttStatus,         // pre-computed: 'work'|'N/A'|'O/C'|'SPL'|'MAIN'|'PREP'|'OTHER'
-  ganttBookingStatus,  // raw booking status ('booked'|'cancelled'|…) — change detection only
-  onStatusSync,        // (memberId, action, payload?) => void
+  isAdditional,   // bool — true for Gantt-booked crew
 }) {
   const override = getMemberOverride(dayId, m.id)
 
@@ -127,56 +127,21 @@ function CrewRow({
   const scenechronize = override?.scenechronize ?? false
   const exclude       = override?.exclude       ?? false
 
-  // ── Additional crew: pending state prevents snap-back ──────────────────────
-  // When the user picks a new status we show it immediately (pendingStatus).
-  // We clear pending only once ganttStatus confirms the new value has propagated
-  // — NOT on the first intermediate Gantt update (e.g. main→cancelled before
-  // the splinter booking is created), which would cause a brief flash back.
-  const [pendingStatus, setPendingStatus] = useState(null)
-
-  useEffect(() => {
-    if (!isAdditional || pendingStatus === null) return
-    // Confirmed: derived status caught up — clear pending
-    if (ganttStatus === pendingStatus) setPendingStatus(null)
-  }, [isAdditional, ganttStatus, pendingStatus])
-
-  // Safety valve: if the raw booking changes from under us (another user /
-  // realtime) while pending is set, just clear it so we don't get stuck.
-  const prevGanttBookingStatus = useRef(ganttBookingStatus)
-  useEffect(() => {
-    if (prevGanttBookingStatus.current !== ganttBookingStatus) {
-      prevGanttBookingStatus.current = ganttBookingStatus
-      // Only clear if ganttStatus is now different from pending (i.e. we're not
-      // just waiting for the second half of a two-step sync like move-unit).
-      if (pendingStatus !== null && ganttStatus !== pendingStatus) {
-        // Give it 5 s to catch up before force-clearing
-        const t = setTimeout(() => setPendingStatus(null), 5000)
-        return () => clearTimeout(t)
-      }
-    }
-  }, [ganttBookingStatus]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Derived status ─────────────────────────────────────────────────────────
+  // Additional crew: simple override-based status (Work / O/C / N/A only).
+  // Fulltime crew: cross-day derivation from backpage_member_overrides.
   const status = isAdditional
-    ? (pendingStatus ?? ganttStatus ?? 'work')
+    ? additionalCrewStatus(override)
     : getEffectiveStatus(dayId, dayCategory, sameDateDays, m.id, override, getMemberOverride)
 
   const isOffWork = status !== 'work'
   const isNA      = status === 'N/A'
 
-  // Available unit labels (only show options that exist on this date)
-  const availUnits = new Set((sameDateDays ?? []).map(d => d.dayCategory))
-  const selfStatus = dayCategory === 'main' ? 'MAIN' : subUnitLabel(dayCategory)
-  const visibleOptions = STATUS_OPTIONS.filter(opt => {
-    if (opt === selfStatus) return false
-    if (isAdditional) {
-      if (opt === 'MAIN')  return dayCategory !== 'main'
-      if (opt === 'SPL')   return availUnits.has('splinter')
-      if (opt === 'PREP')  return availUnits.has('prep')
-      if (opt === 'OTHER') return availUnits.has('other')
-    }
-    return true
-  })
+  // Additional crew: Work / O/C / N/A only — no unit-switching options.
+  // Fulltime crew: full STATUS_OPTIONS minus the current page's own unit label.
+  const selfStatus    = dayCategory === 'main' ? 'MAIN' : subUnitLabel(dayCategory)
+  const visibleOptions = isAdditional
+    ? ['work', 'O/C', 'N/A']
+    : STATUS_OPTIONS.filter(opt => opt !== selfStatus)
 
   const rowClass = [
     'bp-crew-row',
@@ -198,16 +163,8 @@ function CrewRow({
             const newVal = e.target.value
 
             if (isAdditional) {
-              // Show the new value immediately while Gantt sync propagates
-              setPendingStatus(newVal)
-              if (newVal === 'work') {
-                onStatusSync?.(m.id, 'restore-booked')
-              } else if (['MAIN', 'SPL', 'PREP', 'OTHER'].includes(newVal)) {
-                onStatusSync?.(m.id, 'move-unit', newVal)
-              } else {
-                // 'N/A' or 'O/C'
-                onStatusSync?.(m.id, 'set-unavailable', newVal)
-              }
+              // Simple override write — no Gantt sync
+              upsertMemberOverride(dayId, m.id, 'status', newVal)
               return
             }
 
@@ -322,9 +279,7 @@ function DeptSection({
   dayCategory, sameDateDays,
   getDeptSetting, upsertDeptSetting,
   getMemberOverride, upsertMemberOverride,
-  onStatusSync,
-  ganttStatusMap,    // optional: resourceId → derived status string (additional crew only)
-  ganttBookingMap,   // optional: resourceId → raw Gantt booking  (additional crew only)
+  isAdditional,   // bool — true for the Additional Crew sections
 }) {
   const setting     = getDeptSetting(dayId, dept)
   const preCallMins = setting.preCallMins ?? 0
@@ -444,10 +399,7 @@ function DeptSection({
               sameDateDays={sameDateDays}
               getMemberOverride={getMemberOverride}
               upsertMemberOverride={upsertMemberOverride}
-              isAdditional={!!onStatusSync}
-              ganttStatus={ganttStatusMap?.[m.id]}
-              ganttBookingStatus={ganttBookingMap?.[m.id]?.status}
-              onStatusSync={onStatusSync}
+              isAdditional={isAdditional}
             />
           ))}
         </tbody>
@@ -526,99 +478,6 @@ export default function Backpage({ store }) {
   //   restore-booked  → set current unit booking back to 'booked'
   //   move-unit       → cancel current, activate target unit
   //   set-unavailable → N/A (unavailable) or O/C (cancelled) in Gantt
-  // ── Gantt booking sync ─────────────────────────────────────────────────
-  // All DB operations use FRESH Supabase queries — no stale closure over
-  // the local `bookings` array, which avoids the "existing not found →
-  // spurious INSERT → unique-constraint violation → silent no-op" bug.
-  async function syncGantt(memberId, action, payload) {
-    if (!day) return
-    const date      = day.date
-    const isMain    = day.dayCategory === 'main'
-    const thisDayId = isMain ? null : day.id
-
-    console.log('[syncGantt]', action, payload ?? '', '| resource:', memberId, '| date:', date, '| thisUnit:', thisDayId ?? 'main')
-
-    // ── Fresh fetch of all bookings for this resource on this date ─────────
-    const { data: fresh, error: fetchErr } = await supabase
-      .from('resource_bookings')
-      .select('id, day_id, status')
-      .eq('resource_id', memberId)
-      .eq('booking_date', date)
-    if (fetchErr) { console.error('[syncGantt] fetch:', fetchErr); return }
-
-    // Find a booking for a specific unit (targetDayId=null → main unit)
-    function freshFor(targetDayId) {
-      return (fresh ?? []).find(b =>
-        targetDayId !== null ? b.day_id === targetDayId : b.day_id === null
-      ) ?? null
-    }
-
-    // Update status of an existing booking row
-    async function updateStatus(id, status) {
-      const { error } = await supabase.from('resource_bookings').update({ status }).eq('id', id)
-      if (error) console.error('[syncGantt] update:', error)
-    }
-
-    // Insert a new booking row
-    async function insertBooking(targetDayId, status) {
-      const { error } = await supabase.from('resource_bookings').insert({
-        id: crypto.randomUUID(), resource_id: memberId,
-        booking_date: date, day_id: targetDayId ?? null, status,
-      })
-      if (error) console.error('[syncGantt] insert:', error)
-    }
-
-    // Set a unit's booking to a status — update if it exists, insert if not
-    async function upsertUnit(targetDayId, status) {
-      const bk = freshFor(targetDayId)
-      if (bk) {
-        if (bk.status !== status) await updateStatus(bk.id, status)
-      } else {
-        await insertBooking(targetDayId, status)
-      }
-    }
-
-    if (action === 'restore-booked') {
-      // Delete any active booking on a DIFFERENT unit, then activate this one
-      const toDelete = (fresh ?? []).filter(b =>
-        (b.status === 'booked' || b.status === 'hold') &&
-        (thisDayId === null ? b.day_id !== null : b.day_id !== thisDayId)
-      )
-      await Promise.all(toDelete.map(b =>
-        supabase.from('resource_bookings').delete().eq('id', b.id)
-          .then(({ error }) => { if (error) console.error('[syncGantt] delete:', error) })
-      ))
-      await upsertUnit(thisDayId, 'booked')
-
-    } else if (action === 'move-unit') {
-      const targetCat = payload === 'MAIN' ? 'main'
-        : payload === 'SPL' ? 'splinter' : payload === 'PREP' ? 'prep' : 'other'
-      // Use ALL shoot days (not just allDays) to find the target sub-unit
-      const targetDayId = targetCat === 'main'
-        ? null
-        : shootDays.find(d => d.date === date && d.dayCategory === targetCat)?.id ?? null
-
-      console.log('[syncGantt] move-unit | targetCat:', targetCat, '| targetDayId:', targetDayId)
-
-      if (targetCat !== 'main' && targetDayId === null) {
-        console.error('[syncGantt] move-unit: no', targetCat, 'day found for date', date, '— aborting')
-        return
-      }
-
-      await upsertUnit(thisDayId, 'cancelled')  // ✗ cancel this unit
-      await upsertUnit(targetDayId, 'booked')   // ✓ activate target unit
-
-    } else if (action === 'set-unavailable') {
-      const newStatus = payload === 'N/A' ? 'unavailable' : 'cancelled'
-      // Cancel ALL active bookings on this date (person unavailable everywhere)
-      const toUpdate = (fresh ?? []).filter(b => b.status === 'booked' || b.status === 'hold')
-      await Promise.all(toUpdate.map(b => updateStatus(b.id, newStatus)))
-      // Ensure a record exists on THIS unit so person stays visible on this backpage
-      if (!freshFor(thisDayId)) {
-        await insertBooking(thisDayId, newStatus)
-      }
-    }
-  }
 
   // ── Group fulltime crew by department ──────────────────────────────────
   const FALLBACK = 'Unassigned'
@@ -675,49 +534,6 @@ export default function Backpage({ store }) {
       return a.localeCompare(b)
     })
   , [addGroupMap])
-
-  // ── Derive displayed status for each additional crew member ────────────────
-  // Pure booking-based: no overrides involved.  Gantt booking is the only truth.
-  //   booked / hold                  → 'work'
-  //   unavailable                    → 'N/A'
-  //   cancelled + active elsewhere   → 'MAIN' | 'SPL' | 'PREP' | 'OTHER'
-  //   cancelled + nothing elsewhere  → 'O/C'
-  const additionalStatusMap = useMemo(() => {
-    if (!day) return {}
-    const allDaysOnDate = [day, ...sameDateDays]
-    const map = {}
-    for (const [resourceId, booking] of Object.entries(additionalBookingMap)) {
-      const s = booking.status
-      if (s === 'booked' || s === 'hold') {
-        map[resourceId] = 'work'
-      } else if (s === 'unavailable') {
-        map[resourceId] = 'N/A'
-      } else if (s === 'cancelled') {
-        const activeElsewhere = bookings.find(b =>
-          b.resourceId === resourceId &&
-          b.date === day.date &&
-          b.id !== booking.id &&
-          (b.status === 'booked' || b.status === 'hold')
-        )
-        if (activeElsewhere) {
-          if (activeElsewhere.dayId === null) {
-            map[resourceId] = 'MAIN'
-          } else {
-            const targetDay = allDaysOnDate.find(d => d.id === activeElsewhere.dayId)
-            if      (targetDay?.dayCategory === 'splinter') map[resourceId] = 'SPL'
-            else if (targetDay?.dayCategory === 'prep')     map[resourceId] = 'PREP'
-            else if (targetDay?.dayCategory === 'other')    map[resourceId] = 'OTHER'
-            else                                            map[resourceId] = 'O/C'
-          }
-        } else {
-          map[resourceId] = 'O/C'
-        }
-      } else {
-        map[resourceId] = 'work'
-      }
-    }
-    return map
-  }, [day, sameDateDays, bookings, additionalBookingMap])
 
   // ── Excel export ───────────────────────────────────────────────────────
   async function handleExport() {
@@ -990,9 +806,7 @@ export default function Backpage({ store }) {
                     upsertDeptSetting={upsertDeptSetting}
                     getMemberOverride={getMemberOverride}
                     upsertMemberOverride={upsertMemberOverride}
-                    ganttStatusMap={additionalStatusMap}
-                    ganttBookingMap={additionalBookingMap}
-                    onStatusSync={syncGantt}
+                    isAdditional={true}
                   />
                 ))}
               </div>
