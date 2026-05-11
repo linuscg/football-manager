@@ -6,6 +6,10 @@ import { useCateringStore }     from '../store/useCateringStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function roundUp5(n) { return Math.ceil(n / 5) * 5 }
+
+const CAT_ADDITIONALS_KEY = 'fm_cat_additionals'
+
 function fmtTime(isoStr) {
   if (!isoStr) return ''
   const d = new Date(isoStr)
@@ -280,6 +284,33 @@ export default function Catering({ store }) {
   const totalEntitled  = persons.filter(p => p.entitled).length
   const totalCollected = persons.filter(p => p.collected).length   // includes ad-hoc
 
+  // ── Catering Estimate (mirrors CateringNumbers logic for this day) ───────────
+
+  const cateringEstimate = useMemo(() => {
+    if (!day) return null
+    const ftIds   = new Set(ftcMembers.map(m => m.id))
+    const ftCount = ftcMembers.filter(m => !getMemberOverride(day.id, m.id)?.exclude).length
+    const addCount = new Set(
+      bookings
+        .filter(b =>
+          b.date === day.date &&
+          (b.status === 'booked' || b.status === 'hold') &&
+          (day.dayCategory === 'main' ? !b.dayId : b.dayId === day.id)
+        )
+        .map(b => resources.find(r => r.id === b.resourceId && r.type === 'crew')?.id)
+        .filter(id => id && !ftIds.has(id))
+    ).size
+    const sceneCastIds = new Set((day.scenes ?? []).flatMap(s => s.castMemberIds ?? []))
+    const castCount = castMembers.filter(c => sceneCastIds.has(c.id)).length
+    try {
+      const stored  = JSON.parse(localStorage.getItem(CAT_ADDITIONALS_KEY) ?? '{}')
+      const addl    = Number(stored[day.id] ?? 0)
+      return roundUp5((ftCount + addCount + castCount + addl) * 1.12)
+    } catch {
+      return roundUp5((ftCount + addCount + castCount) * 1.12)
+    }
+  }, [day, ftcMembers, bookings, resources, castMembers, getMemberOverride])
+
   // ── Keyboard shortcut: 'A' opens add-person form ────────────────────────────
 
   useEffect(() => {
@@ -417,6 +448,7 @@ export default function Catering({ store }) {
   .stat-sub   { font-size: 10px; color: #6b7280; margin-top: 2px; }
   .stat-box--green .stat-value { color: #15803d; }
   .stat-box--pct   .stat-value { color: #6366f1; }
+  .stat-box--est   .stat-value { color: #0369a1; }
 
   .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #374151; margin-bottom: 6px; margin-top: 14px; }
 
@@ -471,6 +503,12 @@ export default function Catering({ store }) {
     <div class="stat-value">${notCollected.length}</div>
     <div class="stat-sub">entitled, no lunch</div>
   </div>
+  ${cateringEstimate !== null ? `
+  <div class="stat-box stat-box--est">
+    <div class="stat-label">Catering Estimate</div>
+    <div class="stat-value">${cateringEstimate}</div>
+    <div class="stat-sub">total × 112%, nearest 5</div>
+  </div>` : ''}
 </div>
 
 <div class="section-title">Collected (${collectedPersons.length})</div>
@@ -675,6 +713,14 @@ ${notCollected.length > 0 ? `
             <span className="cat-report-pct">
               ({Math.round((totalCollected / totalEntitled) * 100)}%)
             </span>
+          )}
+          {cateringEstimate !== null && (
+            <>
+              <span className="cat-report-sep">·</span>
+              <span className="cat-report-stat">
+                estimate <strong>{cateringEstimate}</strong>
+              </span>
+            </>
           )}
           {totalCollected > 0 && (
             <span className="cat-report-times">
