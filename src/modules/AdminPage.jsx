@@ -21,6 +21,9 @@ export default function AdminPage({ currentProductionId, session, memberRole }) 
   const [sending,     setSending]     = useState(false)
   const [sendResult,  setSendResult]  = useState(null) // { ok, message }
 
+  // Inline remove confirmation — stores the userId being confirmed
+  const [confirmRemove, setConfirmRemove] = useState(null)
+
   // ── Fetch members + pending invites ─────────────────────────────────────────
   const loadData = useCallback(async () => {
     if (!currentProductionId) return
@@ -92,20 +95,19 @@ export default function AdminPage({ currentProductionId, session, memberRole }) 
 
   // ── Cancel invite ────────────────────────────────────────────────────────────
   async function handleCancelInvite(inviteId) {
-    if (!window.confirm('Cancel this invite?')) return
     await supabase.from('invites').delete().eq('id', inviteId)
     loadData()
   }
 
   // ── Remove member ────────────────────────────────────────────────────────────
-  async function handleRemoveMember(userId, role) {
-    if (role === 'owner') return // can't remove the owner
-    if (!window.confirm('Remove this person from the production?')) return
-    await supabase
+  async function handleRemoveMember(userId) {
+    const { error } = await supabase
       .from('production_members')
       .delete()
       .eq('production_id', currentProductionId)
       .eq('user_id', userId)
+    if (error) console.error('[AdminPage] remove member:', error)
+    setConfirmRemove(null)
     loadData()
   }
 
@@ -225,13 +227,31 @@ export default function AdminPage({ currentProductionId, session, memberRole }) 
                     )}
                   </div>
                   {!isOwner && !isSelf && (
-                    <button
-                      className="admin-member-remove"
-                      onClick={() => handleRemoveMember(m.user_id, m.role)}
-                      title="Remove from production"
-                    >
-                      ✕
-                    </button>
+                    confirmRemove === m.user_id ? (
+                      <div className="admin-confirm-remove">
+                        <span className="admin-confirm-label">Remove?</span>
+                        <button
+                          className="admin-confirm-yes"
+                          onClick={() => handleRemoveMember(m.user_id)}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          className="admin-confirm-no"
+                          onClick={() => setConfirmRemove(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        className="admin-member-remove"
+                        onClick={() => setConfirmRemove(m.user_id)}
+                        title="Remove from production"
+                      >
+                        ✕
+                      </button>
+                    )
                   )}
                 </div>
               )

@@ -6331,6 +6331,42 @@ select.pm-input { cursor: pointer; }
 }
 .admin-member-remove:hover { color: #dc2626; background: #fef2f2; border-color: #fca5a5; }
 
+/* Inline remove confirmation */
+.admin-confirm-remove {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.admin-confirm-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+.admin-confirm-yes {
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.admin-confirm-yes:hover { background: #fecaca; }
+.admin-confirm-no {
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.admin-confirm-no:hover { background: #e5e7eb; }
+
 /* Pending invites */
 .admin-invite-list { display: flex; flex-direction: column; gap: 6px; }
 .admin-invite-row {
