@@ -150,29 +150,6 @@ export default function CallSheet({ store, castMembers = [] }) {
     return { ftcDepts, ftcGroupMap: map }
   }, [ftcMembers])
 
-  // Additional crew groupMap — derived from crewGroups (already built from dayBookings)
-  // Dept names here are the plain dept strings; settingsKeyFn adds "- Additional"
-  const { addDepts: csAddDepts, addGroupMap: csAddGroupMap } = useMemo(() => {
-    const map = {}
-    for (const [dept, members] of crewGroups) {
-      map[dept] = members
-    }
-    return { addDepts: Object.keys(map), addGroupMap: map }
-  }, [crewGroups])
-
-  const preCallSummary = useMemo(() => {
-    if (!day) return ''
-    return generatePreCallSummary({
-      dayId:             day.id,
-      depts:             ftcDepts,
-      groupMap:          ftcGroupMap,
-      addDepts:          csAddDepts,
-      addGroupMap:       csAddGroupMap,
-      getDeptSetting,
-      getMemberOverride,
-      generalCall:       day.generalCall,
-    })
-  }, [day, ftcDepts, ftcGroupMap, csAddDepts, csAddGroupMap, getDeptSetting, getMemberOverride])
 
   const statusOrder = { booked: 0, hold: 1, unavailable: 2 }
   function sortByStatusThenName(a, b) {
@@ -244,6 +221,27 @@ export default function CallSheet({ store, castMembers = [] }) {
       .sort(([a], [b]) => a === 'Uncategorised' ? 1 : b === 'Uncategorised' ? -1 : a.localeCompare(b))
       .map(([cat, items]) => [cat, [...items].sort(sortByStatusThenName)])
   }, [dayBookings])
+
+  // Additional crew groupMap for pre-call summary (must come after crewGroups)
+  const { csAddDepts, csAddGroupMap } = useMemo(() => {
+    const map = {}
+    for (const [dept, members] of crewGroups) map[dept] = members
+    return { csAddDepts: Object.keys(map), csAddGroupMap: map }
+  }, [crewGroups])
+
+  const preCallSummaryFull = useMemo(() => {
+    if (!day) return ''
+    return generatePreCallSummary({
+      dayId:             day.id,
+      depts:             ftcDepts,
+      groupMap:          ftcGroupMap,
+      addDepts:          csAddDepts,
+      addGroupMap:       csAddGroupMap,
+      getDeptSetting,
+      getMemberOverride,
+      generalCall:       day.generalCall,
+    })
+  }, [day, ftcDepts, ftcGroupMap, csAddDepts, csAddGroupMap, getDeptSetting, getMemberOverride])
 
   // All crew flattened (for copy)
   const allCrew  = crewGroups.flatMap(([, m]) => m)
@@ -459,19 +457,19 @@ export default function CallSheet({ store, castMembers = [] }) {
             })()}
 
             {/* ── Pre-call summary ────────────────────────────────────────── */}
-            {preCallSummary && (
+            {preCallSummaryFull && (
               <div className="pm-cs-section cs-precall-section">
                 <div className="pm-cs-section-head">
                   Pre-call Summary
                   <button
                     className={`cs-copy-btn no-print${summaryCopied ? ' copied' : ''}`}
-                    onClick={() => copyText(preCallSummary, setSummaryCopied)}
+                    onClick={() => copyText(preCallSummaryFull, setSummaryCopied)}
                     title="Copy pre-call summary"
                   >
                     {summaryCopied ? '✓ Copied' : '⎘ Copy'}
                   </button>
                 </div>
-                <div className="cs-precall-text">{preCallSummary}</div>
+                <div className="cs-precall-text">{preCallSummaryFull}</div>
               </div>
             )}
 
