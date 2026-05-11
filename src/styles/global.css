@@ -5313,11 +5313,37 @@ select.pm-input { cursor: pointer; }
 .cat-bar-left  { display: flex; align-items: center; gap: 10px; }
 .cat-bar-right { display: flex; align-items: center; gap: 8px; }
 
+/* ── Day nav (arrows + select) ──────────────────────────────────────────── */
+.cat-day-nav {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.cat-day-arrow {
+  width: 30px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+.cat-day-arrow:first-child { border-radius: 6px 0 0 6px; border-right: none; }
+.cat-day-arrow:last-child  { border-radius: 0 6px 6px 0; border-left: none; }
+.cat-day-arrow:hover:not(:disabled) { background: #f3f4f6; color: #111827; }
+.cat-day-arrow:disabled { color: #d1d5db; cursor: default; }
+
 .cat-day-select {
   height: 32px;
   padding: 0 10px;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border-radius: 0;
   font-size: 13px;
   font-weight: 500;
   color: #111827;
@@ -5326,6 +5352,19 @@ select.pm-input { cursor: pointer; }
   min-width: 220px;
 }
 .cat-day-select:focus { outline: none; border-color: #6366f1; }
+
+/* ── Today badge / button ───────────────────────────────────────────────── */
+.cat-today-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #dcfce7;
+  color: #15803d;
+}
 
 .cat-search {
   height: 32px;

@@ -127,11 +127,28 @@ export default function Catering({ store }) {
     return allDays.find(d => d.dayCategory === 'main')?.id ?? allDays[0]?.id ?? null
   })
 
-  const day = allDays.find(d => d.id === selectedDayId) ?? allDays[0] ?? null
+  const day    = allDays.find(d => d.id === selectedDayId) ?? allDays[0] ?? null
+  const dayIdx = allDays.findIndex(d => d.id === (day?.id ?? null))
+
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const isToday  = day?.date === todayStr
 
   function selectDay(id) {
     setSelectedDayId(id)
     localStorage.setItem('fm_cat_day', id)
+  }
+
+  function prevDay() {
+    if (dayIdx > 0) selectDay(allDays[dayIdx - 1].id)
+  }
+
+  function nextDay() {
+    if (dayIdx < allDays.length - 1) selectDay(allDays[dayIdx + 1].id)
+  }
+
+  function jumpToToday() {
+    const todayDay = allDays.find(d => d.date === todayStr)
+    if (todayDay) selectDay(todayDay.id)
   }
 
   // ── Search + add adhoc UI ───────────────────────────────────────────────────
@@ -225,7 +242,7 @@ export default function Catering({ store }) {
       })
     }
 
-    // 4. Ad-hoc entries
+    // 4. Ad-hoc entries — not counted as entitled (walk-ins)
     for (const rec of getAdhoc(day.id)) {
       list.push({
         key:         `adhoc-${rec.id}`,
@@ -234,7 +251,7 @@ export default function Catering({ store }) {
         role:        rec.personRole ?? '',
         dept:        rec.personDept ?? '',
         type:        'adhoc',
-        entitled:    true,
+        entitled:    false,
         collected:   rec.collected   ?? false,
         collectedAt: rec.collectedAt ?? null,
         note:        rec.note        ?? '',
@@ -260,8 +277,9 @@ export default function Catering({ store }) {
 
   // ── Stats ───────────────────────────────────────────────────────────────────
 
-  const totalEntitled  = persons.filter(p => p.entitled).length
-  const totalCollected = persons.filter(p => p.collected).length
+  const totalEntitled      = persons.filter(p => p.entitled).length
+  const totalCollected     = persons.filter(p => p.collected && p.entitled).length
+  const adhocCollected     = persons.filter(p => p.collected && !p.entitled).length
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -342,16 +360,40 @@ export default function Catering({ store }) {
       {/* ── Top bar ───────────────────────────────────────────────────────── */}
       <div className="cat-bar">
         <div className="cat-bar-left">
-          {/* Day selector */}
-          <select
-            className="cat-day-select"
-            value={selectedDayId ?? ''}
-            onChange={e => selectDay(e.target.value)}
-          >
-            {allDays.map(d => (
-              <option key={d.id} value={d.id}>{dayLabel(d)}</option>
-            ))}
-          </select>
+          {/* Prev / day selector / next */}
+          <div className="cat-day-nav">
+            <button
+              className="cat-day-arrow"
+              onClick={prevDay}
+              disabled={dayIdx <= 0}
+              title="Previous day"
+            >‹</button>
+            <select
+              className="cat-day-select"
+              value={selectedDayId ?? ''}
+              onChange={e => selectDay(e.target.value)}
+            >
+              {allDays.map(d => (
+                <option key={d.id} value={d.id}>{dayLabel(d)}</option>
+              ))}
+            </select>
+            <button
+              className="cat-day-arrow"
+              onClick={nextDay}
+              disabled={dayIdx >= allDays.length - 1}
+              title="Next day"
+            >›</button>
+          </div>
+
+          {/* Jump to today */}
+          {!isToday && allDays.some(d => d.date === todayStr) && (
+            <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={jumpToToday}>
+              Today
+            </button>
+          )}
+          {isToday && (
+            <span className="cat-today-badge">Today</span>
+          )}
 
           {/* Search */}
           <input
@@ -463,7 +505,15 @@ export default function Catering({ store }) {
               ({Math.round((totalCollected / totalEntitled) * 100)}%)
             </span>
           )}
-          {totalCollected > 0 && (
+          {adhocCollected > 0 && (
+            <>
+              <span className="cat-report-sep">·</span>
+              <span className="cat-report-stat">
+                <strong>{adhocCollected}</strong> ad-hoc
+              </span>
+            </>
+          )}
+          {(totalCollected > 0 || adhocCollected > 0) && (
             <span className="cat-report-times">
               {persons.filter(p => p.collected && p.collectedAt).map(p =>
                 `${p.name}: ${fmtTime(p.collectedAt)}`
