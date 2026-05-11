@@ -355,6 +355,156 @@ export default function Catering({ store }) {
     XLSX.writeFile(wb, `Catering-${dateLabel}.xlsx`)
   }
 
+  // ── PDF export ───────────────────────────────────────────────────────────────
+
+  function handleExportPDF() {
+    if (!day) return
+
+    const dateLabel = day.date
+      ? new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', {
+          weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+        })
+      : 'Unknown date'
+
+    const productionName = production?.name || ''
+
+    const collectedPersons = persons.filter(p => p.collected)
+    const notCollected     = persons.filter(p => !p.collected && p.entitled)
+
+    // Build rows for collected table
+    function personRows(list) {
+      return list.map((p, i) => `
+        <tr class="${i % 2 === 0 ? 'even' : ''}">
+          <td class="td-name">${p.name}</td>
+          <td class="td-dept">${p.dept || '—'}</td>
+          <td class="td-role">${p.role || '—'}</td>
+          <td class="td-type">${TYPE_LABEL[p.type] ?? p.type}</td>
+          <td class="td-time">${p.collectedAt ? fmtTime(p.collectedAt) : '—'}</td>
+          <td class="td-note">${p.note || ''}</td>
+        </tr>
+      `).join('')
+    }
+
+    const adhocCount    = persons.filter(p => !p.entitled && p.collected).length
+    const entitledCount = totalEntitled
+    const collCount     = totalCollected
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Catering Report — ${dateLabel}</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; color: #111; background: #fff; }
+
+  .header { margin-bottom: 14px; border-bottom: 2px solid #111; padding-bottom: 10px; }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .prod-name { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #555; }
+  .page-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #111; margin: 4px 0 2px; }
+  .date-label { font-size: 12px; color: #444; font-weight: 500; }
+  .printed-at { font-size: 9.5px; color: #888; text-align: right; margin-top: 4px; }
+
+  .stats-row { display: flex; gap: 0; margin-bottom: 16px; border: 1.5px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+  .stat-box { flex: 1; padding: 10px 14px; border-right: 1px solid #e5e7eb; }
+  .stat-box:last-child { border-right: none; }
+  .stat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 4px; }
+  .stat-value { font-size: 26px; font-weight: 800; line-height: 1; color: #111; }
+  .stat-sub   { font-size: 10px; color: #6b7280; margin-top: 2px; }
+  .stat-box--green .stat-value { color: #15803d; }
+  .stat-box--pct   .stat-value { color: #6366f1; }
+
+  .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #374151; margin-bottom: 6px; margin-top: 14px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280;
+       padding: 5px 8px; border-bottom: 2px solid #e5e7eb; text-align: left; background: #f9fafb; }
+  td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+  tr.even td { background: #fafafa; }
+  .td-name { font-weight: 600; font-size: 11px; }
+  .td-dept { color: #374151; font-size: 10.5px; }
+  .td-role { color: #6b7280; font-size: 10.5px; }
+  .td-type { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+  .td-time { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; color: #15803d; white-space: nowrap; }
+  .td-note { color: #6b7280; font-size: 10px; font-style: italic; }
+
+  .no-data { padding: 12px 8px; color: #9ca3af; font-style: italic; font-size: 11px; }
+  .footer { margin-top: 18px; padding-top: 8px; border-top: 1px solid #e5e7eb; font-size: 9px; color: #aaa; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      ${productionName ? `<div class="prod-name">${productionName}</div>` : ''}
+      <div class="page-title">Catering Report</div>
+      <div class="date-label">${dateLabel}</div>
+    </div>
+    <div class="printed-at">Printed ${new Date().toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat-box stat-box--green">
+    <div class="stat-label">Collected</div>
+    <div class="stat-value">${collCount}</div>
+    <div class="stat-sub">meals served${adhocCount > 0 ? ` incl. ${adhocCount} ad-hoc` : ''}</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">Entitled</div>
+    <div class="stat-value">${entitledCount}</div>
+    <div class="stat-sub">planned crew &amp; cast</div>
+  </div>
+  ${entitledCount > 0 ? `
+  <div class="stat-box stat-box--pct">
+    <div class="stat-label">Collection rate</div>
+    <div class="stat-value">${Math.round((persons.filter(p => p.collected && p.entitled).length / entitledCount) * 100)}%</div>
+    <div class="stat-sub">of entitled crew</div>
+  </div>` : ''}
+  <div class="stat-box">
+    <div class="stat-label">Not collected</div>
+    <div class="stat-value">${notCollected.length}</div>
+    <div class="stat-sub">entitled, no lunch</div>
+  </div>
+</div>
+
+<div class="section-title">Collected (${collectedPersons.length})</div>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th><th>Department</th><th>Role</th><th>Type</th><th>Time</th><th>Note</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${collectedPersons.length > 0 ? personRows(collectedPersons) : `<tr><td colspan="6" class="no-data">No lunches collected yet.</td></tr>`}
+  </tbody>
+</table>
+
+${notCollected.length > 0 ? `
+<div class="section-title">Not yet collected (${notCollected.length})</div>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th><th>Department</th><th>Role</th><th>Type</th><th>Time</th><th>Note</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${personRows(notCollected)}
+  </tbody>
+</table>` : ''}
+
+<div class="footer">Football Manager · Catering Report · ${dateLabel}</div>
+</body>
+</html>`
+
+    const w = window.open('', '_blank', 'width=900,height=700')
+    w.document.write(html)
+    w.document.close()
+    w.addEventListener('load', () => w.print())
+  }
+
   // ── Empty / no-day state ────────────────────────────────────────────────────
 
   if (allDays.length === 0) {
@@ -425,7 +575,10 @@ export default function Catering({ store }) {
             className="pm-btn pm-btn--ghost pm-btn--sm"
             onClick={() => setShowAddInput(v => !v)}
           >
-            + Add person
+            + Add person <kbd className="cat-kbd">A</kbd>
+          </button>
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={handleExportPDF}>
+            ↓ Export PDF
           </button>
           <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={handleExport}>
             ↓ Export Excel
