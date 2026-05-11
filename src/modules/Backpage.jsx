@@ -473,10 +473,11 @@ export default function Backpage({ store }) {
   const [summaryCopied, setSummaryCopied] = useState(false)
 
   // ── All productive days (main + splinter + prep + other) ──────────────
-  // Prep and other days have isNonShootDay=true in the DB, but they still
-  // need a backpage, so we include them explicitly by dayCategory.
+  // Any day with a recognised dayCategory gets a backpage, regardless of
+  // isNonShootDay (splinter is a real shoot day; prep/other may be flagged
+  // as non-shoot but still need a backpage).
   const allDays = shootDays
-    .filter(d => !d.isNonShootDay || d.dayCategory === 'prep' || d.dayCategory === 'other')
+    .filter(d => ['main', 'splinter', 'prep', 'other'].includes(d.dayCategory))
     .sort((a, b) => (a.date < b.date ? -1 : 1))
 
   const today       = new Date().toISOString().slice(0, 10)
@@ -525,76 +526,96 @@ export default function Backpage({ store }) {
   //   restore-booked  → set current unit booking back to 'booked'
   //   move-unit       → cancel current, activate target unit
   //   set-unavailable → N/A (unavailable) or O/C (cancelled) in Gantt
+  // ── Gantt booking sync ─────────────────────────────────────────────────
+  // All DB operations use FRESH Supabase queries — no stale closure over
+  // the local `bookings` array, which avoids the "existing not found →
+  // spurious INSERT → unique-constraint violation → silent no-op" bug.
   async function syncGantt(memberId, action, payload) {
     if (!day) return
     const date      = day.date
     const isMain    = day.dayCategory === 'main'
     const thisDayId = isMain ? null : day.id
 
-    // Find an existing booking for a specific unit (null = main unit)
-    function existingFor(targetDayId) {
-      return targetDayId !== null
-        ? bookings.find(b => b.resourceId === memberId && b.dayId === targetDayId)
-        : bookings.find(b => b.resourceId === memberId && b.date === date && !b.dayId)
+    console.log('[syncGantt]', action, payload ?? '', '| resource:', memberId, '| date:', date, '| thisUnit:', thisDayId ?? 'main')
+
+    // ── Fresh fetch of all bookings for this resource on this date ─────────
+    const { data: fresh, error: fetchErr } = await supabase
+      .from('resource_bookings')
+      .select('id, day_id, status')
+      .eq('resource_id', memberId)
+      .eq('booking_date', date)
+    if (fetchErr) { console.error('[syncGantt] fetch:', fetchErr); return }
+
+    // Find a booking for a specific unit (targetDayId=null → main unit)
+    function freshFor(targetDayId) {
+      return (fresh ?? []).find(b =>
+        targetDayId !== null ? b.day_id === targetDayId : b.day_id === null
+      ) ?? null
     }
 
-    async function upsert(targetDayId, status) {
-      const bk = existingFor(targetDayId)
+    // Update status of an existing booking row
+    async function updateStatus(id, status) {
+      const { error } = await supabase.from('resource_bookings').update({ status }).eq('id', id)
+      if (error) console.error('[syncGantt] update:', error)
+    }
+
+    // Insert a new booking row
+    async function insertBooking(targetDayId, status) {
+      const { error } = await supabase.from('resource_bookings').insert({
+        id: crypto.randomUUID(), resource_id: memberId,
+        booking_date: date, day_id: targetDayId ?? null, status,
+      })
+      if (error) console.error('[syncGantt] insert:', error)
+    }
+
+    // Set a unit's booking to a status — update if it exists, insert if not
+    async function upsertUnit(targetDayId, status) {
+      const bk = freshFor(targetDayId)
       if (bk) {
-        if (bk.status === status) return
-        const { error } = await supabase.from('resource_bookings')
-          .update({ status }).eq('id', bk.id)
-        if (error) console.error('[syncGantt] update:', error)
+        if (bk.status !== status) await updateStatus(bk.id, status)
       } else {
-        const { error } = await supabase.from('resource_bookings').insert({
-          id: crypto.randomUUID(), resource_id: memberId,
-          booking_date: date, day_id: targetDayId ?? null, status,
-        })
-        if (error) console.error('[syncGantt] insert:', error)
+        await insertBooking(targetDayId, status)
       }
     }
 
     if (action === 'restore-booked') {
-      // Delete active bookings on OTHER units so this unit becomes the sole active one
-      const activeElsewhere = bookings.filter(b =>
-        b.resourceId === memberId && b.date === date &&
+      // Delete any active booking on a DIFFERENT unit, then activate this one
+      const toDelete = (fresh ?? []).filter(b =>
         (b.status === 'booked' || b.status === 'hold') &&
-        (isMain ? b.dayId !== null : b.dayId !== day.id)
+        (thisDayId === null ? b.day_id !== null : b.day_id !== thisDayId)
       )
-      await Promise.all(activeElsewhere.map(b =>
+      await Promise.all(toDelete.map(b =>
         supabase.from('resource_bookings').delete().eq('id', b.id)
           .then(({ error }) => { if (error) console.error('[syncGantt] delete:', error) })
       ))
-      await upsert(thisDayId, 'booked')
+      await upsertUnit(thisDayId, 'booked')
 
     } else if (action === 'move-unit') {
-      // payload = 'MAIN' | 'SPL' | 'PREP' | 'OTHER'
-      const targetCat   = payload === 'MAIN' ? 'main'
+      const targetCat = payload === 'MAIN' ? 'main'
         : payload === 'SPL' ? 'splinter' : payload === 'PREP' ? 'prep' : 'other'
+      // Use ALL shoot days (not just allDays) to find the target sub-unit
       const targetDayId = targetCat === 'main'
         ? null
-        : sameDateDays.find(d => d.dayCategory === targetCat)?.id ?? null
+        : shootDays.find(d => d.date === date && d.dayCategory === targetCat)?.id ?? null
 
-      await upsert(thisDayId, 'cancelled')   // ✗ mark current unit cancelled
-      if (targetCat === 'main' || targetDayId !== null) {
-        await upsert(targetDayId, 'booked') // ✓ activate target unit
+      console.log('[syncGantt] move-unit | targetCat:', targetCat, '| targetDayId:', targetDayId)
+
+      if (targetCat !== 'main' && targetDayId === null) {
+        console.error('[syncGantt] move-unit: no', targetCat, 'day found for date', date, '— aborting')
+        return
       }
 
+      await upsertUnit(thisDayId, 'cancelled')  // ✗ cancel this unit
+      await upsertUnit(targetDayId, 'booked')   // ✓ activate target unit
+
     } else if (action === 'set-unavailable') {
-      // N/A → 'unavailable', O/C → 'cancelled'.
-      // Cancel ALL active bookings on this date — person can't be on any unit.
       const newStatus = payload === 'N/A' ? 'unavailable' : 'cancelled'
-      const allActive = bookings.filter(b =>
-        b.resourceId === memberId && b.date === date &&
-        (b.status === 'booked' || b.status === 'hold')
-      )
-      await Promise.all(allActive.map(b =>
-        supabase.from('resource_bookings').update({ status: newStatus }).eq('id', b.id)
-          .then(({ error }) => { if (error) console.error('[syncGantt] update:', error) })
-      ))
-      // Ensure a booking exists on THIS unit so person stays visible on this backpage
-      if (!existingFor(thisDayId)) {
-        await upsert(thisDayId, newStatus)
+      // Cancel ALL active bookings on this date (person unavailable everywhere)
+      const toUpdate = (fresh ?? []).filter(b => b.status === 'booked' || b.status === 'hold')
+      await Promise.all(toUpdate.map(b => updateStatus(b.id, newStatus)))
+      // Ensure a record exists on THIS unit so person stays visible on this backpage
+      if (!freshFor(thisDayId)) {
+        await insertBooking(thisDayId, newStatus)
       }
     }
   }
