@@ -199,7 +199,7 @@ export default function AdminPage({ currentProductionId, session, memberRole }) 
           <p className="admin-empty">No members found.</p>
         ) : (
           <div className="admin-member-list">
-            {members.map(m => {
+            {members.filter(m => m.role !== 'owner' || memberRole === 'owner').map(m => {
               const roleStyle = ROLE_COLORS[m.role] ?? ROLE_COLORS.member
               const fullName = m.profile
                 ? [m.profile.first_name, m.profile.last_name].filter(Boolean).join(' ')
