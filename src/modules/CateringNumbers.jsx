@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useFulltimeCrewStore } from '../store/useFulltimeCrewStore'
 import { useCrewStore }         from '../store/useCrewStore'
 import { useBackpageStore }     from '../store/useBackpageStore'
+import { useCateringStore }     from '../store/useCateringStore'
 
 // Round up to nearest 5
 function roundUp5(n) {
@@ -35,6 +36,7 @@ export default function CateringNumbers({ store }) {
   const { members: ftcMembers }  = useFulltimeCrewStore()
   const { resources, bookings }  = useCrewStore()
   const { getMemberOverride }    = useBackpageStore()
+  const { records: catRecords }  = useCateringStore()
 
   // Per-day "catering additionals" — stored in localStorage by dayId
   const [additionals, setAdditionals] = useState(loadAdditionals)
@@ -86,21 +88,23 @@ export default function CateringNumbers({ store }) {
     // 4. Manual additionals
     const addl = Number(additionals[day.id] ?? 0)
 
-    const total    = ftCount + addCount + castCount + addl
-    const adjusted = roundUp5(total * 1.12)
+    const total     = ftCount + addCount + castCount + addl
+    const adjusted  = roundUp5(total * 1.12)
+    const collected = catRecords.filter(r => r.dayId === day.id && r.collected).length
 
-    return { day, ftCount, addCount, castCount, addl, total, adjusted }
-  }), [allDays, ftcMembers, bookings, resources, castMembers, getMemberOverride, additionals])
+    return { day, ftCount, addCount, castCount, addl, total, adjusted, collected }
+  }), [allDays, ftcMembers, bookings, resources, castMembers, getMemberOverride, additionals, catRecords])
 
   // Column totals
   const totals = useMemo(() => rows.reduce((acc, r) => ({
-    ft:       acc.ft       + r.ftCount,
-    add:      acc.add      + r.addCount,
-    cast:     acc.cast     + r.castCount,
-    addl:     acc.addl     + r.addl,
-    total:    acc.total    + r.total,
-    adjusted: acc.adjusted + r.adjusted,
-  }), { ft: 0, add: 0, cast: 0, addl: 0, total: 0, adjusted: 0 }), [rows])
+    ft:        acc.ft        + r.ftCount,
+    add:       acc.add       + r.addCount,
+    cast:      acc.cast      + r.castCount,
+    addl:      acc.addl      + r.addl,
+    total:     acc.total     + r.total,
+    adjusted:  acc.adjusted  + r.adjusted,
+    collected: acc.collected + r.collected,
+  }), { ft: 0, add: 0, cast: 0, addl: 0, total: 0, adjusted: 0, collected: 0 }), [rows])
 
   if (allDays.length === 0) {
     return (
@@ -125,6 +129,7 @@ export default function CateringNumbers({ store }) {
               <th className="catn-th catn-th--num catn-th--addl" title="Manual additions (e.g. extras, visitors)">Catering Additionals</th>
               <th className="catn-th catn-th--num catn-th--total">Total</th>
               <th className="catn-th catn-th--num catn-th--adj" title="Total × 112%, rounded up to nearest 5">Total +12% ↑5</th>
+              <th className="catn-th catn-th--num catn-th--collected" title="Lunches collected on this day (from Catering List)">Total Collected</th>
             </tr>
           </thead>
           <tbody>
@@ -154,6 +159,7 @@ export default function CateringNumbers({ store }) {
                   </td>
                   <td className="catn-td catn-td--num catn-td--total">{total}</td>
                   <td className="catn-td catn-td--num catn-td--adj">{adjusted}</td>
+                  <td className="catn-td catn-td--num catn-td--collected">{collected > 0 ? collected : <span className="catn-zero">—</span>}</td>
                 </tr>
               )
             })}
@@ -167,6 +173,7 @@ export default function CateringNumbers({ store }) {
               <td className="catn-td catn-td--num catn-td--foot">{totals.addl}</td>
               <td className="catn-td catn-td--num catn-td--foot catn-td--total">{totals.total}</td>
               <td className="catn-td catn-td--num catn-td--foot catn-td--adj">{totals.adjusted}</td>
+              <td className="catn-td catn-td--num catn-td--foot catn-td--collected">{totals.collected}</td>
             </tr>
           </tfoot>
         </table>

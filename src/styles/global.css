@@ -5690,7 +5690,8 @@ select.pm-input { cursor: pointer; }
 .catn-th--num  { text-align: center; }
 .catn-th--addl { color: #6366f1; }
 .catn-th--total { color: #111827; }
-.catn-th--adj  { color: #15803d; }
+.catn-th--adj       { color: #15803d; }
+.catn-th--collected { color: #0369a1; }
 
 /* ── Body rows ──────────────────────────────────────────────────────────── */
 .catn-row { border-bottom: 1px solid #f3f4f6; }
@@ -5721,6 +5722,11 @@ select.pm-input { cursor: pointer; }
   font-weight: 700;
   color: #15803d;
   background: #f0fdf4;
+}
+.catn-td--collected {
+  font-weight: 700;
+  color: #0369a1;
+  background: #f0f9ff;
 }
 
 .catn-zero { color: #d1d5db; }
