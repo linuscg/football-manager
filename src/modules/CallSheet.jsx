@@ -150,17 +150,29 @@ export default function CallSheet({ store, castMembers = [] }) {
     return { ftcDepts, ftcGroupMap: map }
   }, [ftcMembers])
 
+  // Additional crew groupMap — derived from crewGroups (already built from dayBookings)
+  // Dept names here are the plain dept strings; settingsKeyFn adds "- Additional"
+  const { addDepts: csAddDepts, addGroupMap: csAddGroupMap } = useMemo(() => {
+    const map = {}
+    for (const [dept, members] of crewGroups) {
+      map[dept] = members
+    }
+    return { addDepts: Object.keys(map), addGroupMap: map }
+  }, [crewGroups])
+
   const preCallSummary = useMemo(() => {
     if (!day) return ''
     return generatePreCallSummary({
       dayId:             day.id,
       depts:             ftcDepts,
       groupMap:          ftcGroupMap,
+      addDepts:          csAddDepts,
+      addGroupMap:       csAddGroupMap,
       getDeptSetting,
       getMemberOverride,
       generalCall:       day.generalCall,
     })
-  }, [day, ftcDepts, ftcGroupMap, getDeptSetting, getMemberOverride])
+  }, [day, ftcDepts, ftcGroupMap, csAddDepts, csAddGroupMap, getDeptSetting, getMemberOverride])
 
   const statusOrder = { booked: 0, hold: 1, unavailable: 2 }
   function sortByStatusThenName(a, b) {
@@ -526,7 +538,7 @@ export default function CallSheet({ store, castMembers = [] }) {
             {crewGroups.length > 0 && (
               <div className="pm-cs-section">
                 <div className="pm-cs-section-head">
-                  Crew
+                  Additional Crew
                   <span className="cs-section-count">{allCrew.length}</span>
                   <CopyBtn getText={crewTSV} />
                 </div>
@@ -570,7 +582,7 @@ export default function CallSheet({ store, castMembers = [] }) {
             {equipGroups.length > 0 && (
               <div className="pm-cs-section">
                 <div className="pm-cs-section-head">
-                  Equipment
+                  Additional Equipment
                   <span className="cs-section-count">{allEquip.length}</span>
                   <CopyBtn getText={equipTSV} />
                 </div>
