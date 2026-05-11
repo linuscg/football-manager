@@ -5882,6 +5882,32 @@ select.pm-input { cursor: pointer; }
   padding: 8px 12px;
 }
 
+.login-success {
+  font-size: 13px;
+  color: #15803d;
+  background: #dcfce7;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+/* "Forgot password?" inline link next to the Password label */
+.login-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.login-forgot {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: #6366f1;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+.login-forgot:hover { color: #4f46e5; text-decoration: underline; }
+
 .login-btn {
   height: 40px;
   border-radius: 7px;

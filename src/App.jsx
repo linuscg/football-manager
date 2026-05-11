@@ -24,7 +24,7 @@ import AdminPage             from './modules/AdminPage'
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
 const TOP_TABS = [
-  { id: 'setup',      label: 'Project Setup'    },
+  { id: 'setup',      label: 'Admin'            },
   { id: 'fm',         label: 'Football Manager' },
   { id: 'crew-times', label: 'Crew Times'       },
   { id: 'catering',   label: 'Catering'         },
@@ -37,7 +37,7 @@ const SETUP_NAV = [
   { id: 'setup-main',     num: '02', label: 'Project Setup'   },
   { id: 'setup-account',  num: '03', label: 'Account'         },
   { id: 'setup-settings', num: '04', label: 'Settings'        },
-  { id: 'setup-admin',    num: '05', label: 'Admin'           },
+  { id: 'setup-admin',    num: '05', label: 'Invite Users'    },
   { id: 'setup-requests', num: '06', label: 'Invite Requests' },
 ]
 
