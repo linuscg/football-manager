@@ -1,48 +1,59 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-// Detect a recovery link immediately from the URL hash before React even renders.
-// Supabase embeds type=recovery in the hash for password-reset links, e.g.
-// https://app.com/#access_token=...&type=recovery
-function isRecoveryUrl() {
-  return window.location.hash.includes('type=recovery')
+// ─── Module-level auth state ──────────────────────────────────────────────────
+// Supabase fires PASSWORD_RECOVERY the instant createClient processes the URL —
+// long before React renders. We must subscribe here, at import time, or we
+// will always miss it.
+
+let _session          = undefined   // undefined = not yet known
+let _passwordRecovery = false
+const _listeners      = new Set()
+
+function _notify() {
+  _listeners.forEach(fn => fn())
 }
 
+// Subscribe immediately — this is what catches PASSWORD_RECOVERY reliably
+supabase.auth.onAuthStateChange((event, session) => {
+  _session = session ?? null
+
+  if (event === 'PASSWORD_RECOVERY') {
+    _passwordRecovery = true
+  } else if (event === 'USER_UPDATED' || event === 'SIGNED_OUT') {
+    _passwordRecovery = false
+  } else if (event === 'SIGNED_IN') {
+    // Only a normal sign-in if we're not mid-recovery
+    if (!_passwordRecovery) _passwordRecovery = false
+  }
+
+  _notify()
+})
+
+// Hydrate initial session (for already-logged-in users on a normal page load)
+supabase.auth.getSession().then(({ data: { session } }) => {
+  if (_session === undefined) {
+    _session = session ?? null
+    _notify()
+  }
+})
+
+// ─── React hook ───────────────────────────────────────────────────────────────
+
 export function useAuthStore() {
-  const [session,          setSession]          = useState(undefined)
-  // Initialise from the URL hash so we never miss the event even if it fires
-  // before our onAuthStateChange subscription is ready
-  const [passwordRecovery, setPasswordRecovery] = useState(isRecoveryUrl)
-  const [loading,          setLoading]          = useState(false)
-  const [error,            setError]            = useState(null)
+  const [, rerender] = useState(0)
 
+  // Re-render whenever module-level state changes
   useEffect(() => {
-    // Subscribe to auth state changes FIRST — before calling getSession —
-    // so we don't miss the PASSWORD_RECOVERY event that Supabase fires while
-    // processing the URL hash token.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setPasswordRecovery(true)
-      } else if (event === 'USER_UPDATED') {
-        setPasswordRecovery(false)
-      } else if (event === 'SIGNED_IN') {
-        // Only clear recovery if we're doing a normal sign-in (not via a recovery URL)
-        if (!isRecoveryUrl()) setPasswordRecovery(false)
-      } else {
-        setPasswordRecovery(false)
-      }
-      setSession(session ?? null)
-    })
-
-    // Now get the current session — if there's a recovery token in the URL
-    // Supabase will process it here and the event above will fire
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      // Only update session if passwordRecovery wasn't already detected
-      setSession(session ?? null)
-    })
-
-    return () => subscription.unsubscribe()
+    const fn = () => rerender(n => n + 1)
+    _listeners.add(fn)
+    // If state is already known, trigger immediately
+    if (_session !== undefined) fn()
+    return () => _listeners.delete(fn)
   }, [])
+
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState(null)
 
   async function signIn(email, password) {
     setLoading(true)
@@ -56,5 +67,12 @@ export function useAuthStore() {
     await supabase.auth.signOut()
   }
 
-  return { session, passwordRecovery, loading, error, signIn, signOut }
+  return {
+    session:          _session,
+    passwordRecovery: _passwordRecovery,
+    loading,
+    error,
+    signIn,
+    signOut,
+  }
 }
