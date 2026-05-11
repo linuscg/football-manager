@@ -3419,6 +3419,20 @@ html, body {
 }
 .pm-cs-section:last-child { border-bottom: none; }
 
+.pm-cs-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--pm-fg);
+  margin-bottom: 12px;
+}
+/* Push the copy button to the far right */
+.pm-cs-section-head .cs-copy-btn {
+  margin-left: auto;
+}
+
 .pm-cs-sec-title {
   font-family: var(--pm-font-display);
   font-size: 15px;

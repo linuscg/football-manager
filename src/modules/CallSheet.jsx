@@ -238,17 +238,15 @@ export default function CallSheet({ store, castMembers = [] }) {
   const allEquip = equipGroups.flatMap(([, m]) => m)
 
   function crewTSV() {
-    return toTSV(
-      ['Name', 'Role', 'Department', 'Email', 'Phone', 'Status'],
-      allCrew.map(r => [r.name, r.role, r.department, r.contactEmail, r.contactPhone, STATUS_LABEL[r.bookingStatus] ?? r.bookingStatus])
-    )
+    return allCrew
+      .map(r => [r.name, r.role, r.department, r.contactEmail, r.contactPhone, STATUS_LABEL[r.bookingStatus] ?? r.bookingStatus].join('\t'))
+      .join('\n')
   }
 
   function equipTSV() {
-    return toTSV(
-      ['Name', 'Category', 'Supplier', 'Status'],
-      allEquip.map(r => [r.name, r.category, r.vendor, STATUS_LABEL[r.bookingStatus] ?? r.bookingStatus])
-    )
+    return allEquip
+      .map(r => [r.name, r.category, r.vendor, STATUS_LABEL[r.bookingStatus] ?? r.bookingStatus].join('\t'))
+      .join('\n')
   }
 
   function notesTSV() {
