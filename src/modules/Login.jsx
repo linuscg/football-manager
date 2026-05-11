@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function Login({ onSignIn, loading, error }) {
+export default function Login({ onSignIn, loading, error, onBack }) {
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
 
@@ -59,6 +59,17 @@ export default function Login({ onSignIn, loading, error }) {
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
+
+          {onBack && (
+            <button
+              type="button"
+              className="login-btn"
+              style={{ background: 'transparent', color: '#6b7280', border: '1px solid #e5e7eb', marginTop: 8 }}
+              onClick={onBack}
+            >
+              ← Back
+            </button>
+          )}
         </form>
 
       </div>

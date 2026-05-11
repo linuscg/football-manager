@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react'
 import { useScheduleStore }  from './store/useScheduleStore'
 import { useAuthStore }      from './store/useAuthStore'
 import { useProfileStore }   from './store/useProfileStore'
+import LandingPage           from './modules/LandingPage'
 import Login                 from './modules/Login'
+import RequestInvite         from './modules/RequestInvite'
 import AcceptInvite          from './modules/AcceptInvite'
+import InviteRequestsPage    from './modules/InviteRequestsPage'
 import Schedule              from './modules/Schedule'
 import CrewGantt             from './modules/CrewGantt'
 import ProjectSetup          from './modules/ProjectSetup'
@@ -30,11 +33,12 @@ const TOP_TABS = [
 // ─── Project Setup nav ────────────────────────────────────────────────────────
 
 const SETUP_NAV = [
-  { id: 'setup-list',     num: '01', label: 'Project List' },
-  { id: 'setup-main',     num: '02', label: 'Project Setup' },
-  { id: 'setup-account',  num: '03', label: 'Account'       },
-  { id: 'setup-settings', num: '04', label: 'Settings'      },
-  { id: 'setup-admin',    num: '05', label: 'Admin'         },
+  { id: 'setup-list',     num: '01', label: 'Project List'    },
+  { id: 'setup-main',     num: '02', label: 'Project Setup'   },
+  { id: 'setup-account',  num: '03', label: 'Account'         },
+  { id: 'setup-settings', num: '04', label: 'Settings'        },
+  { id: 'setup-admin',    num: '05', label: 'Admin'           },
+  { id: 'setup-requests', num: '06', label: 'Invite Requests' },
 ]
 
 const SETUP_MODULE_SUB = {
@@ -43,6 +47,7 @@ const SETUP_MODULE_SUB = {
   'setup-account':  'User account',
   'setup-settings': 'App settings',
   'setup-admin':    'Administration',
+  'setup-requests': 'Invite requests',
 }
 
 // ─── Football Manager nav ─────────────────────────────────────────────────────
@@ -142,6 +147,7 @@ function UnderConstruction({ label }) {
 
 export default function App() {
   const { session, loading: authLoading, error: authError, signIn, signOut } = useAuthStore()
+  const [unauthView, setUnauthView] = useState('landing')
 
   // Detect invite token in URL (?invite=TOKEN)
   const inviteToken = new URLSearchParams(window.location.search).get('invite')
@@ -163,7 +169,25 @@ export default function App() {
   }
 
   if (session === null) {
-    return <Login onSignIn={signIn} loading={authLoading} error={authError} />
+    if (unauthView === 'request-invite') {
+      return <RequestInvite onBack={() => setUnauthView('landing')} />
+    }
+    if (unauthView === 'login') {
+      return (
+        <Login
+          onSignIn={signIn}
+          loading={authLoading}
+          error={authError}
+          onBack={() => setUnauthView('landing')}
+        />
+      )
+    }
+    return (
+      <LandingPage
+        onLogin={() => setUnauthView('login')}
+        onRequestInvite={() => setUnauthView('request-invite')}
+      />
+    )
   }
 
   return <AppShell session={session} signOut={signOut} />
@@ -273,10 +297,12 @@ function AppShell({ session, signOut }) {
   const isGantt     = topTab === 'fm' && fmModule === 'crew'
   const isCallsheet = topTab === 'fm' && fmModule === 'callsheet'
 
-  // Hide Admin nav item from plain members
-  const visibleSetupNav = SETUP_NAV.filter(n =>
-    n.id !== 'setup-admin' || memberRole === 'owner' || memberRole === 'admin'
-  )
+  // Hide admin/requests nav from users without permission
+  const visibleSetupNav = SETUP_NAV.filter(n => {
+    if (n.id === 'setup-admin')    return memberRole === 'owner' || memberRole === 'admin'
+    if (n.id === 'setup-requests') return memberRole === 'owner'
+    return true
+  })
 
   const activeNav = topTab === 'setup'
     ? visibleSetupNav
@@ -534,6 +560,13 @@ function AppShell({ session, signOut }) {
             )}
             {topTab === 'setup' && setupModule === 'setup-settings' && (
               <UnderConstruction label="Settings" />
+            )}
+            {topTab === 'setup' && setupModule === 'setup-requests' && (
+              <InviteRequestsPage
+                productions={productions}
+                currentProductionId={currentProductionId}
+                memberRole={memberRole}
+              />
             )}
 
             {/* ── Football Manager tab ──────────────────────────────────────── */}
