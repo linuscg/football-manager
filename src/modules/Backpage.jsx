@@ -645,6 +645,8 @@ export default function Backpage({ store }) {
         dayId:             day.id,
         depts,
         groupMap,
+        addDepts,
+        addGroupMap,
         getDeptSetting,
         getMemberOverride,
         generalCall:       day.generalCall,
