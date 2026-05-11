@@ -128,7 +128,7 @@ export default function CateringNumbers({ store }) {
               <th className="catn-th catn-th--num" title="Cast members with scenes on this day">Cast</th>
               <th className="catn-th catn-th--num catn-th--addl" title="Manual additions (e.g. extras, visitors)">Catering Additionals</th>
               <th className="catn-th catn-th--num catn-th--total">Total</th>
-              <th className="catn-th catn-th--num catn-th--adj" title="Total × 112%, rounded up to nearest 5">Total +12% ↑5</th>
+              <th className="catn-th catn-th--num catn-th--adj" title="Total × 112%, rounded up to nearest 5">Catering Estimate</th>
               <th className="catn-th catn-th--num catn-th--collected" title="Lunches collected on this day (from Catering List)">Total Collected</th>
             </tr>
           </thead>
