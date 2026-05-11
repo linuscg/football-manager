@@ -368,8 +368,11 @@ export default function Catering({ store }) {
 
     const productionName = production?.name || ''
 
-    const collectedPersons = persons.filter(p => p.collected)
-    const notCollected     = persons.filter(p => !p.collected && p.entitled)
+    const byDeptThenName = (a, b) =>
+      (a.dept || '').localeCompare(b.dept || '') || a.name.localeCompare(b.name)
+
+    const collectedPersons = persons.filter(p => p.collected).sort(byDeptThenName)
+    const notCollected     = persons.filter(p => !p.collected && p.entitled).sort(byDeptThenName)
 
     // Build rows for collected table
     function personRows(list) {
