@@ -8,7 +8,6 @@ const ROLE_COLORS = {
   member: { bg: '#f0fdf4', color: '#166534' },
 }
 
-// Fetch members + profiles for a production, cache results
 async function fetchMembers(productionId) {
   const { data: memberRows } = await supabase
     .from('production_members')
@@ -40,10 +39,10 @@ export default function ProjectListPage({
   onCreate,
   memberRole,
 }) {
-  const [memberships,   setMemberships]   = useState([])
-  const [expandedId,    setExpandedId]    = useState(null)
-  const [membersCache,  setMembersCache]  = useState({})  // productionId → members[]
-  const [loadingId,     setLoadingId]     = useState(null)
+  const [memberships,  setMemberships]  = useState([])
+  const [expandedId,   setExpandedId]   = useState(null)
+  const [membersCache, setMembersCache] = useState({})
+  const [loadingId,    setLoadingId]    = useState(null)
 
   useEffect(() => {
     supabase
@@ -52,12 +51,8 @@ export default function ProjectListPage({
       .then(({ data }) => setMemberships(data ?? []))
   }, [])
 
-  // Toggle expand — lazy-load members on first open
   async function handleToggle(prodId) {
-    if (expandedId === prodId) {
-      setExpandedId(null)
-      return
-    }
+    if (expandedId === prodId) { setExpandedId(null); return }
     setExpandedId(prodId)
     if (!membersCache[prodId]) {
       setLoadingId(prodId)
@@ -67,7 +62,6 @@ export default function ProjectListPage({
     }
   }
 
-  // Build rows: join memberships with productions list
   const rows = memberships
     .map(m => {
       const prod = productions.find(p => p.id === m.production_id)
@@ -108,8 +102,21 @@ export default function ProjectListPage({
             const isCurrent  = prod.id === currentProductionId
             const isExpanded = expandedId === prod.id
             const roleStyle  = ROLE_COLORS[prod.role] ?? ROLE_COLORS.member
-            const members    = membersCache[prod.id] ?? []
+            const allMembers = membersCache[prod.id] ?? []
             const isLoading  = loadingId === prod.id
+
+            // Split into admins and plain members (hide owners)
+            const admins  = allMembers.filter(m => m.role === 'admin')
+            const members = allMembers.filter(m => m.role === 'member')
+            const hasAny  = admins.length > 0 || members.length > 0
+
+            // Summary badge shown on collapsed row
+            const cachedAndLoaded = !!membersCache[prod.id]
+            const summaryParts = []
+            if (cachedAndLoaded) {
+              if (admins.length)  summaryParts.push(`${admins.length} admin${admins.length !== 1 ? 's' : ''}`)
+              if (members.length) summaryParts.push(`${members.length} member${members.length !== 1 ? 's' : ''}`)
+            }
 
             return (
               <div
@@ -117,18 +124,22 @@ export default function ProjectListPage({
                 className={`projlist-card${isCurrent ? ' projlist-card--active' : ''}${isExpanded ? ' projlist-card--open' : ''}`}
               >
                 {/* ── Row header ── */}
-                <div
-                  className="projlist-row"
-                  onClick={() => handleToggle(prod.id)}
-                >
+                <div className="projlist-row" onClick={() => handleToggle(prod.id)}>
                   <div className="projlist-row-l">
                     <div className="projlist-row-name">
                       {prod.name || 'Untitled production'}
                       {isCurrent && <span className="projlist-current-badge">Current</span>}
                     </div>
-                    {prod.director && (
-                      <div className="projlist-row-meta">Dir. {prod.director}</div>
-                    )}
+                    <div className="projlist-row-meta-wrap">
+                      {prod.director && (
+                        <span className="projlist-row-meta">Dir. {prod.director}</span>
+                      )}
+                      {summaryParts.length > 0 && (
+                        <span className="projlist-row-team-count">
+                          {summaryParts.join(' · ')}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="projlist-row-r">
                     <span
@@ -154,30 +165,23 @@ export default function ProjectListPage({
                   <div className="projlist-members">
                     {isLoading ? (
                       <div className="projlist-members-loading">Loading team…</div>
-                    ) : members.filter(m => m.role !== 'owner').length === 0 ? (
-                      <div className="projlist-members-empty">No admin assigned.</div>
+                    ) : !hasAny ? (
+                      <div className="projlist-members-empty">No team members assigned yet.</div>
                     ) : (
-                      members.filter(m => m.role !== 'owner').map(m => {
-                        const rs = ROLE_COLORS[m.role] ?? ROLE_COLORS.member
-                        const firstName = m.profile?.first_name ?? ''
-                        const lastName  = m.profile?.last_name  ?? ''
-                        const fullName  = [firstName, lastName].filter(Boolean).join(' ') || '—'
-                        const initials  = (firstName[0] ?? '') + (lastName[0] ?? '')
-                        return (
-                          <div key={m.user_id} className="projlist-member-row">
-                            <div className="projlist-member-avatar">
-                              {initials.toUpperCase() || '?'}
-                            </div>
-                            <div className="projlist-member-name">{fullName}</div>
-                            <span
-                              className="projlist-role-badge"
-                              style={{ background: rs.bg, color: rs.color }}
-                            >
-                              {ROLE_LABELS[m.role] ?? m.role}
-                            </span>
+                      <>
+                        {admins.length > 0 && (
+                          <div className="projlist-member-group">
+                            <div className="projlist-member-group-label">Admins</div>
+                            {admins.map(m => <MemberRow key={m.user_id} m={m} />)}
                           </div>
-                        )
-                      })
+                        )}
+                        {members.length > 0 && (
+                          <div className="projlist-member-group">
+                            <div className="projlist-member-group-label">Members</div>
+                            {members.map(m => <MemberRow key={m.user_id} m={m} />)}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -186,6 +190,27 @@ export default function ProjectListPage({
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+function MemberRow({ m }) {
+  const rs        = ROLE_COLORS[m.role] ?? ROLE_COLORS.member
+  const firstName = m.profile?.first_name ?? ''
+  const lastName  = m.profile?.last_name  ?? ''
+  const fullName  = [firstName, lastName].filter(Boolean).join(' ') || '—'
+  const initials  = ((firstName[0] ?? '') + (lastName[0] ?? '')).toUpperCase() || '?'
+
+  return (
+    <div className="projlist-member-row">
+      <div className="projlist-member-avatar">{initials}</div>
+      <div className="projlist-member-name">{fullName}</div>
+      <span
+        className="projlist-role-badge"
+        style={{ background: rs.bg, color: rs.color }}
+      >
+        {ROLE_LABELS[m.role] ?? m.role}
+      </span>
     </div>
   )
 }

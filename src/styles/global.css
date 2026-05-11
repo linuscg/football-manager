@@ -6424,6 +6424,39 @@ select.pm-input { cursor: pointer; }
   font-weight: 500;
 }
 
+/* Team count shown on collapsed row */
+.projlist-row-meta-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.projlist-row-team-count {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* Admin / Member group headers inside expanded panel */
+.projlist-member-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.projlist-member-group + .projlist-member-group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
+}
+.projlist-member-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  padding: 0 2px;
+  margin-bottom: 2px;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    LANDING PAGE
    ═══════════════════════════════════════════════════════════════════════════ */
