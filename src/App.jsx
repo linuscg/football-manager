@@ -133,20 +133,11 @@ function UnderConstruction({ label }) {
   )
 }
 
-// ─── App ─────────────────────────────────────────────────────────────────────
+// ─── Auth shell (handles session check, renders login or the real app) ────────
 
 export default function App() {
   const { session, loading: authLoading, error: authError, signIn, signOut } = useAuthStore()
 
-  const [topTab,       setTopTab]       = useState(getInitialTopTab)
-  const [setupModule,  setSetupModule]  = useState(getInitialSetupModule)
-  const [fmModule,     setFmModule]     = useState(getInitialFmModule)
-  const [ctModule,     setCtModule]     = useState(getInitialCtModule)
-  const [catModule,    setCatModule]    = useState(getInitialCatModule)
-  const [prodMenuOpen, setProdMenuOpen] = useState(false)
-
-  // ── Auth gate ─────────────────────────────────────────────────────────────
-  // session === undefined means we're still checking (don't flash login screen)
   if (session === undefined) {
     return (
       <div style={{
@@ -161,6 +152,19 @@ export default function App() {
   if (session === null) {
     return <Login onSignIn={signIn} loading={authLoading} error={authError} />
   }
+
+  return <AppShell session={session} signOut={signOut} />
+}
+
+// ─── AppShell (all hooks live here, only rendered when authenticated) ─────────
+
+function AppShell({ session, signOut }) {
+  const [topTab,       setTopTab]       = useState(getInitialTopTab)
+  const [setupModule,  setSetupModule]  = useState(getInitialSetupModule)
+  const [fmModule,     setFmModule]     = useState(getInitialFmModule)
+  const [ctModule,     setCtModule]     = useState(getInitialCtModule)
+  const [catModule,    setCatModule]    = useState(getInitialCatModule)
+  const [prodMenuOpen, setProdMenuOpen] = useState(false)
 
   function navigateTopTab(id) {
     setTopTab(id)
