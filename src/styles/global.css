@@ -2604,18 +2604,21 @@ textarea.field-input {
 /* Sub-unit booking cells */
 .pm-g-cell.cell-prep,
 .gantt-cell.cell-prep {
+  width: 38px; min-width: 38px;
   background: #fffbf0;
   border-left: 1px solid #fde68a;
 }
 
 .pm-g-cell.cell-splinter,
 .gantt-cell.cell-splinter {
+  width: 38px; min-width: 38px;
   background: #faf5ff;
   border-left: 1px solid #ddd6fe;
 }
 
 .pm-g-cell.cell-other,
 .gantt-cell.cell-other {
+  width: 38px; min-width: 38px;
   background: #ecfeff;
   border-left: 1px solid #a5f3fc;
 }
