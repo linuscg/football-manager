@@ -3567,17 +3567,27 @@ html, body {
 
 /* ── Phase banner header (spans all columns for that phase) ──── */
 .gantt-phase-banner-th {
+  position: relative; /* containing block so label sticks within this cell's span */
   background: color-mix(in srgb, var(--phase-color) 12%, #f9fafb);
   color: var(--phase-color);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  text-align: center;
+  text-align: left;
   padding: 4px 8px;
   border-bottom: 2px solid color-mix(in srgb, var(--phase-color) 30%, #e5e7eb);
   border-right: 2px solid color-mix(in srgb, var(--phase-color) 25%, #e5e7eb);
   white-space: nowrap;
+}
+
+/* The label sticks just past the name column (220px) so it stays
+   in view as you scroll through a long phase. Constrained to the
+   th's own column span — snaps back as the phase exits the viewport. */
+.gantt-phase-banner-label {
+  position: sticky;
+  left: 228px; /* name column width (220px) + small gap */
+  display: inline-block;
 }
 
 .pm-g-day {

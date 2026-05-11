@@ -1021,7 +1021,7 @@ export default function CrewGantt({ production, shootDays }) {
                     className="gantt-phase-banner-th"
                     style={{ '--phase-color': span.color }}
                   >
-                    {span.label}
+                    <span className="gantt-phase-banner-label">{span.label}</span>
                   </th>
                 ))}
               </tr>
