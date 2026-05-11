@@ -3,6 +3,7 @@ import { useFulltimeCrewStore }    from '../store/useFulltimeCrewStore'
 import { useCrewStore }            from '../store/useCrewStore'
 import { useBackpageStore }        from '../store/useBackpageStore'
 import { exportBackpageXLSX }      from '../lib/exportBackpage'
+import { exportBackpagePDF }       from '../lib/exportBackpagePDF'
 import { generatePreCallSummary }  from '../lib/backpageSummary'
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
@@ -421,7 +422,8 @@ export default function Backpage({ store }) {
     getMemberOverride, upsertMemberOverride,
   } = useBackpageStore()
 
-  const [exporting, setExporting] = useState(false)
+  const [exporting,    setExporting]    = useState(false)
+  const [exportingPDF, setExportingPDF] = useState(false)
   const [summaryCopied, setSummaryCopied] = useState(false)
 
   // ── All productive days (main + splinter + prep + other) ──────────────
@@ -582,6 +584,50 @@ export default function Backpage({ store }) {
     }
   }
 
+  // ── PDF export ────────────────────────────────────────────────────────
+  async function handleExportPDF() {
+    if (!day || exportingPDF) return
+    setExportingPDF(true)
+    try {
+      function buildDeptRows(deptList, sourceMap, settingsKeyFn) {
+        return deptList.map(dept => {
+          const key         = settingsKeyFn(dept)
+          const setting     = getDeptSetting(day.id, key)
+          const preCallMins = setting.preCallMins ?? 0
+          const derigMins   = setting.derigMins   ?? 0
+          const deptCall    = day.generalCall ? addMins(day.generalCall, -preCallMins) : ''
+          const deptWrap    = wrapTime        ? addMins(wrapTime,         derigMins)   : ''
+          return {
+            name: key,
+            members: (sourceMap[dept] ?? []).map(m => {
+              const ov = getMemberOverride(day.id, m.id)
+              const st        = getEffectiveStatus(day.id, day.dayCategory, sameDateDays, m.id, ov, getMemberOverride)
+              const isOffWork = st !== 'work'
+              return {
+                name:     m.name,
+                role:     m.role,
+                callTime: isOffWork ? st : (ov?.callTime || deptCall || ''),
+                wrapTime: isOffWork ? '' : (ov?.wrapTime || deptWrap || ''),
+                excluded: ov?.exclude ?? false,
+                status:   st,
+              }
+            }),
+          }
+        })
+      }
+
+      const exportDepts    = buildDeptRows(depts,    groupMap,    d => d)
+      const exportAddDepts = buildDeptRows(addDepts, addGroupMap, d => `${d} - Additional`)
+
+      exportBackpagePDF({ production, day, depts: exportDepts, addDepts: exportAddDepts })
+    } catch (err) {
+      console.error('[backpage] PDF export error:', err)
+      alert('PDF export failed — check console for details.')
+    } finally {
+      setExportingPDF(false)
+    }
+  }
+
   // ── Lunch / Scenechronize totals (fulltime + additional) ───────────────
   const allDayMembers      = day ? [...members, ...additionalMembers] : []
   const totalCrew          = allDayMembers.length
@@ -699,13 +745,22 @@ export default function Backpage({ store }) {
             </button>
           )}
           {day && (
-            <button
-              className="pm-btn pm-btn--primary pm-btn--sm"
-              onClick={handleExport}
-              disabled={exporting}
-            >
-              {exporting ? 'Exporting…' : '↓ Export Excel'}
-            </button>
+            <>
+              <button
+                className="pm-btn pm-btn--primary pm-btn--sm"
+                onClick={handleExport}
+                disabled={exporting}
+              >
+                {exporting ? 'Exporting…' : '↓ Export Excel'}
+              </button>
+              <button
+                className="pm-btn pm-btn--ghost pm-btn--sm"
+                onClick={handleExportPDF}
+                disabled={exportingPDF}
+              >
+                {exportingPDF ? 'Opening…' : '↓ Export PDF'}
+              </button>
+            </>
           )}
         </div>
       </div>
