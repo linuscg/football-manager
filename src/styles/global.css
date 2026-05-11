@@ -3558,6 +3558,26 @@ html, body {
   letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--pm-muted);
   border-right: 2px solid var(--pm-rule-color) !important;
+  vertical-align: middle;
+}
+/* When corner spans two header rows, keep it visually centred */
+.pm-g-corner--tall {
+  vertical-align: middle;
+}
+
+/* ── Phase banner header (spans all columns for that phase) ──── */
+.gantt-phase-banner-th {
+  background: color-mix(in srgb, var(--phase-color) 12%, #f9fafb);
+  color: var(--phase-color);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 4px 8px;
+  border-bottom: 2px solid color-mix(in srgb, var(--phase-color) 30%, #e5e7eb);
+  border-right: 2px solid color-mix(in srgb, var(--phase-color) 25%, #e5e7eb);
+  white-space: nowrap;
 }
 
 .pm-g-day {

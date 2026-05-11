@@ -98,6 +98,23 @@ function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDat
   return specs
 }
 
+// ─── Build phase-banner spans ─────────────────────────────────────────────────
+// Groups consecutive colSpecs by phaseId → [{phaseId, label, color, count}]
+
+function buildPhaseSpans(colSpecs) {
+  const spans = []
+  for (const spec of colSpecs) {
+    const last = spans[spans.length - 1]
+    if (last && last.phaseId === spec.phaseId) {
+      last.count++
+    } else {
+      const phase = PHASES.find(p => p.id === spec.phaseId)
+      spans.push({ phaseId: spec.phaseId, label: phase.label, color: phase.color, count: 1 })
+    }
+  }
+  return spans
+}
+
 // ─── ResourceRow — isolated so local text state never loses focus ─────────────
 
 // Derive unique sorted values for a given field from a resource list
@@ -992,10 +1009,25 @@ export default function CrewGantt({ production, shootDays }) {
           <table className="pm-g-tbl" onDragStart={e => e.preventDefault()}>
 
             <thead>
+              {/* ── Phase banner row ───────────────────────────────────────────── */}
               <tr>
-                <th className="pm-g-corner">
+                <th className="pm-g-corner pm-g-corner--tall" rowSpan={2}>
                   {activeTab === 'crew' ? 'Name / Role / Dept' : 'Item / Category'}
                 </th>
+                {buildPhaseSpans(colSpecs).map(span => (
+                  <th
+                    key={span.phaseId}
+                    colSpan={span.count}
+                    className="gantt-phase-banner-th"
+                    style={{ '--phase-color': span.color }}
+                  >
+                    {span.label}
+                  </th>
+                ))}
+              </tr>
+
+              {/* ── Date columns row ───────────────────────────────────────────── */}
+              <tr>
                 {colSpecs.map(spec => {
                   if (spec.type === 'summary') {
                     return (
