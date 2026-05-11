@@ -154,10 +154,10 @@ export default function ProjectListPage({
                   <div className="projlist-members">
                     {isLoading ? (
                       <div className="projlist-members-loading">Loading team…</div>
-                    ) : members.length === 0 ? (
-                      <div className="projlist-members-empty">No members found.</div>
+                    ) : members.filter(m => m.role !== 'owner').length === 0 ? (
+                      <div className="projlist-members-empty">No admin assigned.</div>
                     ) : (
-                      members.map(m => {
+                      members.filter(m => m.role !== 'owner').map(m => {
                         const rs = ROLE_COLORS[m.role] ?? ROLE_COLORS.member
                         const firstName = m.profile?.first_name ?? ''
                         const lastName  = m.profile?.last_name  ?? ''
