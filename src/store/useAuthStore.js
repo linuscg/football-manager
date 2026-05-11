@@ -2,18 +2,28 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 export function useAuthStore() {
-  const [session, setSession] = useState(undefined) // undefined = still loading
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState(null)
+  const [session,          setSession]          = useState(undefined) // undefined = still loading
+  const [passwordRecovery, setPasswordRecovery] = useState(false)
+  const [loading,          setLoading]          = useState(false)
+  const [error,            setError]            = useState(null)
 
   useEffect(() => {
-    // Get current session on mount
+    // Get current session on mount — but don't override a recovery state
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session ?? null)
     })
 
-    // Listen for sign-in / sign-out
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Listen for auth events — intercept PASSWORD_RECOVERY so we can
+    // show the "set new password" screen instead of the main app
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordRecovery(true)
+      } else if (event === 'USER_UPDATED') {
+        // Password was successfully updated — clear recovery mode and carry on
+        setPasswordRecovery(false)
+      } else {
+        setPasswordRecovery(false)
+      }
       setSession(session ?? null)
     })
 
@@ -32,5 +42,5 @@ export function useAuthStore() {
     await supabase.auth.signOut()
   }
 
-  return { session, loading, error, signIn, signOut }
+  return { session, passwordRecovery, loading, error, signIn, signOut }
 }

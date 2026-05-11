@@ -6,6 +6,7 @@ import LandingPage           from './modules/LandingPage'
 import Login                 from './modules/Login'
 import RequestInvite         from './modules/RequestInvite'
 import AcceptInvite          from './modules/AcceptInvite'
+import SetNewPassword        from './modules/SetNewPassword'
 import InviteRequestsPage    from './modules/InviteRequestsPage'
 import Schedule              from './modules/Schedule'
 import CrewGantt             from './modules/CrewGantt'
@@ -146,7 +147,7 @@ function UnderConstruction({ label }) {
 // ─── Auth shell (handles session check, renders login or the real app) ────────
 
 export default function App() {
-  const { session, loading: authLoading, error: authError, signIn, signOut } = useAuthStore()
+  const { session, passwordRecovery, loading: authLoading, error: authError, signIn, signOut } = useAuthStore()
   const [unauthView, setUnauthView] = useState('landing')
 
   // Detect invite token in URL (?invite=TOKEN)
@@ -161,6 +162,12 @@ export default function App() {
         Loading…
       </div>
     )
+  }
+
+  // Password-reset link was clicked — show "set new password" screen
+  // (must come before the invite check so the recovery flow is never skipped)
+  if (session && passwordRecovery) {
+    return <SetNewPassword />
   }
 
   // If there's a valid invite token and the user is authenticated (via magic link), show accept flow
