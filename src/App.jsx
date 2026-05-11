@@ -328,7 +328,8 @@ function AppShell({ session, signOut }) {
 
   async function handleCreateProduction() {
     setProdMenuOpen(false)
-    await createProduction()
+    const newId = await createProduction()
+    if (!newId) return   // creation failed — stay where we are
     navigateTopTab('setup')
     navigateSetup('setup-main')
   }

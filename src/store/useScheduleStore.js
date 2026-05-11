@@ -307,12 +307,22 @@ export function useScheduleStore() {
   }
 
   async function createProduction() {
-    const { data, error: err } = await supabase
-      .from('production').insert({ name: 'New Production' }).select().single()
-    if (err) { console.error('[store] create production:', err); return }
+    // Generate the ID client-side so we can fetch after the insert.
+    // We can't use insert().select() because RETURNING runs before the
+    // handle_new_production trigger fires, so RLS blocks the read-back.
+    const newId = crypto.randomUUID()
+    const { error: insertErr } = await supabase
+      .from('production').insert({ id: newId, name: 'New Production' })
+    if (insertErr) { console.error('[store] create production:', insertErr); return null }
+
+    // By now the trigger has added us to production_members — safe to SELECT
+    const { data, error: fetchErr } = await supabase
+      .from('production').select('id, name').eq('id', newId).single()
+    if (fetchErr) { console.error('[store] fetch new production:', fetchErr); return null }
+
     setProductions(ps => [...ps, mapProductionSummary(data)])
-    setCurrentProductionId(data.id)
-    // loadAll fires via onProductionChange listener
+    setCurrentProductionId(newId)
+    return newId
   }
 
   async function deleteProduction(id) {
