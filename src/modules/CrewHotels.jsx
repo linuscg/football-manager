@@ -121,10 +121,12 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     () => localStorage.getItem('fm_ch_past') === 'true'
   )
 
-  const isPainting  = useRef(false)
-  const scrollRef   = useRef(null)
-  const scrollTimer = useRef(null)
-  const scrollDone  = useRef(false)
+  const isDraggingRef   = useRef(false)
+  const dragActionRef   = useRef(null)   // hotelId locked in for the whole drag session
+  const paintedInDrag   = useRef(new Set())
+  const scrollRef       = useRef(null)
+  const scrollTimer     = useRef(null)
+  const scrollDone      = useRef(false)
 
   // Always-fresh refs so callbacks never go stale
   const selectedIdxRef = useRef(selectedIdx)
@@ -217,9 +219,13 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  // Stop painting on mouseup
+  // Stop drag on mouseup anywhere in the window (same pattern as CrewGantt)
   useEffect(() => {
-    const stop = () => { isPainting.current = false }
+    function stop() {
+      if (!isDraggingRef.current) return
+      isDraggingRef.current = false
+      paintedInDrag.current = new Set()
+    }
     window.addEventListener('mouseup', stop)
     return () => window.removeEventListener('mouseup', stop)
   }, [])
@@ -250,29 +256,34 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     }, 150)
   }
 
-  // Use refs so callbacks are always stable and never stale
-  const onCellMouseDown = useCallback((crewId, crewType, date) => {
-    isPainting.current = true
+  // Drag-paint logic — mirrors CrewGantt pattern exactly:
+  // • mousedown locks in the action (hotelId or null) for the whole drag session
+  // • mouseenter applies that locked action; skips cells already painted this session
+  // • drag stops only on window mouseup — NOT on table mouseleave
+
+  function onCellMouseDown(crewId, crewType, date) {
+    isDraggingRef.current = true
+    paintedInDrag.current = new Set()
+
     const idx     = selectedIdxRef.current
     const hotelId = idx === -1 ? null : (hotelsRef.current[idx]?.id ?? null)
     const key     = `${crewId}|${crewType}|${date}`
-    if (hotelId === null) {
-      // Clear mode: always erase
-      setAssignment(crewId, crewType, date, null)
-    } else if (assignMapRef.current[key] === hotelId) {
-      // Same hotel already painted: toggle off
-      setAssignment(crewId, crewType, date, null)
-    } else {
-      setAssignment(crewId, crewType, date, hotelId)
-    }
-  }, [setAssignment])
 
-  const onCellMouseEnter = useCallback((crewId, crewType, date) => {
-    if (!isPainting.current) return
-    const idx     = selectedIdxRef.current
-    const hotelId = idx === -1 ? null : (hotelsRef.current[idx]?.id ?? null)
-    setAssignment(crewId, crewType, date, hotelId)
-  }, [setAssignment])
+    // Toggle off if same hotel already painted; otherwise apply
+    const alreadyThis = assignMapRef.current[key] === hotelId && hotelId !== null
+    dragActionRef.current = alreadyThis ? null : hotelId
+
+    paintedInDrag.current.add(key)
+    setAssignment(crewId, crewType, date, dragActionRef.current)
+  }
+
+  function onCellMouseEnter(crewId, crewType, date) {
+    if (!isDraggingRef.current) return
+    const key = `${crewId}|${crewType}|${date}`
+    if (paintedInDrag.current.has(key)) return
+    paintedInDrag.current.add(key)
+    setAssignment(crewId, crewType, date, dragActionRef.current)
+  }
 
   function togglePhase(phaseId) {
     setCollapsedPhases(prev => {
@@ -391,7 +402,6 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
         <table
           className="ch-gantt"
           draggable="false"
-          onMouseLeave={() => { isPainting.current = false }}
         >
           <colgroup>
             <col className="ch-col-name" />
