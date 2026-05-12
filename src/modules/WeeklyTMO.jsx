@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAccommodationStore } from '../store/useAccommodationStore'
 import { useFulltimeCrewStore }  from '../store/useFulltimeCrewStore'
 import { useCrewStore }          from '../store/useCrewStore'
@@ -63,25 +63,69 @@ export default function WeeklyTMO({ production, castMembers = [] }) {
 
   const allSundays = useMemo(() => getAllSundays(prodStart, prodEnd), [prodStart, prodEnd])
 
+  // Week — prefer localStorage, fall back to current week, then first week
   const [weekStart, setWeekStart] = useState(() => {
-    const tw = getSundayOf(today)
-    return allSundays.find(s => s === tw) ?? (allSundays[0] ?? tw)
+    const saved = localStorage.getItem('fm_tmo_week')
+    const tw    = getSundayOf(today)
+    return saved ?? tw
   })
 
-  const [selectedHotelId, setSelectedHotelId] = useState(() => hotels[0]?.id ?? null)
+  // Hotel — prefer localStorage, fall back to first hotel (set via effect once hotels load)
+  const [selectedHotelId, setSelectedHotelId] = useState(
+    () => localStorage.getItem('fm_tmo_hotel') ?? null
+  )
+
+  // Once hotels are loaded, make sure selectedHotelId points to a real hotel
+  useEffect(() => {
+    if (hotels.length === 0) return
+    const valid = hotels.find(h => h.id === selectedHotelId)
+    if (!valid) {
+      const id = hotels[0].id
+      setSelectedHotelId(id)
+      localStorage.setItem('fm_tmo_hotel', id)
+    }
+  }, [hotels]) // eslint-disable-line
+
+  // Once sundays are computed, snap weekStart to a valid sunday if needed
+  useEffect(() => {
+    if (allSundays.length === 0) return
+    if (!allSundays.includes(weekStart)) {
+      const tw    = getSundayOf(today)
+      const match = allSundays.find(s => s === tw) ?? allSundays[0]
+      setWeekStart(match)
+      localStorage.setItem('fm_tmo_week', match)
+    }
+  }, [allSundays]) // eslint-disable-line
 
   // The 7 dates in the selected week (Sun → Sat)
   const weekDates    = useMemo(() => [0,1,2,3,4,5,6].map(n => addDays(weekStart, n)), [weekStart])
   const weekDatesSet = useMemo(() => new Set(weekDates), [weekDates])
 
-  // Navigate weeks
+  // Navigate weeks (persist to localStorage)
   const weekIdx = allSundays.indexOf(weekStart)
-  function prevWeek()       { if (weekIdx > 0)                     setWeekStart(allSundays[weekIdx - 1]) }
-  function nextWeek()       { if (weekIdx < allSundays.length - 1) setWeekStart(allSundays[weekIdx + 1]) }
+  function prevWeek() {
+    if (weekIdx <= 0) return
+    const w = allSundays[weekIdx - 1]
+    setWeekStart(w); localStorage.setItem('fm_tmo_week', w)
+  }
+  function nextWeek() {
+    if (weekIdx >= allSundays.length - 1) return
+    const w = allSundays[weekIdx + 1]
+    setWeekStart(w); localStorage.setItem('fm_tmo_week', w)
+  }
   function jumpToThisWeek() {
-    const tw = getSundayOf(today)
+    const tw    = getSundayOf(today)
     const match = allSundays.find(s => s === tw)
-    if (match) setWeekStart(match)
+    if (match) { setWeekStart(match); localStorage.setItem('fm_tmo_week', match) }
+  }
+
+  function handleHotelChange(id) {
+    setSelectedHotelId(id)
+    localStorage.setItem('fm_tmo_hotel', id)
+  }
+  function handleWeekChange(w) {
+    setWeekStart(w)
+    localStorage.setItem('fm_tmo_week', w)
   }
 
   // Build table rows: everyone in selectedHotel during the week
@@ -185,7 +229,7 @@ export default function WeeklyTMO({ production, castMembers = [] }) {
           <select
             className="tmo-select"
             value={weekStart}
-            onChange={e => setWeekStart(e.target.value)}
+            onChange={e => handleWeekChange(e.target.value)}
           >
             {allSundays.map(s => (
               <option key={s} value={s}>{formatWeekLabel(s)}</option>
@@ -216,7 +260,7 @@ export default function WeeklyTMO({ production, castMembers = [] }) {
           <select
             className="tmo-select tmo-select--hotel"
             value={selectedHotelId ?? ''}
-            onChange={e => setSelectedHotelId(e.target.value)}
+            onChange={e => handleHotelChange(e.target.value)}
           >
             {hotels.map((h, i) => (
               <option key={h.id} value={h.id}>{h.name || `Hotel ${i + 1}`}</option>

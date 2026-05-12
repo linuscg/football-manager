@@ -116,8 +116,9 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
   const [selectedIdx,     setSelectedIdx]     = useState(0)
   const [collapsedPhases, setCollapsedPhases] = useState({})
   const [collapsePast,    setCollapsePast]    = useState(false)
-  const isPainting = useRef(false)
-  const isErasing  = useRef(false)
+  const isPainting  = useRef(false)
+  const scrollRef   = useRef(null)
+  const scrollTimer = useRef(null)
 
   const loading = accLoading || ftLoading || crewLoading
   const today   = todayStr()
@@ -200,40 +201,57 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  // Stop all painting on mouseup
+  // Stop painting on mouseup
   useEffect(() => {
-    const stop = () => { isPainting.current = false; isErasing.current = false }
+    const stop = () => { isPainting.current = false }
     window.addEventListener('mouseup', stop)
     return () => window.removeEventListener('mouseup', stop)
   }, [])
 
+  // Restore scroll position on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('fm_ch_scroll')
+    if (saved && scrollRef.current) {
+      try {
+        const [left, top] = JSON.parse(saved)
+        scrollRef.current.scrollLeft = left
+        scrollRef.current.scrollTop  = top
+      } catch { /* ignore */ }
+    }
+  }, [])
+
+  function onGanttScroll() {
+    clearTimeout(scrollTimer.current)
+    scrollTimer.current = setTimeout(() => {
+      if (scrollRef.current) {
+        localStorage.setItem('fm_ch_scroll', JSON.stringify([
+          scrollRef.current.scrollLeft,
+          scrollRef.current.scrollTop,
+        ]))
+      }
+    }, 150)
+  }
+
   function paintCell(crewId, crewType, date) {
     const hotelId = selectedIdx === -1 ? null : (hotels[selectedIdx]?.id ?? null)
     const key     = `${crewId}|${crewType}|${date}`
+    // Toggle: clicking a cell that already has the selected hotel clears it
     if (assignMap[key] === hotelId && hotelId !== null) {
-      setAssignment(crewId, crewType, date, null)   // toggle off
+      setAssignment(crewId, crewType, date, null)
     } else {
       setAssignment(crewId, crewType, date, hotelId)
     }
   }
 
-  const onCellMouseDown = useCallback((crewId, crewType, date, btn) => {
-    if (btn === 2) {
-      isErasing.current = true
-      setAssignment(crewId, crewType, date, null)
-    } else {
-      isPainting.current = true
-      paintCell(crewId, crewType, date)
-    }
+  const onCellMouseDown = useCallback((crewId, crewType, date) => {
+    isPainting.current = true
+    paintCell(crewId, crewType, date)
   }, [selectedIdx, hotels, assignMap]) // eslint-disable-line
 
   const onCellMouseEnter = useCallback((crewId, crewType, date) => {
-    if (isErasing.current) {
-      setAssignment(crewId, crewType, date, null)
-    } else if (isPainting.current) {
-      const hotelId = selectedIdx === -1 ? null : (hotels[selectedIdx]?.id ?? null)
-      setAssignment(crewId, crewType, date, hotelId)
-    }
+    if (!isPainting.current) return
+    const hotelId = selectedIdx === -1 ? null : (hotels[selectedIdx]?.id ?? null)
+    setAssignment(crewId, crewType, date, hotelId)
   }, [selectedIdx, hotels, setAssignment])
 
   function togglePhase(phaseId) {
@@ -292,7 +310,7 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
         {/* Eraser */}
         <button
           className={`ch-palette-btn ch-palette-btn--clear${selectedIdx === -1 ? ' is-active' : ''}`}
-          title="Clear hotel (` key) — right-click any cell also erases"
+          title="Clear hotel (` key)"
           onClick={() => setSelectedIdx(-1)}
         >
           <span className="ch-palette-icon">○</span>
@@ -332,17 +350,16 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
 
         <div className="ch-palette-hint">
           {selectedIdx === -1
-            ? 'Click / drag to clear · right-click also clears'
-            : `Painting: ${selectedHotel?.name || `Hotel ${selectedIdx + 1}`} · right-click to erase`}
+            ? 'Click or drag to clear'
+            : `Painting: ${selectedHotel?.name || `Hotel ${selectedIdx + 1}`}`}
         </div>
       </div>
 
       {/* ── Gantt table ──────────────────────────────────────────────────────── */}
-      <div className="ch-gantt-outer">
+      <div className="ch-gantt-outer" ref={scrollRef} onScroll={onGanttScroll}>
         <table
           className="ch-gantt"
-          onMouseLeave={() => { isPainting.current = false; isErasing.current = false }}
-          onContextMenu={e => e.preventDefault()}
+          onMouseLeave={() => { isPainting.current = false }}
         >
           <colgroup>
             <col className="ch-col-name" />
@@ -548,7 +565,7 @@ function CrewRow({
               isMonday  ? 'ch-td-cell--monday'  : '',
             ].filter(Boolean).join(' ')}
             style={color ? { background: color + '33', borderColor: color } : {}}
-            onMouseDown={isValid ? e => onMouseDown(crewId, crewType, date, e.button) : undefined}
+            onMouseDown={isValid ? () => onMouseDown(crewId, crewType, date) : undefined}
             onMouseEnter={isValid ? () => onMouseEnter(crewId, crewType, date) : undefined}
           >
             {hotel && (
