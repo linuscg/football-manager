@@ -390,6 +390,7 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
       <div className="ch-gantt-outer" ref={scrollRef} onScroll={onGanttScroll}>
         <table
           className="ch-gantt"
+          draggable="false"
           onMouseLeave={() => { isPainting.current = false }}
         >
           <colgroup>
@@ -596,7 +597,7 @@ function CrewRow({
               isMonday  ? 'ch-td-cell--monday'  : '',
             ].filter(Boolean).join(' ')}
             style={color ? { background: color + '33', borderColor: color } : {}}
-            onMouseDown={isValid ? () => onMouseDown(crewId, crewType, date) : undefined}
+            onMouseDown={isValid ? e => { e.preventDefault(); onMouseDown(crewId, crewType, date) } : undefined}
             onMouseEnter={isValid ? () => onMouseEnter(crewId, crewType, date) : undefined}
           >
             {hotel && (
