@@ -7280,7 +7280,7 @@ select.pm-input { cursor: pointer; }
 /* ── Header row ── */
 .ch-header-row {
   position: sticky;
-  top: 0;
+  top: 28px;   /* sits below the phase-row which is 28px tall */
   z-index: 10;
 }
 
@@ -7290,6 +7290,13 @@ select.pm-input { cursor: pointer; }
   position: sticky;
   left: 0;
   z-index: 11;
+}
+
+/* Corner cell sits in the phase row — must be above both sticky rows */
+.ch-th-corner {
+  background: #fff;
+  z-index: 12;
+  border-right: 2px solid #e5e7eb;
 }
 
 .ch-th-date {
@@ -7465,7 +7472,7 @@ select.pm-input { cursor: pointer; }
 }
 
 /* ── Phase header row ── */
-.ch-phase-row { position: sticky; top: 0; z-index: 11; }
+.ch-phase-row { position: sticky; top: 0; z-index: 11; height: 28px; }
 
 .ch-th-corner {
   background: #fff;
