@@ -24,23 +24,35 @@ function mapAssignment(row) {
 }
 
 export function useAccommodationStore() {
-  const [hotels,      setHotels]      = useState([])
-  const [assignments, setAssignments] = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [error,       setError]       = useState(null)
+  const [hotels,       setHotels]       = useState([])
+  const [assignments,  setAssignments]  = useState([])
+  const [travelTimes,  setTravelTimesData] = useState({}) // { "hotelId|loc": "value" }
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState(null)
 
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
     try {
-      const [{ data: hData, error: hErr }, { data: aData, error: aErr }] = await Promise.all([
+      const [
+        { data: hData, error: hErr },
+        { data: aData, error: aErr },
+        { data: tData },               // travel times — ignore error if table missing
+      ] = await Promise.all([
         supabase.from('hotels').select('*').eq('production_id', prodId).order('sort_order'),
         supabase.from('crew_hotel_assignments').select('*').eq('production_id', prodId),
+        supabase.from('hotel_travel_times').select('*').eq('production_id', prodId),
       ])
       if (hErr) throw hErr
       if (aErr) throw aErr
       setHotels((hData ?? []).map(mapHotel))
       setAssignments((aData ?? []).map(mapAssignment))
+      // Build travel times lookup
+      const ttMap = {}
+      for (const row of tData ?? []) {
+        ttMap[`${row.hotel_id}|${row.location_name}`] = row.travel_time ?? ''
+      }
+      setTravelTimesData(ttMap)
       setError(null)
     } catch (err) {
       console.error('[accommodation store]', err)
@@ -56,6 +68,7 @@ export function useAccommodationStore() {
     const channel = supabase.channel('accommodation_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hotels' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'crew_hotel_assignments' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hotel_travel_times' }, loadAll)
       .subscribe()
     return () => { unsub(); supabase.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -116,9 +129,32 @@ export function useAccommodationStore() {
     }
   }
 
+  // ── Travel times ──────────────────────────────────────────────────────────────
+
+  async function setTravelTime(hotelId, location, value) {
+    const prodId = getCurrentProductionId()
+    const key    = `${hotelId}|${location}`
+    setTravelTimesData(prev => ({ ...prev, [key]: value }))
+
+    if (!value.trim()) {
+      await supabase.from('hotel_travel_times')
+        .delete()
+        .eq('production_id', prodId)
+        .eq('hotel_id', hotelId)
+        .eq('location_name', location)
+    } else {
+      await supabase.from('hotel_travel_times').upsert({
+        production_id: prodId,
+        hotel_id:      hotelId,
+        location_name: location,
+        travel_time:   value,
+      }, { onConflict: 'production_id,hotel_id,location_name' })
+    }
+  }
+
   return {
-    hotels, assignments, loading, error,
+    hotels, assignments, travelTimes, loading, error,
     addHotel, updateHotel, deleteHotel,
-    setAssignment,
+    setAssignment, setTravelTime,
   }
 }

@@ -15,7 +15,7 @@ export function hotelColor(index) {
 // ── Inline-editable hotel row ──────────────────────────────────────────────────
 
 function HotelRow({ hotel, index, onUpdate, onDelete }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const color = hotelColor(index)
 
   // Keyboard shortcut label

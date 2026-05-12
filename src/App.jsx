@@ -23,6 +23,8 @@ import ProjectListPage       from './modules/ProjectListPage'
 import AdminPage             from './modules/AdminPage'
 import HotelList             from './modules/HotelList'
 import CrewHotels            from './modules/CrewHotels'
+import WeeklyTMO             from './modules/WeeklyTMO'
+import TravelTimes           from './modules/TravelTimes'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -73,17 +75,17 @@ const FM_MODULE_SUB = {
 // ─── Accommodation nav ────────────────────────────────────────────────────────
 
 const ACCOMM_NAV = [
-  { id: 'accomm-hotels',  num: '01', label: 'Hotel List'   },
-  { id: 'accomm-crew',    num: '02', label: 'Crew Hotels'  },
-  { id: 'accomm-tmo',     num: '03', label: 'Weekly TMO'   },
-  { id: 'accomm-travel',  num: '04', label: 'Travel Times' },
+  { id: 'accomm-hotels',  num: '01', label: 'Hotel List'          },
+  { id: 'accomm-crew',    num: '02', label: 'Cast & Crew Hotels'  },
+  { id: 'accomm-tmo',     num: '03', label: 'Weekly TMO'          },
+  { id: 'accomm-travel',  num: '04', label: 'Travel Times'        },
 ]
 
 const ACCOMM_MODULE_SUB = {
   'accomm-hotels': 'Hotel list',
-  'accomm-crew':   'Crew hotel gantt',
+  'accomm-crew':   'Cast & crew hotel gantt',
   'accomm-tmo':    'Weekly TMO',
-  'accomm-travel': 'Travel times',
+  'accomm-travel': 'Hotel → location travel times',
 }
 
 // ─── Catering nav ────────────────────────────────────────────────────────────
@@ -654,13 +656,20 @@ function AppShell({ session, signOut }) {
               <HotelList />
             )}
             {topTab === 'accomm' && accommModule === 'accomm-crew' && (
-              <CrewHotels production={store.production} />
+              <CrewHotels
+                production={store.production}
+                shootDays={store.shootDays}
+                castMembers={store.castMembers}
+              />
             )}
             {topTab === 'accomm' && accommModule === 'accomm-tmo' && (
-              <UnderConstruction label="Weekly TMO" />
+              <WeeklyTMO
+                production={store.production}
+                castMembers={store.castMembers}
+              />
             )}
             {topTab === 'accomm' && accommModule === 'accomm-travel' && (
-              <UnderConstruction label="Travel Times" />
+              <TravelTimes shootDays={store.shootDays} />
             )}
 
           </div>
