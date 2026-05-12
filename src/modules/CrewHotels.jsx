@@ -129,10 +129,9 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
   // Always-fresh refs so callbacks never go stale
   const selectedIdxRef = useRef(selectedIdx)
   const hotelsRef      = useRef(hotels)
-  const assignMapRef   = useRef(assignMap)
+  const assignMapRef   = useRef({})           // initialised empty; updated after useMemo below
   selectedIdxRef.current = selectedIdx
   hotelsRef.current      = hotels
-  assignMapRef.current   = assignMap
 
   const loading = accLoading || ftLoading || crewLoading
   const today   = todayStr()
@@ -150,6 +149,9 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     for (const a of assignments) m[`${a.crewId}|${a.crewType}|${a.date}`] = a.hotelId
     return m
   }, [assignments])
+
+  // Keep ref in sync (must be after assignMap useMemo)
+  assignMapRef.current = assignMap
 
   // Additional crew valid dates (booked dates ±1)
   const additionalValidDates = useMemo(() => {
