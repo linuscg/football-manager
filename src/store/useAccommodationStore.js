@@ -136,6 +136,35 @@ export function useAccommodationStore() {
     }
   }
 
+  // ── Move hotel assignments (schedule date move) ───────────────────────────────
+  // dateMoves: [{ oldDate, newDate }]
+  // Returns undoPayload: [{ assignmentId, oldDate }]
+
+  async function moveHotelAssignments(dateMoves) {
+    const undoPayload = []
+
+    for (const { oldDate, newDate } of dateMoves) {
+      const affected = assignments.filter(a => a.date === oldDate)
+
+      for (const assignment of affected) {
+        undoPayload.push({ assignmentId: assignment.id, oldDate: assignment.date })
+
+        // Optimistic update
+        setAssignments(as => as.map(a =>
+          a.id === assignment.id ? { ...a, date: newDate } : a
+        ))
+
+        // DB write
+        supabase.from('crew_hotel_assignments').update({ date: newDate }).eq('id', assignment.id)
+          .then(({ error: err }) => {
+            if (err) { console.error('[accommodation store] moveHotelAssignments:', err); loadAll() }
+          })
+      }
+    }
+
+    return undoPayload
+  }
+
   // ── Travel times ──────────────────────────────────────────────────────────────
 
   async function setTravelTime(hotelId, location, value) {
@@ -163,5 +192,6 @@ export function useAccommodationStore() {
     hotels, assignments, travelTimes, loading, error,
     addHotel, updateHotel, deleteHotel,
     setAssignment, setTravelTime,
+    moveHotelAssignments,
   }
 }

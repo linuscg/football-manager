@@ -14,8 +14,9 @@ const PAINT_MODES = [
   { value: 'booked',      label: 'Confirmed', icon: '✓', key: 'C',   color: '#16a34a', bg: '#dcfce7' },
   { value: 'hold',        label: 'On Hold',   icon: 'H', key: 'H',   color: '#d97706', bg: '#fef3c7' },
   { value: 'unavailable', label: 'Unavail.',  icon: '✕', key: 'V',   color: '#dc2626', bg: '#fee2e2' },
-  { value: 'cancelled',   label: 'Cancelled', icon: '✗', key: 'X',   color: '#374151', bg: '#f3f4f6' },
-  { value: null,          label: 'Clear',     icon: '○', key: 'Esc', color: '#9ca3af', bg: '#ffffff' },
+  { value: 'cancelled',    label: 'Cancelled',    icon: '✗', key: 'X',   color: '#374151', bg: '#f3f4f6' },
+  { value: 'to_reconfirm', label: 'To Reconfirm', icon: '↻', key: 'R',   color: '#b45309', bg: '#fef3c7' },
+  { value: null,           label: 'Clear',        icon: '○', key: 'Esc', color: '#9ca3af', bg: '#ffffff' },
 ]
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────

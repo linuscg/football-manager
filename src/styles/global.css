@@ -7899,3 +7899,71 @@ select.pm-input { cursor: pointer; }
 }
 
 .invreq-result--err { color: #dc2626; }
+
+/* ── Schedule selection & move UI ─────────────────────────────────────────── */
+.schedule-day-select {
+  width: 16px; height: 16px;
+  margin-right: 8px; flex-shrink: 0;
+  cursor: pointer; accent-color: #2563eb;
+}
+
+.schedule-action-bar {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1e293b; color: #fff; border-radius: 12px;
+  padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3); z-index: 200;
+  white-space: nowrap;
+}
+.schedule-action-count { font-weight: 600; font-size: 14px; }
+.schedule-action-group { display: flex; align-items: center; gap: 8px; }
+.schedule-action-label { font-size: 13px; opacity: 0.8; }
+.schedule-action-date {
+  background: #334155; color: #fff; border: 1px solid #475569;
+  border-radius: 6px; padding: 4px 8px; font-size: 13px; cursor: pointer;
+}
+.schedule-action-clear {
+  background: transparent; color: #94a3b8; border: none;
+  font-size: 13px; cursor: pointer; padding: 4px 8px;
+}
+.schedule-action-clear:hover { color: #fff; }
+
+.schedule-undo-toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: #1e293b; color: #fff; border-radius: 10px;
+  padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25); z-index: 200; font-size: 14px;
+}
+.schedule-undo-toast button {
+  background: #2563eb; color: #fff; border: none;
+  border-radius: 6px; padding: 4px 12px; font-size: 13px;
+  cursor: pointer; font-weight: 500;
+}
+
+/* ── MoveScheduleModal ───────────────────────────────────────────────────── */
+.move-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center; z-index: 300;
+}
+.move-modal {
+  background: #fff; border-radius: 14px; padding: 28px 32px;
+  width: 560px; max-width: 95vw; max-height: 80vh;
+  overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+.move-modal-title { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+.move-modal-sub { font-size: 13px; color: #6b7280; margin: 0 0 20px; }
+.move-modal-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+.move-modal-table th { text-align: left; padding: 6px 10px; color: #6b7280; font-weight: 500; border-bottom: 1px solid #e5e7eb; }
+.move-modal-table td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; }
+.move-modal-shunt td { color: #9ca3af; font-style: italic; }
+.move-modal-badge { font-size: 10px; background: #f3f4f6; color: #6b7280; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+.move-modal-summary { background: #f8fafc; border-radius: 8px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; }
+.move-modal-warning { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #92400e; margin-bottom: 16px; }
+.move-modal-renumber { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 20px; cursor: pointer; }
+.move-modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* to_reconfirm gantt cell */
+.gantt-cell--to_reconfirm {
+  background: #fef3c7 !important;
+  border-color: #d97706 !important;
+  color: #92400e;
+}

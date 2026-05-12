@@ -802,6 +802,75 @@ export function useScheduleStore() {
     return { count: newDays.length }
   }
 
+  // ── Schedule move (cascade) ────────────────────────────────────────────────
+  // dayMoves: [{ dayId, oldDate, newDate, isShunt }]
+  // logChanges: [{ dayId, dayNumber, dayLabel, dayCategory, oldDate, newDate }]
+  // userId: string
+
+  async function executeScheduleMove({ dayMoves, logChanges, userId }) {
+    const prodId = getCurrentProductionId()
+
+    // 1. Optimistic update: patch shoot day dates in state
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d => {
+        const move = dayMoves.find(m => m.dayId === d.id)
+        if (!move) return d
+        return { ...d, date: move.newDate }
+      }),
+    }))
+
+    // 2. DB writes for shoot_days
+    await Promise.all(
+      dayMoves.map(m =>
+        supabase.from('shoot_days').update({ date: m.newDate }).eq('id', m.dayId)
+      )
+    )
+
+    // 3. Write audit log entries
+    if (logChanges && logChanges.length > 0) {
+      const rows = logChanges.map(lc => ({
+        production_id: prodId,
+        changed_by:    userId ?? null,
+        day_id:        lc.dayId,
+        day_number:    lc.dayNumber ?? null,
+        day_label:     lc.dayLabel  ?? null,
+        day_category:  lc.dayCategory ?? 'main',
+        old_date:      lc.oldDate,
+        new_date:      lc.newDate,
+        change_type:   'date_move',
+      }))
+      const { error: auditErr } = await supabase.from('schedule_changes').insert(rows)
+      if (auditErr) console.warn('[store] audit log write failed (non-fatal):', auditErr)
+    }
+
+    return { dayMoves }
+  }
+
+  // Resequence main unit day numbers 1, 2, 3… in chronological date order
+  async function resequenceDayNumbers() {
+    const mainDays = store.shootDays
+      .filter(d => d.dayCategory === 'main' && d.date)
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    // Optimistic update
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d => {
+        const idx = mainDays.findIndex(m => m.id === d.id)
+        if (idx === -1) return d
+        return { ...d, dayNumber: idx + 1 }
+      }),
+    }))
+
+    // DB writes
+    await Promise.all(
+      mainDays.map((d, i) =>
+        supabase.from('shoot_days').update({ day_number: i + 1 }).eq('id', d.id)
+      )
+    )
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
@@ -813,6 +882,7 @@ export function useScheduleStore() {
     addShootDay, deleteShootDay, updateShootDay,
     addPrepDay, addSplinterDay,
     moveDayUp, moveDayDown, reorderDays,
+    executeScheduleMove, resequenceDayNumbers,
     addScene, deleteScene, updateScene,
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra,

@@ -198,7 +198,7 @@ export function useCrewStore() {
 
   // ── Bookings ───────────────────────────────────────────────────────────────
 
-  const CYCLE = ['booked', 'hold', 'unavailable', 'cancelled']
+  const CYCLE = ['booked', 'hold', 'unavailable', 'cancelled', 'to_reconfirm']
 
   async function toggleBooking(resourceId, dateStr) {
     const existing = bookings.find(b => b.resourceId === resourceId && b.date === dateStr)
@@ -272,6 +272,58 @@ export function useCrewStore() {
     }
   }
 
+  // ── Move bookings (schedule date move) ───────────────────────────────────
+  // dateMoves: [{ oldDate, newDate, oldDayId?, newDayId? }]
+  // Returns undoPayload: [{ bookingId, oldDate, oldDayId, oldStatus }]
+
+  async function moveBookings(dateMoves) {
+    const undoPayload = []
+
+    for (const { oldDate, newDate, oldDayId, newDayId } of dateMoves) {
+      // Find all bookings on the old date matching the unit type
+      const affected = bookings.filter(b => {
+        if (oldDayId) return b.dayId === oldDayId
+        return b.date === oldDate && !b.dayId
+      })
+
+      for (const booking of affected) {
+        const resource = resources.find(r => r.id === booking.resourceId)
+        // Determine new status: keep as-is if new date falls within hire range
+        let newStatus = 'to_reconfirm'
+        if (resource && resource.hireStartDate && resource.hireEndDate) {
+          if (newDate >= resource.hireStartDate && newDate <= resource.hireEndDate) {
+            newStatus = booking.status
+          }
+        }
+
+        undoPayload.push({
+          bookingId: booking.id,
+          oldDate:   booking.date,
+          oldDayId:  booking.dayId,
+          oldStatus: booking.status,
+        })
+
+        // Optimistic update
+        optB(bs => bs.map(b =>
+          b.id === booking.id
+            ? { ...b, date: newDate, dayId: newDayId ?? b.dayId, status: newStatus }
+            : b
+        ))
+
+        // DB write
+        const patch = {
+          booking_date: newDate,
+          status: newStatus,
+        }
+        if (newDayId !== undefined) patch.day_id = newDayId ?? null
+        supabase.from('resource_bookings').update(patch).eq('id', booking.id)
+          .then(({ error: err }) => { if (err) { console.error('[crew store] moveBookings:', err); loadAll() } })
+      }
+    }
+
+    return undoPayload
+  }
+
   // ── Reorder ────────────────────────────────────────────────────────────────
 
   async function _reorder(list) {
@@ -306,6 +358,7 @@ export function useCrewStore() {
     addResource, deleteResource, updateResource,
     importResources,
     toggleBooking, setBooking,
+    moveBookings,
     moveResourceUp, moveResourceDown,
   }
 }
