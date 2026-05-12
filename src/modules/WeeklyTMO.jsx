@@ -128,33 +128,6 @@ export default function WeeklyTMO({ production, castMembers = [] }) {
     localStorage.setItem('fm_tmo_week', w)
   }
 
-  // Copy table to clipboard
-  const [copied, setCopied] = useState(false)
-  const copyTable = useCallback(async () => {
-    if (!rows.length) return
-    const headers = ['Name', 'Role', 'Type', 'Check In', 'Check Out', 'Nights']
-    const lines   = [
-      headers.join('\t'),
-      ...rows.map(r => [
-        r.name, r.role || '', r.typeLabel,
-        formatDate(r.checkIn), formatDate(r.checkOut), String(r.nights),
-      ].join('\t')),
-    ]
-    const text = lines.join('\n')
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const el = document.createElement('textarea')
-      el.value = text
-      document.body.appendChild(el)
-      el.select()
-      document.execCommand('copy')
-      document.body.removeChild(el)
-    }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }, [rows])
-
   // Build table rows: everyone in selectedHotel during the week
   const rows = useMemo(() => {
     if (!selectedHotelId) return []
@@ -207,6 +180,33 @@ export default function WeeklyTMO({ production, castMembers = [] }) {
       return diff !== 0 ? diff : a.name.localeCompare(b.name)
     })
   }, [selectedHotelId, assignments, weekDatesSet, ftMembers, resources, castMembers])
+
+  // Copy table to clipboard (must be after rows useMemo)
+  const [copied, setCopied] = useState(false)
+  const copyTable = useCallback(async () => {
+    if (!rows.length) return
+    const headers = ['Name', 'Role', 'Type', 'Check In', 'Check Out', 'Nights']
+    const lines   = [
+      headers.join('\t'),
+      ...rows.map(r => [
+        r.name, r.role || '', r.typeLabel,
+        formatDate(r.checkIn), formatDate(r.checkOut), String(r.nights),
+      ].join('\t')),
+    ]
+    const text = lines.join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const el = document.createElement('textarea')
+      el.value = text
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }, [rows])
 
   const selectedHotel    = hotels.find(h => h.id === selectedHotelId)
   const selectedHotelIdx = hotels.indexOf(selectedHotel)
