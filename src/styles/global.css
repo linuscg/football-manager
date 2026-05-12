@@ -7851,5 +7851,44 @@ select.pm-input { cursor: pointer; }
 .tt-time-input::placeholder { color: #d1d5db; }
 .tt-time-input:hover  { background: #f3f4f6; border-color: #e5e7eb; }
 .tt-time-input:focus  { background: #fff; border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
+/* Hide number input spinners */
+.tt-time-input::-webkit-inner-spin-button,
+.tt-time-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.tt-time-input[type=number] { -moz-appearance: textfield; }
+
+.tt-loc-unit {
+  font-size: 9px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+/* TMO copy button and footer */
+.tmo-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tmo-copy-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.tmo-copy-btn:hover { background: #e5e7eb; }
+.tmo-copy-btn.copied {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #16a34a;
+}
 
 .invreq-result--err { color: #dc2626; }

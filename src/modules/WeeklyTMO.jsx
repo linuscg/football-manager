@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAccommodationStore } from '../store/useAccommodationStore'
 import { useFulltimeCrewStore }  from '../store/useFulltimeCrewStore'
 import { useCrewStore }          from '../store/useCrewStore'
@@ -128,6 +128,33 @@ export default function WeeklyTMO({ production, castMembers = [] }) {
     localStorage.setItem('fm_tmo_week', w)
   }
 
+  // Copy table to clipboard
+  const [copied, setCopied] = useState(false)
+  const copyTable = useCallback(async () => {
+    if (!rows.length) return
+    const headers = ['Name', 'Role', 'Type', 'Check In', 'Check Out', 'Nights']
+    const lines   = [
+      headers.join('\t'),
+      ...rows.map(r => [
+        r.name, r.role || '', r.typeLabel,
+        formatDate(r.checkIn), formatDate(r.checkOut), String(r.nights),
+      ].join('\t')),
+    ]
+    const text = lines.join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const el = document.createElement('textarea')
+      el.value = text
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }, [rows])
+
   // Build table rows: everyone in selectedHotel during the week
   const rows = useMemo(() => {
     if (!selectedHotelId) return []
@@ -214,7 +241,15 @@ export default function WeeklyTMO({ production, castMembers = [] }) {
     <div className="tmo-wrap">
 
       {/* ── Controls bar ─────────────────────────────────────────────────────── */}
-      <div className="tmo-controls">
+      <div
+        className="tmo-controls"
+        style={selectedHotel ? {
+          borderColor:     hotelColor(selectedHotelIdx) + '88',
+          background:      `linear-gradient(135deg, ${hotelColor(selectedHotelIdx)}18 0%, #fff 60%)`,
+          borderLeftColor: hotelColor(selectedHotelIdx),
+          borderLeftWidth: '4px',
+        } : {}}
+      >
 
         {/* Week selector */}
         <div className="tmo-control-group">
@@ -319,8 +354,17 @@ export default function WeeklyTMO({ production, castMembers = [] }) {
           </table>
 
           <div className="tmo-footer">
-            {rows.length} {rows.length === 1 ? 'guest' : 'guests'} ·{' '}
-            {selectedHotel?.name || 'hotel'} · {formatWeekLabel(weekStart)}
+            <span>
+              {rows.length} {rows.length === 1 ? 'guest' : 'guests'} ·{' '}
+              {selectedHotel?.name || 'hotel'} · {formatWeekLabel(weekStart)}
+            </span>
+            <button
+              className={`tmo-copy-btn${copied ? ' copied' : ''}`}
+              onClick={copyTable}
+              title="Copy table to clipboard"
+            >
+              {copied ? '✓ Copied' : '⎘ Copy'}
+            </button>
           </div>
         </div>
       )}

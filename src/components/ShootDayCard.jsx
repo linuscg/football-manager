@@ -171,6 +171,7 @@ export default function ShootDayCard({
   additionals = [],
   production = {},
   castMembers = [],
+  allLocations = [],
 }) {
   // Resolve which day type applies and calculate wrap time
   const effectiveDayType = day.dayType || production.defaultDayType || 'SWD'
@@ -449,11 +450,15 @@ export default function ShootDayCard({
             {/* Locations — all day types */}
             <div className="pm-field-group field-full">
               <label className="pm-field-label">Location(s)</label>
+              <datalist id={`locs-${day.id}`}>
+                {allLocations.map(l => <option key={l} value={l} />)}
+              </datalist>
               {(day.locations ?? [day.location ?? '']).map((loc, i) => (
                 <div key={i} className="location-row">
                   <input
                     className="pm-input"
                     type="text"
+                    list={`locs-${day.id}`}
                     value={loc}
                     placeholder={i === 0 ? 'Stage 4A, Prague…' : 'Additional location…'}
                     onChange={e => {

@@ -50,8 +50,7 @@ export default function TravelTimes({ shootDays = [] }) {
         <div>
           <h2 className="tt-title">Travel Times</h2>
           <p className="tt-sub">
-            Estimated travel times between each hotel and shoot location.
-            Enter times in any format (e.g. 45 min, 1:30, 2 hrs).
+            Enter estimated travel times in <strong>minutes</strong> between each hotel and shoot location.
           </p>
         </div>
       </div>
@@ -64,6 +63,7 @@ export default function TravelTimes({ shootDays = [] }) {
               {locations.map(loc => (
                 <th key={loc} className="tt-th-loc">
                   <div className="tt-loc-label" title={loc}>{loc}</div>
+                  <div className="tt-loc-unit">min</div>
                 </th>
               ))}
             </tr>
@@ -82,8 +82,10 @@ export default function TravelTimes({ shootDays = [] }) {
                     <td key={loc} className="tt-td-time">
                       <input
                         className="tt-time-input"
+                        type="number"
+                        min="0"
                         value={val}
-                        placeholder="—"
+                        placeholder="0"
                         onChange={e => setTravelTime(hotel.id, loc, e.target.value)}
                       />
                     </td>

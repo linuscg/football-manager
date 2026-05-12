@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import ShootDayCard from '../components/ShootDayCard'
 import { useCrewStore } from '../store/useCrewStore'
 
@@ -124,6 +124,18 @@ export default function Schedule({ store, actions }) {
     return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
+  // All unique non-empty locations from all shoot days (for datalist autocomplete)
+  const allLocations = useMemo(() => {
+    const s = new Set()
+    for (const d of shootDays) {
+      for (const l of d.locations ?? []) {
+        const t = (l ?? '').trim()
+        if (t) s.add(t)
+      }
+    }
+    return [...s].sort()
+  }, [shootDays])
+
   const today = todayStr()
   const hasTodayCard = shootDays.some(d => d.date === today)
 
@@ -205,6 +217,7 @@ export default function Schedule({ store, actions }) {
                       }
                       production={production}
                       castMembers={castMembers ?? []}
+                      allLocations={allLocations}
                     />
                   </div>
                   <button

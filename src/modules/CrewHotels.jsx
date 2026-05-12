@@ -113,12 +113,26 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
   const { members: ftMembers,  loading: ftLoading  } = useFulltimeCrewStore()
   const { resources, bookings, loading: crewLoading } = useCrewStore()
 
-  const [selectedIdx,     setSelectedIdx]     = useState(0)
-  const [collapsedPhases, setCollapsedPhases] = useState({})
-  const [collapsePast,    setCollapsePast]    = useState(false)
+  const [selectedIdx, setSelectedIdx] = useState(0)
+  const [collapsedPhases, setCollapsedPhases] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('fm_ch_phases') ?? '{}') } catch { return {} }
+  })
+  const [collapsePast, setCollapsePast] = useState(
+    () => localStorage.getItem('fm_ch_past') === 'true'
+  )
+
   const isPainting  = useRef(false)
   const scrollRef   = useRef(null)
   const scrollTimer = useRef(null)
+  const scrollDone  = useRef(false)
+
+  // Always-fresh refs so callbacks never go stale
+  const selectedIdxRef = useRef(selectedIdx)
+  const hotelsRef      = useRef(hotels)
+  const assignMapRef   = useRef(assignMap)
+  selectedIdxRef.current = selectedIdx
+  hotelsRef.current      = hotels
+  assignMapRef.current   = assignMap
 
   const loading = accLoading || ftLoading || crewLoading
   const today   = todayStr()
@@ -208,17 +222,19 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     return () => window.removeEventListener('mouseup', stop)
   }, [])
 
-  // Restore scroll position on mount
+  // Restore scroll position once data has loaded and the table is rendered
   useEffect(() => {
+    if (loading || scrollDone.current) return
     const saved = localStorage.getItem('fm_ch_scroll')
     if (saved && scrollRef.current) {
       try {
         const [left, top] = JSON.parse(saved)
         scrollRef.current.scrollLeft = left
         scrollRef.current.scrollTop  = top
+        scrollDone.current = true
       } catch { /* ignore */ }
     }
-  }, [])
+  }, [loading])
 
   function onGanttScroll() {
     clearTimeout(scrollTimer.current)
@@ -232,30 +248,43 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     }, 150)
   }
 
-  function paintCell(crewId, crewType, date) {
-    const hotelId = selectedIdx === -1 ? null : (hotels[selectedIdx]?.id ?? null)
+  // Use refs so callbacks are always stable and never stale
+  const onCellMouseDown = useCallback((crewId, crewType, date) => {
+    isPainting.current = true
+    const idx     = selectedIdxRef.current
+    const hotelId = idx === -1 ? null : (hotelsRef.current[idx]?.id ?? null)
     const key     = `${crewId}|${crewType}|${date}`
-    // Toggle: clicking a cell that already has the selected hotel clears it
-    if (assignMap[key] === hotelId && hotelId !== null) {
+    if (hotelId === null) {
+      // Clear mode: always erase
+      setAssignment(crewId, crewType, date, null)
+    } else if (assignMapRef.current[key] === hotelId) {
+      // Same hotel already painted: toggle off
       setAssignment(crewId, crewType, date, null)
     } else {
       setAssignment(crewId, crewType, date, hotelId)
     }
-  }
-
-  const onCellMouseDown = useCallback((crewId, crewType, date) => {
-    isPainting.current = true
-    paintCell(crewId, crewType, date)
-  }, [selectedIdx, hotels, assignMap]) // eslint-disable-line
+  }, [setAssignment])
 
   const onCellMouseEnter = useCallback((crewId, crewType, date) => {
     if (!isPainting.current) return
-    const hotelId = selectedIdx === -1 ? null : (hotels[selectedIdx]?.id ?? null)
+    const idx     = selectedIdxRef.current
+    const hotelId = idx === -1 ? null : (hotelsRef.current[idx]?.id ?? null)
     setAssignment(crewId, crewType, date, hotelId)
-  }, [selectedIdx, hotels, setAssignment])
+  }, [setAssignment])
 
   function togglePhase(phaseId) {
-    setCollapsedPhases(prev => ({ ...prev, [phaseId]: !prev[phaseId] }))
+    setCollapsedPhases(prev => {
+      const next = { ...prev, [phaseId]: !prev[phaseId] }
+      localStorage.setItem('fm_ch_phases', JSON.stringify(next))
+      return next
+    })
+  }
+
+  function handleCollapsePast() {
+    setCollapsePast(v => {
+      localStorage.setItem('fm_ch_past', String(!v))
+      return !v
+    })
   }
 
   // ── Empty / loading states ─────────────────────────────────────────────────────
@@ -342,7 +371,7 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
         {/* Collapse-past toggle */}
         <button
           className={`ch-ctrl-btn${collapsePast ? ' is-active' : ''}`}
-          onClick={() => setCollapsePast(v => !v)}
+          onClick={handleCollapsePast}
           title={collapsePast ? 'Show past dates' : 'Hide dates before today'}
         >
           {collapsePast ? '◀ Past hidden' : '◀ Hide past'}
