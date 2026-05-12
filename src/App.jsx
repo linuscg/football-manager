@@ -534,6 +534,7 @@ function AppShell({ session, signOut }) {
                 currentProductionId={currentProductionId}
                 onSwitch={id => { switchProduction(id); setProdMenuOpen(false) }}
                 onCreate={handleCreateProduction}
+                onDelete={deleteProduction}
                 memberRole={memberRole}
                 userId={session.user.id}
               />

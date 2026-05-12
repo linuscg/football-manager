@@ -6493,6 +6493,116 @@ select.pm-input { cursor: pointer; }
   margin-bottom: 2px;
 }
 
+/* ── Danger zone ────────────────────────────────────────────────────────── */
+.projlist-danger {
+  border-top: 1px solid #fee2e2;
+  background: #fff9f9;
+  padding: 12px 16px;
+}
+
+.projlist-danger-btn {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b91c1c;
+  background: none;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, border-color 0.12s;
+}
+.projlist-danger-btn:hover { background: #fee2e2; border-color: #f87171; }
+
+.projlist-danger-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.projlist-danger-confirm--1 {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+.projlist-danger-confirm--2 {
+  background: #fef2f2;
+  border: 1.5px solid #fca5a5;
+}
+
+.projlist-danger-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.projlist-danger-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.projlist-danger-text strong {
+  font-size: 13px;
+  color: #111827;
+}
+.projlist-danger-text span {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.projlist-danger-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.projlist-danger-confirm-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f97316;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.projlist-danger-confirm-btn:hover { background: #ea6c00; }
+
+.projlist-danger-final-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.projlist-danger-final-btn:hover { background: #b91c1c; }
+.projlist-danger-final-btn:disabled { opacity: 0.6; cursor: default; }
+
+.projlist-danger-cancel-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.projlist-danger-cancel-btn:hover { background: #e5e7eb; }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    LANDING PAGE
    ═══════════════════════════════════════════════════════════════════════════ */

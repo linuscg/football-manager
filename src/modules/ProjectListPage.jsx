@@ -37,6 +37,7 @@ export default function ProjectListPage({
   currentProductionId,
   onSwitch,
   onCreate,
+  onDelete,
   memberRole,
   userId,
 }) {
@@ -44,6 +45,10 @@ export default function ProjectListPage({
   const [expandedId,   setExpandedId]   = useState(null)
   const [membersCache, setMembersCache] = useState({})
   const [loadingId,    setLoadingId]    = useState(null)
+
+  // Delete confirmation: { prodId, stage: 1 | 2 } | null
+  const [deleteState,  setDeleteState]  = useState(null)
+  const [deleting,     setDeleting]     = useState(false)
 
   useEffect(() => {
     if (!userId) return
@@ -55,14 +60,26 @@ export default function ProjectListPage({
   }, [userId])
 
   async function handleToggle(prodId) {
-    if (expandedId === prodId) { setExpandedId(null); return }
+    if (expandedId === prodId) {
+      setExpandedId(null)
+      setDeleteState(null)
+      return
+    }
     setExpandedId(prodId)
+    setDeleteState(null)
     if (!membersCache[prodId]) {
       setLoadingId(prodId)
       const members = await fetchMembers(prodId)
       setMembersCache(prev => ({ ...prev, [prodId]: members }))
       setLoadingId(null)
     }
+  }
+
+  async function handleDelete(prod) {
+    setDeleting(true)
+    await onDelete(prod.id)
+    setDeleteState(null)
+    setDeleting(false)
   }
 
   const rows = memberships
@@ -73,7 +90,9 @@ export default function ProjectListPage({
     .filter(Boolean)
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 
-  const canCreate = memberRole === 'owner' || memberRole === 'admin'
+  const canCreate  = memberRole === 'owner' || memberRole === 'admin'
+  const isOwner    = memberRole === 'owner'
+  const canDelete  = isOwner && productions.length > 1
 
   return (
     <div className="projlist-wrap">
@@ -108,18 +127,18 @@ export default function ProjectListPage({
             const allMembers = membersCache[prod.id] ?? []
             const isLoading  = loadingId === prod.id
 
-            // Split into admins and plain members (hide owners)
             const admins  = allMembers.filter(m => m.role === 'admin')
             const members = allMembers.filter(m => m.role === 'member')
             const hasAny  = admins.length > 0 || members.length > 0
 
-            // Summary badge shown on collapsed row
             const cachedAndLoaded = !!membersCache[prod.id]
             const summaryParts = []
             if (cachedAndLoaded) {
               if (admins.length)  summaryParts.push(`${admins.length} admin${admins.length !== 1 ? 's' : ''}`)
               if (members.length) summaryParts.push(`${members.length} member${members.length !== 1 ? 's' : ''}`)
             }
+
+            const delStage = deleteState?.prodId === prod.id ? deleteState.stage : 0
 
             return (
               <div
@@ -163,30 +182,101 @@ export default function ProjectListPage({
                   </div>
                 </div>
 
-                {/* ── Expanded members panel ── */}
+                {/* ── Expanded panel ── */}
                 {isExpanded && (
-                  <div className="projlist-members">
-                    {isLoading ? (
-                      <div className="projlist-members-loading">Loading team…</div>
-                    ) : !hasAny ? (
-                      <div className="projlist-members-empty">No team members assigned yet.</div>
-                    ) : (
-                      <>
-                        {admins.length > 0 && (
-                          <div className="projlist-member-group">
-                            <div className="projlist-member-group-label">Admins</div>
-                            {admins.map(m => <MemberRow key={m.user_id} m={m} />)}
+                  <>
+                    {/* Members */}
+                    <div className="projlist-members">
+                      {isLoading ? (
+                        <div className="projlist-members-loading">Loading team…</div>
+                      ) : !hasAny ? (
+                        <div className="projlist-members-empty">No team members assigned yet.</div>
+                      ) : (
+                        <>
+                          {admins.length > 0 && (
+                            <div className="projlist-member-group">
+                              <div className="projlist-member-group-label">Admins</div>
+                              {admins.map(m => <MemberRow key={m.user_id} m={m} />)}
+                            </div>
+                          )}
+                          {members.length > 0 && (
+                            <div className="projlist-member-group">
+                              <div className="projlist-member-group-label">Members</div>
+                              {members.map(m => <MemberRow key={m.user_id} m={m} />)}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* ── Danger zone (owner only, not last production) ── */}
+                    {canDelete && (
+                      <div className="projlist-danger">
+
+                        {/* Stage 0 — idle */}
+                        {delStage === 0 && (
+                          <button
+                            className="projlist-danger-btn"
+                            onClick={e => { e.stopPropagation(); setDeleteState({ prodId: prod.id, stage: 1 }) }}
+                          >
+                            Delete production
+                          </button>
+                        )}
+
+                        {/* Stage 1 — first confirmation */}
+                        {delStage === 1 && (
+                          <div className="projlist-danger-confirm projlist-danger-confirm--1" onClick={e => e.stopPropagation()}>
+                            <div className="projlist-danger-icon">⚠️</div>
+                            <div className="projlist-danger-text">
+                              <strong>Delete "{prod.name || 'this production'}"?</strong>
+                              <span>All schedules, cast, scenes and data will be permanently removed.</span>
+                            </div>
+                            <div className="projlist-danger-actions">
+                              <button
+                                className="projlist-danger-confirm-btn"
+                                onClick={() => setDeleteState({ prodId: prod.id, stage: 2 })}
+                              >
+                                Yes, I'm sure
+                              </button>
+                              <button
+                                className="projlist-danger-cancel-btn"
+                                onClick={() => setDeleteState(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
                         )}
-                        {members.length > 0 && (
-                          <div className="projlist-member-group">
-                            <div className="projlist-member-group-label">Members</div>
-                            {members.map(m => <MemberRow key={m.user_id} m={m} />)}
+
+                        {/* Stage 2 — final confirmation */}
+                        {delStage === 2 && (
+                          <div className="projlist-danger-confirm projlist-danger-confirm--2" onClick={e => e.stopPropagation()}>
+                            <div className="projlist-danger-icon">🚨</div>
+                            <div className="projlist-danger-text">
+                              <strong>This cannot be undone. Ever.</strong>
+                              <span>"{prod.name || 'This production'}" and every piece of data inside it will be gone forever. Are you absolutely certain?</span>
+                            </div>
+                            <div className="projlist-danger-actions">
+                              <button
+                                className="projlist-danger-final-btn"
+                                onClick={() => handleDelete(prod)}
+                                disabled={deleting}
+                              >
+                                {deleting ? 'Deleting…' : 'Delete forever'}
+                              </button>
+                              <button
+                                className="projlist-danger-cancel-btn"
+                                onClick={() => setDeleteState(null)}
+                              >
+                                Go back
+                              </button>
+                            </div>
                           </div>
                         )}
-                      </>
+
+                      </div>
                     )}
-                  </div>
+                  </>
                 )}
               </div>
             )
