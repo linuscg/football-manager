@@ -21,6 +21,8 @@ import CateringNumbers       from './modules/CateringNumbers'
 import AccountPage           from './modules/AccountPage'
 import ProjectListPage       from './modules/ProjectListPage'
 import AdminPage             from './modules/AdminPage'
+import HotelList             from './modules/HotelList'
+import CrewHotels            from './modules/CrewHotels'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -29,6 +31,7 @@ const TOP_TABS = [
   { id: 'fm',         label: 'Football Manager' },
   { id: 'crew-times', label: 'Crew Times'       },
   { id: 'catering',   label: 'Catering'         },
+  { id: 'accomm',     label: 'Accommodation'    },
 ]
 
 // ─── Project Setup nav ────────────────────────────────────────────────────────
@@ -65,6 +68,22 @@ const FM_MODULE_SUB = {
   crew:      'Booking gantt',
   callsheet: 'Call sheet',
   budget:    'Cost tracking',
+}
+
+// ─── Accommodation nav ────────────────────────────────────────────────────────
+
+const ACCOMM_NAV = [
+  { id: 'accomm-hotels',  num: '01', label: 'Hotel List'   },
+  { id: 'accomm-crew',    num: '02', label: 'Crew Hotels'  },
+  { id: 'accomm-tmo',     num: '03', label: 'Weekly TMO'   },
+  { id: 'accomm-travel',  num: '04', label: 'Travel Times' },
+]
+
+const ACCOMM_MODULE_SUB = {
+  'accomm-hotels': 'Hotel list',
+  'accomm-crew':   'Crew hotel gantt',
+  'accomm-tmo':    'Weekly TMO',
+  'accomm-travel': 'Travel times',
 }
 
 // ─── Catering nav ────────────────────────────────────────────────────────────
@@ -127,6 +146,12 @@ function getInitialCatModule() {
   const saved = localStorage.getItem('fm_cat_module')
   if (saved && CAT_NAV.find(n => n.id === saved)) return saved
   return 'cat-list'
+}
+
+function getInitialAccommModule() {
+  const saved = localStorage.getItem('fm_accomm_module')
+  if (saved && ACCOMM_NAV.find(n => n.id === saved)) return saved
+  return 'accomm-hotels'
 }
 
 // ─── Placeholder for unbuilt pages ───────────────────────────────────────────
@@ -208,6 +233,7 @@ function AppShell({ session, signOut }) {
   const [fmModule,     setFmModule]     = useState(getInitialFmModule)
   const [ctModule,     setCtModule]     = useState(getInitialCtModule)
   const [catModule,    setCatModule]    = useState(getInitialCatModule)
+  const [accommModule, setAccommModule] = useState(getInitialAccommModule)
   const [prodMenuOpen, setProdMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
@@ -235,6 +261,11 @@ function AppShell({ session, signOut }) {
   function navigateCat(id) {
     setCatModule(id)
     localStorage.setItem('fm_cat_module', id)
+  }
+
+  function navigateAccomm(id) {
+    setAccommModule(id)
+    localStorage.setItem('fm_accomm_module', id)
   }
 
   const {
@@ -319,7 +350,9 @@ function AppShell({ session, signOut }) {
         ? CT_NAV
         : topTab === 'catering'
           ? CAT_NAV
-          : []
+          : topTab === 'accomm'
+            ? ACCOMM_NAV
+            : []
 
   const activeModule = topTab === 'setup'
     ? setupModule
@@ -327,13 +360,16 @@ function AppShell({ session, signOut }) {
       ? fmModule
       : topTab === 'crew-times'
         ? ctModule
-        : catModule
+        : topTab === 'catering'
+          ? catModule
+          : accommModule
 
   function handleNavClick(id) {
     if (topTab === 'setup')      navigateSetup(id)
     if (topTab === 'fm')         navigateFm(id)
     if (topTab === 'crew-times') navigateCt(id)
     if (topTab === 'catering')   navigateCat(id)
+    if (topTab === 'accomm')     navigateAccomm(id)
   }
 
   const topbarEyebrow = (() => {
@@ -341,6 +377,7 @@ function AppShell({ session, signOut }) {
     if (topTab === 'fm')         return FM_NAV.find(n => n.id === fmModule)?.label ?? ''
     if (topTab === 'crew-times') return CT_NAV.find(n => n.id === ctModule)?.label ?? ''
     if (topTab === 'catering')   return CAT_NAV.find(n => n.id === catModule)?.label ?? 'Catering'
+    if (topTab === 'accomm')     return ACCOMM_NAV.find(n => n.id === accommModule)?.label ?? 'Accommodation'
     return ''
   })()
 
@@ -354,6 +391,7 @@ function AppShell({ session, signOut }) {
     }
     if (topTab === 'crew-times') return CT_MODULE_SUB[ctModule] ?? ''
     if (topTab === 'catering')   return CAT_MODULE_SUB[catModule] ?? ''
+    if (topTab === 'accomm')     return ACCOMM_MODULE_SUB[accommModule] ?? ''
     return ''
   })()
 
@@ -609,6 +647,20 @@ function AppShell({ session, signOut }) {
             )}
             {topTab === 'catering' && catModule === 'cat-numbers' && (
               <CateringNumbers store={store} />
+            )}
+
+            {/* ── Accommodation tab ─────────────────────────────────────────── */}
+            {topTab === 'accomm' && accommModule === 'accomm-hotels' && (
+              <HotelList />
+            )}
+            {topTab === 'accomm' && accommModule === 'accomm-crew' && (
+              <CrewHotels production={store.production} />
+            )}
+            {topTab === 'accomm' && accommModule === 'accomm-tmo' && (
+              <UnderConstruction label="Weekly TMO" />
+            )}
+            {topTab === 'accomm' && accommModule === 'accomm-travel' && (
+              <UnderConstruction label="Travel Times" />
             )}
 
           </div>

@@ -6998,4 +6998,438 @@ select.pm-input { cursor: pointer; }
   color: #16a34a;
   font-weight: 500;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACCOMMODATION — Hotel List
+   ═══════════════════════════════════════════════════════════════════ */
+
+.hotel-list-wrap {
+  padding: 28px 32px;
+  max-width: 700px;
+}
+
+.hotel-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.hotel-list-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.hotel-list-sub {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.hotel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Hotel row ── */
+.hotel-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+}
+.hotel-row:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+.hotel-row--open {
+  border-color: #d1d5db;
+}
+
+.hotel-row-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.hotel-color-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.hotel-name-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  background: transparent;
+  font-family: inherit;
+}
+.hotel-name-input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.hotel-key-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  background: #f3f4f6;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.hotel-expand-btn {
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #9ca3af;
+  padding: 4px 6px;
+  border-radius: 5px;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+.hotel-expand-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.hotel-delete-btn {
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #d1d5db;
+  padding: 4px 6px;
+  border-radius: 5px;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+.hotel-delete-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* ── Expanded detail fields ── */
+.hotel-details {
+  border-top: 1px solid #f3f4f6;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fafafa;
+}
+
+.hotel-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hotel-detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.hotel-detail-input {
+  padding: 7px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: #374151;
+  outline: none;
+  transition: border-color 0.15s;
+  resize: vertical;
+}
+.hotel-detail-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+.hotel-detail-input--area {
+  min-height: 54px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACCOMMODATION — Crew Hotels Gantt  (.ch-*)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ch-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Palette toolbar ── */
+.ch-palette {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ch-palette-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1.5px solid transparent;
+  background: #f3f4f6;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+  font-family: inherit;
+}
+.ch-palette-btn:hover {
+  background: #e5e7eb;
+}
+.ch-palette-btn.is-active {
+  border-color: var(--hotel-color, #374151);
+  background: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hotel-color, #374151) 15%, transparent);
+}
+.ch-palette-btn--clear.is-active {
+  --hotel-color: #6b7280;
+  border-color: #6b7280;
+  box-shadow: 0 0 0 3px rgba(107,114,128,0.15);
+}
+
+.ch-palette-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.ch-palette-icon {
+  font-size: 13px;
+  line-height: 1;
+  color: #9ca3af;
+}
+
+.ch-palette-label {
+  max-width: 80px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ch-palette-key {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  background: #e5e7eb;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-palette-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* ── Gantt outer scroll area ── */
+.ch-gantt-outer {
+  flex: 1;
+  overflow: auto;
+  background: #f8f8f6;
+}
+
+/* ── Gantt table ── */
+.ch-gantt {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  table-layout: fixed;
+  font-size: 12px;
+  user-select: none;
+}
+
+.ch-col-name {
+  width: 180px;
+}
+.ch-col-date {
+  width: 36px;
+  min-width: 36px;
+}
+
+/* ── Header row ── */
+.ch-header-row {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.ch-th-name {
+  background: #fff;
+  border-right: 2px solid #e5e7eb;
+  position: sticky;
+  left: 0;
+  z-index: 11;
+}
+
+.ch-th-date {
+  background: #fff;
+  border-bottom: 2px solid #e5e7eb;
+  border-right: 1px solid #f3f4f6;
+  text-align: center;
+  padding: 4px 1px;
+  vertical-align: bottom;
+  font-size: 10px;
+  color: #9ca3af;
+  font-weight: 600;
+}
+.ch-th--weekend {
+  background: #fafaf8;
+}
+.ch-th--monday {
+  border-left: 2px solid #e5e7eb;
+}
+.ch-th--today {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.ch-th-wday { font-size: 9px; color: #c4c4c8; text-transform: uppercase; }
+.ch-th-day  { font-size: 12px; font-weight: 700; line-height: 1.2; }
+.ch-th-month{ font-size: 9px; color: #c4c4c8; text-transform: uppercase; }
+
+/* ── Section header row ── */
+.ch-section-row td {
+  background: #f1f0f5;
+  border-top: 2px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 5px 8px;
+}
+
+.ch-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+/* ── Crew rows ── */
+.ch-crew-row {
+  border-bottom: 1px solid #f3f4f6;
+  transition: background 0.1s;
+}
+.ch-crew-row:hover {
+  background: #fafaf8;
+}
+
+.ch-td-name {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 2;
+  border-right: 2px solid #e5e7eb;
+  padding: 4px 10px;
+  vertical-align: top;
+}
+.ch-crew-row:hover .ch-td-name {
+  background: #fafaf8;
+}
+
+.ch-dept-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #a78bfa;
+  margin-bottom: 2px;
+}
+
+.ch-crew-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.ch-crew-role {
+  font-size: 10px;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* ── Cells ── */
+.ch-td-cell {
+  border-right: 1px solid #f3f4f6;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+  text-align: center;
+  height: 32px;
+  padding: 1px;
+  cursor: cell;
+  transition: background 0.08s;
+  border: 1px solid transparent;
+  border-right: 1px solid #f3f4f6;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.ch-td-cell--valid:hover {
+  background: rgba(99,102,241,0.06) !important;
+}
+
+.ch-td-cell--disabled {
+  background: #f9f9f9;
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.ch-td-cell--weekend {
+  background: #fafaf8;
+}
+.ch-td-cell--weekend.ch-td-cell--disabled {
+  background: #f5f5f3;
+}
+
+.ch-td-cell--today {
+  background: #eff6ff !important;
+}
+
+.ch-td-cell--filled {
+  border-width: 1.5px;
+}
+
+.ch-cell-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  pointer-events: none;
+}
 .invreq-result--err { color: #dc2626; }
