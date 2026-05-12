@@ -32,33 +32,40 @@ export function useAccommodationStore() {
 
   async function loadAll() {
     const prodId = getCurrentProductionId()
-    if (!prodId) return
+    if (!prodId) { setLoading(false); return }
+
+    // ── Main load: hotels + assignments ──────────────────────────────────────
     try {
       const [
         { data: hData, error: hErr },
         { data: aData, error: aErr },
-        { data: tData },               // travel times — ignore error if table missing
       ] = await Promise.all([
         supabase.from('hotels').select('*').eq('production_id', prodId).order('sort_order'),
         supabase.from('crew_hotel_assignments').select('*').eq('production_id', prodId),
-        supabase.from('hotel_travel_times').select('*').eq('production_id', prodId),
       ])
       if (hErr) throw hErr
       if (aErr) throw aErr
       setHotels((hData ?? []).map(mapHotel))
       setAssignments((aData ?? []).map(mapAssignment))
-      // Build travel times lookup
-      const ttMap = {}
-      for (const row of tData ?? []) {
-        ttMap[`${row.hotel_id}|${row.location_name}`] = row.travel_time ?? ''
-      }
-      setTravelTimesData(ttMap)
       setError(null)
     } catch (err) {
       console.error('[accommodation store]', err)
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+
+    // ── Travel times: separate so a missing table never blocks main load ─────
+    try {
+      const { data: tData } = await supabase
+        .from('hotel_travel_times').select('*').eq('production_id', prodId)
+      const ttMap = {}
+      for (const row of tData ?? []) {
+        ttMap[`${row.hotel_id}|${row.location_name}`] = row.travel_time ?? ''
+      }
+      setTravelTimesData(ttMap)
+    } catch {
+      // table may not exist yet — silently ignore
     }
   }
 
