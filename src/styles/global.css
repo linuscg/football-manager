@@ -7901,10 +7901,28 @@ select.pm-input { cursor: pointer; }
 .invreq-result--err { color: #dc2626; }
 
 /* ── Schedule selection & move UI ─────────────────────────────────────────── */
-.schedule-day-select {
-  width: 16px; height: 16px;
-  margin-right: 8px; flex-shrink: 0;
-  cursor: pointer; accent-color: #2563eb;
+/* ── Day selection checkbox — sits outside the card to the left ── */
+.schedule-day-checkbox {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 28px; align-self: stretch;
+  cursor: pointer; padding: 0 4px;
+}
+.schedule-day-checkbox input[type="checkbox"] {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.schedule-day-checkbox-icon {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid #d1d5db; background: transparent;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.schedule-day-checkbox:hover .schedule-day-checkbox-icon {
+  border-color: #9ca3af;
+}
+.schedule-day-checkbox.is-checked .schedule-day-checkbox-icon {
+  background: #2563eb; border-color: #2563eb;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 4l3 3 5-6' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: center; background-size: 10px 8px;
 }
 
 .schedule-action-bar {

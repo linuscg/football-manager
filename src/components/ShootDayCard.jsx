@@ -172,8 +172,6 @@ export default function ShootDayCard({
   production = {},
   castMembers = [],
   allLocations = [],
-  isSelected = false,
-  onSelectionChange,
   onDateChangePending,
 }) {
   // Resolve which day type applies and calculate wrap time
@@ -257,15 +255,7 @@ export default function ShootDayCard({
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="pm-day-head" onClick={() => setExpanded(e => { const next = !e; onToggleExpanded?.(day.id, next); return next })}>
 
-        {onSelectionChange && (
-          <input
-            type="checkbox"
-            className="schedule-day-select"
-            checked={isSelected}
-            onChange={e => { e.stopPropagation(); onSelectionChange(day.id, e.target.checked) }}
-            onClick={e => e.stopPropagation()}
-          />
-        )}
+
 
         {/* Day tab — drag handle lives inside so colour extends into grab area */}
         {isMain ? (

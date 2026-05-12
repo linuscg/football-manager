@@ -92,16 +92,49 @@ export default function Schedule({ store, actions }) {
   // ── Selection handlers ──────────────────────────────────────────────────────
 
   function handleSelectionChange(dayId, selected) {
+    const day = shootDays.find(d => d.id === dayId)
     setSelectedDayIds(prev => {
       const next = new Set(prev)
-      if (selected) next.add(dayId); else next.delete(dayId)
+      if (selected) {
+        next.add(dayId)
+        // Auto-select all sub-days on the same date when a main day is selected
+        if (day?.dayCategory === 'main' && day.date) {
+          shootDays
+            .filter(d => d.date === day.date && d.id !== dayId)
+            .forEach(d => next.add(d.id))
+        }
+      } else {
+        next.delete(dayId)
+        // Auto-deselect sub-days when the main day is deselected
+        if (day?.dayCategory === 'main' && day.date) {
+          shootDays
+            .filter(d => d.date === day.date && d.id !== dayId)
+            .forEach(d => next.delete(d.id))
+        }
+      }
       return next
     })
   }
 
   // Single-day date change intercepted from ShootDayCard
+  // Include sub-days on the same date so they move together
   function handleDateChangePending(day, newDate) {
-    setPendingMove({ type: 'single', selectedDays: [day], newStartDate: newDate })
+    if (!newDate || newDate === day.date) return
+    const subDays = day.dayCategory === 'main'
+      ? shootDays.filter(d => d.date === day.date && d.id !== day.id)
+      : []
+    setPendingMove({ type: 'single', selectedDays: [day, ...subDays], newStartDate: newDate })
+  }
+
+  // Drag-to-reorder: if dragging to a different date group, treat as a date change
+  function handleReorder(fromId, toId) {
+    const fromDay = shootDays.find(d => d.id === fromId)
+    const toDay   = shootDays.find(d => d.id === toId)
+    if (fromDay?.date && toDay?.date && fromDay.date !== toDay.date) {
+      handleDateChangePending(fromDay, toDay.date)
+    } else {
+      actions.reorderDays(fromId, toId)
+    }
   }
 
   // Multi-day move from the action bar date picker
@@ -309,6 +342,18 @@ export default function Schedule({ store, actions }) {
                   className={`schedule-day-row${isNonMain ? ' schedule-day-row--indent' : ''}`}
                   data-day-date={day.date}
                 >
+                  <label
+                    className={`schedule-day-checkbox${selectedDayIds.has(day.id) ? ' is-checked' : ''}`}
+                    title={selectedDayIds.has(day.id) ? 'Deselect' : 'Select for bulk move'}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedDayIds.has(day.id)}
+                      onChange={e => handleSelectionChange(day.id, e.target.checked)}
+                    />
+                    <span className="schedule-day-checkbox-icon" />
+                  </label>
+
                   <div className="schedule-day-card-wrap">
                     <ShootDayCard
                       day={day}
@@ -319,7 +364,7 @@ export default function Schedule({ store, actions }) {
                       onDelete={actions.deleteShootDay}
                       onMoveUp={actions.moveDayUp}
                       onMoveDown={actions.moveDayDown}
-                      onReorder={actions.reorderDays}
+                      onReorder={handleReorder}
                       onAddScene={actions.addScene}
                       onDeleteScene={actions.deleteScene}
                       onUpdateScene={actions.updateScene}
@@ -338,8 +383,6 @@ export default function Schedule({ store, actions }) {
                       production={production}
                       castMembers={castMembers ?? []}
                       allLocations={allLocations}
-                      isSelected={selectedDayIds.has(day.id)}
-                      onSelectionChange={handleSelectionChange}
                       onDateChangePending={handleDateChangePending}
                     />
                   </div>

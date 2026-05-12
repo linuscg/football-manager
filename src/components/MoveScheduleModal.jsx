@@ -65,38 +65,42 @@ export default function MoveScheduleModal({
       })
     }
 
-    const selectedIds  = new Set(selectedDays.map(d => d.id))
-    const destDates    = new Set(primaryMoves.map(m => m.newDate))
-    const srcDates     = new Set(primaryMoves.map(m => m.oldDate))
+    const selectedIds = new Set(selectedDays.map(d => d.id))
 
-    // ── Shunting: find non-selected main unit days that collide with dest dates
-    // Process in chronological order, pushing each collision to the next free slot.
-    const shuntMoves = [] // { dayId, oldDate, newDate, day }
+    // ── Shunting: slide non-selected days to fill the holes we've created ──────
+    //
+    // Moving FORWARD (oldDate < newDate):
+    //   Days in range (oldDate, newDate] slide BACK by 1 to fill the vacated slot.
+    // Moving BACKWARD (oldDate > newDate):
+    //   Days in range [newDate, oldDate) slide FORWARD by 1 to make room.
+    //
+    // shuntMap[dayId] = the running new date for that day (applied across
+    // all primary moves so multiple overlapping moves compound correctly).
 
-    // Build a set of all occupied dates (destinations of primary moves + shunted moves)
-    const occupied = new Set(destDates)
+    const shuntMap = {}  // dayId → newDate
 
-    // Non-selected main unit days sorted by date
-    const candidates = allShootDays
-      .filter(d => !selectedIds.has(d.id) && d.dayCategory === 'main' && d.date)
-      .sort((a, b) => a.date.localeCompare(b.date))
+    for (const primary of primaryMoves) {
+      const { oldDate, newDate } = primary
+      if (oldDate === newDate) continue
+      const movingForward = newDate > oldDate
 
-    for (const day of candidates) {
-      if (!occupied.has(day.date)) continue // no collision — leave it alone
-      // Find next free date after the collision
-      let candidate = day.date
-      while (occupied.has(candidate) || srcDates.has(candidate)) {
-        candidate = addDays(candidate, 1)
-      }
-      occupied.add(candidate)
-      shuntMoves.push({
-        dayId:   day.id,
-        oldDate: day.date,
-        newDate: candidate,
-        day,
-        isShunt: true,
+      const inRange = allShootDays.filter(d => {
+        if (selectedIds.has(d.id) || !d.date) return false
+        return movingForward
+          ? (d.date > oldDate && d.date <= newDate)   // fill hole: slide back
+          : (d.date >= newDate && d.date < oldDate)   // make room: slide forward
       })
+
+      for (const day of inRange) {
+        const cur = shuntMap[day.id] ?? day.date
+        shuntMap[day.id] = addDays(cur, movingForward ? -1 : 1)
+      }
     }
+
+    const shuntMoves = Object.entries(shuntMap).map(([dayId, newDate]) => {
+      const day = allShootDays.find(d => d.id === dayId)
+      return { dayId, oldDate: day.date, newDate, day, isShunt: true }
+    })
 
     // ── All moves combined ────────────────────────────────────────────────────
     const allMoves = [
