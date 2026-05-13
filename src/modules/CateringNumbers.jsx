@@ -52,7 +52,7 @@ export default function CateringNumbers({ store }) {
   // All relevant days sorted by date
   const allDays = useMemo(() =>
     shootDays
-      .filter(d => ['main', 'splinter', 'prep', 'other'].includes(d.dayCategory))
+      .filter(d => ['main', 'splinter', 'prep', 'rehearsal', 'other'].includes(d.dayCategory))
       .sort((a, b) => a.date < b.date ? -1 : 1)
   , [shootDays])
 

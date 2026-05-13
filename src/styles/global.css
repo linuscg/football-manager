@@ -2639,8 +2639,14 @@ textarea.field-input {
   padding-left: 8px;
 }
 
+.cs-section-rehearsal {
+  border-left: 3px solid #059669;
+  padding-left: 8px;
+}
+
 .cs-prep-badge,
 .cs-splinter-badge,
+.cs-rehearsal-badge,
 .cs-other-badge {
   display: inline-block;
   color: #fff;
@@ -2652,9 +2658,10 @@ textarea.field-input {
   vertical-align: middle;
 }
 
-.cs-prep-badge     { background: #f59e0b; }
-.cs-splinter-badge { background: #7c3aed; }
-.cs-other-badge    { background: #0891b2; }
+.cs-prep-badge      { background: #f59e0b; }
+.cs-splinter-badge  { background: #7c3aed; }
+.cs-rehearsal-badge { background: #059669; }
+.cs-other-badge     { background: #0891b2; }
 
 /* ── Call sheet header: coloured backgrounds per day category ───────────────── */
 .pm-cs-header--prep {
@@ -2669,6 +2676,12 @@ textarea.field-input {
   --pm-cs-head-eyebrow:#c4b5fd;
   --pm-cs-head-meta:   #c4b5fd;
 }
+.pm-cs-header--rehearsal {
+  --pm-cs-head-bg:     #064e3b;
+  --pm-cs-head-rule:   1px solid #065f46;
+  --pm-cs-head-eyebrow:#6ee7b7;
+  --pm-cs-head-meta:   #6ee7b7;
+}
 .pm-cs-header--other {
   --pm-cs-head-bg:     #083344;
   --pm-cs-head-rule:   1px solid #164e63;
@@ -2679,6 +2692,7 @@ textarea.field-input {
 /* Stamp on coloured headers — white outline + white text */
 .pm-cs-header--prep .pm-cs-stamp,
 .pm-cs-header--splinter .pm-cs-stamp,
+.pm-cs-header--rehearsal .pm-cs-stamp,
 .pm-cs-header--other .pm-cs-stamp {
   border-color:   rgba(255,255,255,0.55);
   outline-color:  rgba(255,255,255,0.55);
@@ -2688,6 +2702,7 @@ textarea.field-input {
 /* Day label under stamp — softer white */
 .pm-cs-daynum--prep,
 .pm-cs-daynum--splinter,
+.pm-cs-daynum--rehearsal,
 .pm-cs-daynum--other {
   color: rgba(255,255,255,0.7);
 }
@@ -4099,10 +4114,22 @@ select.pm-input { cursor: pointer; }
   border-color: #1e3a5f;
 }
 /* Active colours per type */
-.pm-day--prep     .pm-day-type-btn[class*='active'],
-.pm-day--prep     .pm-day-type-btn.active { background: #d97706; border-color: #d97706; }
-.pm-day--splinter .pm-day-type-btn.active { background: #7c3aed; border-color: #7c3aed; }
-.pm-day--other    .pm-day-type-btn.active { background: #0891b2; border-color: #0891b2; }
+.pm-day--prep      .pm-day-type-btn[class*='active'],
+.pm-day--prep      .pm-day-type-btn.active { background: #d97706; border-color: #d97706; }
+.pm-day--splinter  .pm-day-type-btn.active { background: #7c3aed; border-color: #7c3aed; }
+.pm-day--rehearsal .pm-day-type-btn.active { background: #059669; border-color: #059669; }
+.pm-day--other     .pm-day-type-btn.active { background: #0891b2; border-color: #0891b2; }
+
+/* ─── "Rehearsal" day card ───────────────────────────────────────── */
+.pm-day--rehearsal {
+  border-left: 4px solid #059669;
+}
+.pm-day--rehearsal .pm-day-tab {
+  background: #059669;
+}
+.pm-day--rehearsal .pm-day-tab-label,
+.pm-day--rehearsal .pm-day-tab-num,
+.pm-day--rehearsal .pm-day-tab-drag { color: rgba(255,255,255,0.9); }
 
 /* ─── "Other" day card ───────────────────────────────────────────── */
 .pm-day--other {
@@ -4731,6 +4758,21 @@ select.pm-input { cursor: pointer; }
   background: #fef3c7;
   border-color: #fde68a;
   color: #d97706;
+}
+
+/* Rehearsal — emerald */
+.bp-wrap--rehearsal .bp-selector-bar {
+  border-left: 4px solid #059669;
+  background: #ecfdf5;
+}
+.bp-wrap--rehearsal .bp-time-strip {
+  background: #ecfdf5;
+  border-bottom-color: #a7f3d0;
+}
+.bp-wrap--rehearsal .bp-info-pill--cat {
+  background: #d1fae5;
+  border-color: #a7f3d0;
+  color: #065f46;
 }
 
 /* Other — cyan */
@@ -5702,8 +5744,10 @@ select.pm-input { cursor: pointer; }
 .catn-row--prep:hover { background: #fef3c7; }
 .catn-row--splinter { background: #eff6ff; }
 .catn-row--splinter:hover { background: #dbeafe; }
-.catn-row--other    { background: #f5f3ff; }
-.catn-row--other:hover { background: #ede9fe; }
+.catn-row--rehearsal       { background: #ecfdf5; }
+.catn-row--rehearsal:hover { background: #d1fae5; }
+.catn-row--other           { background: #f5f3ff; }
+.catn-row--other:hover     { background: #ede9fe; }
 
 .catn-td {
   padding: 10px 14px;

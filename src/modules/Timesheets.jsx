@@ -107,7 +107,7 @@ export default function Timesheets({ store }) {
     const map = {}
     for (const date of weekDates) {
       const days = shootDays.filter(d =>
-        d.date === date && ['main', 'splinter', 'prep', 'other'].includes(d.dayCategory)
+        d.date === date && ['main', 'splinter', 'prep', 'rehearsal', 'other'].includes(d.dayCategory)
       )
       map[date] = days.find(d => d.dayCategory === 'main') ?? days[0] ?? null
     }

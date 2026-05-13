@@ -6,10 +6,11 @@ import ShootDayCard from './ShootDayCard'
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const CATEGORY_STYLE = {
-  main:     { bg: '#2563eb', text: '#fff' },
-  prep:     { bg: '#7c3aed', text: '#fff' },
-  splinter: { bg: '#0891b2', text: '#fff' },
-  other:    { bg: '#6b7280', text: '#fff' },
+  main:      { bg: '#2563eb', text: '#fff' },
+  prep:      { bg: '#7c3aed', text: '#fff' },
+  splinter:  { bg: '#0891b2', text: '#fff' },
+  rehearsal: { bg: '#059669', text: '#fff' },
+  other:     { bg: '#6b7280', text: '#fff' },
 }
 
 function dayLabel(day) {
@@ -21,9 +22,10 @@ function dayLabel(day) {
       const num = day.date ? (day.dayNumber ?? 'TBD') : 'TBD'
       return `Day ${num}${locStr}`
     }
-    case 'prep':     return `Prep${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
-    case 'splinter': return `Splinter${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
-    default:         return `Other${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
+    case 'prep':      return `Prep${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
+    case 'splinter':  return `Splinter${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
+    case 'rehearsal': return `Rehearsal${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
+    default:          return `Other${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
   }
 }
 
@@ -177,10 +179,11 @@ function DayStrip({
 
 function AddDayMenu({ date, mainDayOnDate, onAdd, onClose }) {
   const items = [
-    { label: '+ Shoot Day',    cat: 'main'     },
-    { label: '+ Prep Day',     cat: 'prep'     },
-    { label: '+ Splinter Day', cat: 'splinter' },
-    { label: '+ Other Day',    cat: 'other'    },
+    { label: '+ Shoot Day',     cat: 'main'      },
+    { label: '+ Prep Day',      cat: 'prep'      },
+    { label: '+ Splinter Day',  cat: 'splinter'  },
+    { label: '+ Rehearsal Day', cat: 'rehearsal' },
+    { label: '+ Other Day',     cat: 'other'     },
   ]
   return (
     <div className="cal-add-menu" onClick={e => e.stopPropagation()}>

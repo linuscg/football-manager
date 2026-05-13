@@ -118,10 +118,11 @@ export default function CallSheet({ store, castMembers = [] }) {
   const day        = allDays.find(d => d.id === selectedId) ?? allDays[0] ?? null
   const currentIdx = allDays.findIndex(d => d.id === day?.id)
 
-  const isMain     = day?.dayCategory === 'main'
-  const isPrep     = day?.dayCategory === 'prep'
-  const isSplinter = day?.dayCategory === 'splinter'
-  const isOther    = day?.dayCategory === 'other'
+  const isMain      = day?.dayCategory === 'main'
+  const isPrep      = day?.dayCategory === 'prep'
+  const isSplinter  = day?.dayCategory === 'splinter'
+  const isRehearsal = day?.dayCategory === 'rehearsal'
+  const isOther     = day?.dayCategory === 'other'
 
   // Wrap time for the selected day
   const wrapTime = useMemo(() => {
@@ -180,7 +181,7 @@ export default function CallSheet({ store, castMembers = [] }) {
     if (!day || !isMain) return []
     const subDays = shootDays.filter(d =>
       d.date === day.date &&
-      (d.dayCategory === 'prep' || d.dayCategory === 'splinter' || d.dayCategory === 'other')
+      (d.dayCategory === 'prep' || d.dayCategory === 'splinter' || d.dayCategory === 'rehearsal' || d.dayCategory === 'other')
     )
     return subDays.map(subDay => {
       const items = bookings
@@ -332,8 +333,9 @@ export default function CallSheet({ store, castMembers = [] }) {
                 </option>
               )
             }
-            const catLabel = d.dayCategory === 'prep' ? 'Prep'
-                           : d.dayCategory === 'splinter' ? 'Splinter'
+            const catLabel = d.dayCategory === 'prep'      ? 'Prep'
+                           : d.dayCategory === 'splinter'  ? 'Splinter'
+                           : d.dayCategory === 'rehearsal' ? 'Rehearsal'
                            : 'Other'
             const labelPart = d.dayLabel ? ` ${d.dayLabel}` : ''
             const descPart  = d.description ? ` · ${d.description}` : ''
@@ -375,7 +377,7 @@ export default function CallSheet({ store, castMembers = [] }) {
           <div className="pm-cs-doc">
 
             {/* ── Header ──────────────────────────────────────────────────── */}
-            <div className={`pm-cs-header${isPrep ? ' pm-cs-header--prep' : isSplinter ? ' pm-cs-header--splinter' : isOther ? ' pm-cs-header--other' : ''}`}>
+            <div className={`pm-cs-header${isPrep ? ' pm-cs-header--prep' : isSplinter ? ' pm-cs-header--splinter' : isRehearsal ? ' pm-cs-header--rehearsal' : isOther ? ' pm-cs-header--other' : ''}`}>
               <div className="cs-header-left">
                 <div className="pm-cs-prod">{production.name || 'Untitled Production'}</div>
                 <div className="cs-date-line">{formatDateFull(day.date)}</div>
@@ -394,6 +396,10 @@ export default function CallSheet({ store, castMembers = [] }) {
                 {isSplinter && <>
                   <div className="pm-cs-stamp pm-cs-stamp--splinter">SPLINTER UNIT</div>
                   {day.dayLabel && <div className="pm-cs-daynum pm-cs-daynum--splinter">{day.dayLabel}</div>}
+                </>}
+                {isRehearsal && <>
+                  <div className="pm-cs-stamp pm-cs-stamp--rehearsal">REHEARSAL</div>
+                  {day.dayLabel && <div className="pm-cs-daynum pm-cs-daynum--rehearsal">{day.dayLabel}</div>}
                 </>}
                 {isOther && <>
                   <div className="pm-cs-stamp pm-cs-stamp--other">OTHER</div>
@@ -636,15 +642,18 @@ export default function CallSheet({ store, castMembers = [] }) {
               const subDesc  = subDay.description || ''
               const subInfo  = [subDay.dayLabel, subLoc || subDesc].filter(Boolean).join(' · ')
 
-              const sectionClass = cat === 'splinter' ? 'cs-section-splinter'
-                                 : cat === 'other'    ? 'cs-section-other'
-                                 :                      'cs-section-prep'
-              const badgeClass   = cat === 'splinter' ? 'cs-splinter-badge'
-                                 : cat === 'other'    ? 'cs-other-badge'
-                                 :                      'cs-prep-badge'
-              const badgeLabel   = cat === 'splinter' ? 'SPLINTER UNIT'
-                                 : cat === 'other'    ? 'OTHER'
-                                 :                      'PREP UNIT'
+              const sectionClass = cat === 'splinter'  ? 'cs-section-splinter'
+                                 : cat === 'rehearsal' ? 'cs-section-rehearsal'
+                                 : cat === 'other'     ? 'cs-section-other'
+                                 :                       'cs-section-prep'
+              const badgeClass   = cat === 'splinter'  ? 'cs-splinter-badge'
+                                 : cat === 'rehearsal' ? 'cs-rehearsal-badge'
+                                 : cat === 'other'     ? 'cs-other-badge'
+                                 :                       'cs-prep-badge'
+              const badgeLabel   = cat === 'splinter'  ? 'SPLINTER UNIT'
+                                 : cat === 'rehearsal' ? 'REHEARSAL'
+                                 : cat === 'other'     ? 'OTHER'
+                                 :                       'PREP UNIT'
 
               return (
                 <div key={subDay.id} className={`pm-cs-section ${sectionClass}`}>

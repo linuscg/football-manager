@@ -187,11 +187,12 @@ export default function ShootDayCard({
 
   const category   = day.dayCategory ?? 'main'
   const isMain     = category === 'main'
-  const isPrep     = category === 'prep'
-  const isSplinter = category === 'splinter'
-  const isOther    = category === 'other'
+  const isPrep       = category === 'prep'
+  const isSplinter   = category === 'splinter'
+  const isRehearsal  = category === 'rehearsal'
+  const isOther      = category === 'other'
 
-  const categoryClass = isPrep ? ' pm-day--prep' : isSplinter ? ' pm-day--splinter' : isOther ? ' pm-day--other' : ''
+  const categoryClass = isPrep ? ' pm-day--prep' : isSplinter ? ' pm-day--splinter' : isRehearsal ? ' pm-day--rehearsal' : isOther ? ' pm-day--other' : ''
 
   // ── Drag-and-drop ─────────────────────────────────────────────────────────
   function onHandleMouseDown() {
@@ -232,8 +233,9 @@ export default function ShootDayCard({
     e.stopPropagation()
     const label = isMain
       ? `Day ${day.dayNumber ?? '?'}`
-      : isPrep     ? `Prep day${day.dayLabel ? ' ' + day.dayLabel : ''}`
-      : isSplinter ? `Splinter unit${day.dayLabel ? ' ' + day.dayLabel : ''}`
+      : isPrep      ? `Prep day${day.dayLabel ? ' ' + day.dayLabel : ''}`
+      : isSplinter  ? `Splinter unit${day.dayLabel ? ' ' + day.dayLabel : ''}`
+      : isRehearsal ? `Rehearsal${day.dayLabel ? ' ' + day.dayLabel : ''}`
       : `Other day${day.dayLabel ? ' ' + day.dayLabel : ''}`
     if (window.confirm(`Delete ${label}? This cannot be undone.`)) {
       onDelete(day.id)
@@ -276,6 +278,12 @@ export default function ShootDayCard({
             <span className="pm-day-tab-label">SPLIT</span>
             {day.dayLabel && <span className="pm-day-tab-num" style={{ fontSize: 13 }}>{day.dayLabel}</span>}
           </div>
+        ) : isRehearsal ? (
+          <div className="pm-day-tab">
+            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
+            <span className="pm-day-tab-label">REHR</span>
+            {day.dayLabel && <span className="pm-day-tab-num" style={{ fontSize: 13 }}>{day.dayLabel}</span>}
+          </div>
         ) : (
           <div className="pm-day-tab">
             <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
@@ -286,11 +294,11 @@ export default function ShootDayCard({
 
         <div className="pm-day-summary">
           <span className="pm-day-date">{formatDateDisplay(day.date)}</span>
-          {(isPrep || isOther) ? (
+          {(isPrep || isOther || isRehearsal) ? (
             <span className="pm-day-loc">
               {day.description ||
                <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>
-                 {isPrep ? 'Prep day' : 'Other day'}
+                 {isPrep ? 'Prep day' : isRehearsal ? 'Rehearsal day' : 'Other day'}
                </span>}
             </span>
           ) : (
@@ -382,7 +390,7 @@ export default function ShootDayCard({
                   className="pm-input"
                   type="text"
                   value={day.dayLabel ?? ''}
-                  placeholder={isPrep ? 'e.g. P1, P-A' : isSplinter ? 'e.g. X1, S-B' : 'e.g. T1, OT-1'}
+                  placeholder={isPrep ? 'e.g. P1, P-A' : isSplinter ? 'e.g. X1, S-B' : isRehearsal ? 'e.g. R1, R-A' : 'e.g. T1, OT-1'}
                   onChange={e => onUpdate(day.id, 'dayLabel', e.target.value)}
                 />
               </div>
@@ -412,7 +420,7 @@ export default function ShootDayCard({
                   className="pm-input"
                   type="text"
                   value={day.description}
-                  placeholder={isPrep ? 'Camera tests, rigging, fittings…' : isOther ? 'Holiday, Travel, Turnaround…' : 'Parallel unit description…'}
+                  placeholder={isPrep ? 'Camera tests, rigging, fittings…' : isOther ? 'Holiday, Travel, Turnaround…' : isRehearsal ? 'Cast rehearsal, table read, blocking…' : 'Parallel unit description…'}
                   onChange={e => onUpdate(day.id, 'description', e.target.value)}
                 />
               </div>
@@ -630,10 +638,11 @@ export default function ShootDayCard({
       {/* ── Day type selector ────────────────────────────────────────────────── */}
       <div className="pm-day-type-bar" onClick={e => e.stopPropagation()}>
         {[
-          { value: 'main',     label: 'Main Unit' },
-          { value: 'splinter', label: 'Splinter' },
-          { value: 'prep',     label: 'Prep Day' },
-          { value: 'other',    label: 'Other' },
+          { value: 'main',      label: 'Main Unit' },
+          { value: 'splinter',  label: 'Splinter' },
+          { value: 'prep',      label: 'Prep Day' },
+          { value: 'rehearsal', label: 'Rehearsal' },
+          { value: 'other',     label: 'Other' },
         ].map(opt => (
           <button
             key={opt.value}

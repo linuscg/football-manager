@@ -62,8 +62,9 @@ const STATUS_OPTIONS = ['work', 'O/C', 'SPL', 'N/A', 'PREP', 'MAIN', 'OTHER']
 // Maps a sub-unit dayCategory to the label written on the main day
 // when the coordinator moves someone from main to that unit.
 function subUnitLabel(dayCategory) {
-  if (dayCategory === 'prep')  return 'PREP'
-  if (dayCategory === 'other') return 'OTHER'
+  if (dayCategory === 'prep')      return 'PREP'
+  if (dayCategory === 'other')     return 'OTHER'
+  if (dayCategory === 'rehearsal') return 'REHR'
   return 'SPL'
 }
 
@@ -431,7 +432,7 @@ export default function Backpage({ store }) {
   // isNonShootDay (splinter is a real shoot day; prep/other may be flagged
   // as non-shoot but still need a backpage).
   const allDays = shootDays
-    .filter(d => ['main', 'splinter', 'prep', 'other'].includes(d.dayCategory))
+    .filter(d => ['main', 'splinter', 'prep', 'rehearsal', 'other'].includes(d.dayCategory))
     .sort((a, b) => (a.date < b.date ? -1 : 1))
 
   const today       = new Date().toISOString().slice(0, 10)

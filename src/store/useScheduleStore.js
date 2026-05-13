@@ -484,7 +484,7 @@ export function useScheduleStore() {
             : { ...d, isNonShootDay: false, dayNumber: newDayNumber }
         }
         if (field === 'dayCategory') {
-          const isNonShoot = value === 'prep' || value === 'other'
+          const isNonShoot = value === 'prep' || value === 'other' || value === 'rehearsal'
           return {
             ...d,
             dayCategory:   value,
@@ -506,7 +506,7 @@ export function useScheduleStore() {
         ? { is_non_shoot_day: true,  day_number: null }
         : { is_non_shoot_day: false, day_number: newDayNumber }
     } else if (field === 'dayCategory') {
-      const isNonShoot = value === 'prep' || value === 'other'
+      const isNonShoot = value === 'prep' || value === 'other' || value === 'rehearsal'
       patch = {
         day_category:    value,
         is_non_shoot_day: isNonShoot,
