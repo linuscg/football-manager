@@ -450,6 +450,13 @@ export function useScheduleStore() {
     dbWrite(supabase.from('shoot_days').delete().eq('id', id))
   }
 
+  function deleteAllShootDays() {
+    const prodId = store.production.id
+    if (!prodId) return
+    optimistic(s => ({ ...s, shootDays: [] }))
+    dbWrite(supabase.from('shoot_days').delete().eq('production_id', prodId))
+  }
+
   function updateShootDay(id, field, value) {
     let newDayNumber = null
 
@@ -879,7 +886,7 @@ export function useScheduleStore() {
     createProduction, deleteProduction, switchProduction,
     updateProduction,
     generateShootDays,
-    addShootDay, deleteShootDay, updateShootDay,
+    addShootDay, deleteShootDay, deleteAllShootDays, updateShootDay,
     addPrepDay, addSplinterDay,
     moveDayUp, moveDayDown, reorderDays,
     executeScheduleMove, resequenceDayNumbers,

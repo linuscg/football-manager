@@ -187,6 +187,7 @@ export default function ProjectSetup({
   production,
   onUpdate,
   onGenerate,
+  onDeleteAllShootDays,
   shootDays = [],
   castMembers = [],
   onAddCastMember,
@@ -420,6 +421,19 @@ export default function ProjectSetup({
                         ? `Generate ${wdCount} shooting day${wdCount !== 1 ? 's' : ''} in Schedule`
                         : 'Generate shooting days'}
                 </button>
+
+                {shootDays.length > 0 && (
+                  <button
+                    className="pm-btn pm-btn--ghost pm-btn--sm setup-delete-all-btn"
+                    onClick={() => {
+                      if (window.confirm(`Delete all ${shootDays.length} day${shootDays.length !== 1 ? 's' : ''} from the schedule? This cannot be undone.`)) {
+                        onDeleteAllShootDays?.()
+                      }
+                    }}
+                  >
+                    🗑 Clear all days
+                  </button>
+                )}
 
                 {genStatus && genStatus !== 'loading' && (
                   <span className="setup-gen-success">

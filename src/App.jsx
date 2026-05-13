@@ -279,7 +279,7 @@ function AppShell({ session, signOut }) {
     createProduction, deleteProduction, switchProduction,
     updateProduction,
     generateShootDays,
-    addShootDay, deleteShootDay, updateShootDay,
+    addShootDay, deleteShootDay, deleteAllShootDays, updateShootDay,
     addPrepDay, addSplinterDay,
     moveDayUp, moveDayDown, reorderDays,
     executeScheduleMove, resequenceDayNumbers,
@@ -591,6 +591,7 @@ function AppShell({ session, signOut }) {
                 castMembers={store.castMembers}
                 onUpdate={updateProduction}
                 onGenerate={generateShootDays}
+                onDeleteAllShootDays={deleteAllShootDays}
                 onAddCastMember={addCastMember}
                 onDeleteCastMember={deleteCastMember}
                 onUpdateCastMember={updateCastMember}
