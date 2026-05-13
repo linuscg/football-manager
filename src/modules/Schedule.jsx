@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import ShootDayCard from '../components/ShootDayCard'
 import MoveScheduleModal from '../components/MoveScheduleModal'
+import CalendarView from '../components/CalendarView'
 import { useCrewStore } from '../store/useCrewStore'
 import { useAccommodationStore } from '../store/useAccommodationStore'
 
@@ -13,6 +14,15 @@ export default function Schedule({ store, actions }) {
   const { shootDays, production, castMembers } = store
   const { resources, bookings, moveBookings } = useCrewStore()
   const { assignments, moveHotelAssignments } = useAccommodationStore()
+
+  // ── View mode ───────────────────────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState(() =>
+    localStorage.getItem('fm_schedule_view') ?? 'list'
+  )
+  function switchView(v) {
+    setViewMode(v)
+    localStorage.setItem('fm_schedule_view', v)
+  }
 
   // ── Selection & move state ──────────────────────────────────────────────────
   const [selectedDayIds, setSelectedDayIds] = useState(new Set())
@@ -143,6 +153,26 @@ export default function Schedule({ store, actions }) {
     if (selected.length === 0) return
     const sorted = [...selected].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
     setPendingMove({ type: 'multi', selectedDays: sorted, newStartDate })
+  }
+
+  // Multi-day move anchored to a specific day (used by calendar drag).
+  // The anchor day ends up exactly on newDate; all other selected days
+  // shift by the same delta.
+  function handleMoveSelectedAnchoredTo(anchorDayId, newDate) {
+    const selected = shootDays.filter(d => selectedDayIds.has(d.id))
+    if (selected.length === 0) return
+    const anchor = selected.find(d => d.id === anchorDayId)
+    if (!anchor?.date || !newDate) return
+    const sorted = [...selected].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    const delta = Math.round(
+      (new Date(newDate + 'T00:00:00') - new Date(anchor.date + 'T00:00:00')) / 86400000
+    )
+    const firstNewDate = (() => {
+      const d = new Date(sorted[0].date + 'T00:00:00')
+      d.setDate(d.getDate() + delta)
+      return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-')
+    })()
+    setPendingMove({ type: 'multi', selectedDays: sorted, newStartDate: firstNewDate })
   }
 
   // ── Confirm move ────────────────────────────────────────────────────────────
@@ -315,6 +345,18 @@ export default function Schedule({ store, actions }) {
           )}
         </div>
         <div className="pm-module-head-actions">
+          <div className="schedule-view-toggle">
+            <button
+              className={`schedule-view-btn${viewMode === 'list' ? ' active' : ''}`}
+              onClick={() => switchView('list')}
+              title="List view"
+            >☰ List</button>
+            <button
+              className={`schedule-view-btn${viewMode === 'calendar' ? ' active' : ''}`}
+              onClick={() => switchView('calendar')}
+              title="Calendar view"
+            >▦ Calendar</button>
+          </div>
           <button className="pm-btn pm-btn--ghost" onClick={() => window.print()}>Print board</button>
           <button className="pm-btn pm-btn--primary" onClick={handleAddDay}>
             + Add shoot day
@@ -330,6 +372,22 @@ export default function Schedule({ store, actions }) {
             Click &ldquo;Add shoot day&rdquo; to get started.
           </div>
         </div>
+      ) : viewMode === 'calendar' ? (
+        <CalendarView
+          shootDays={shootDays}
+          production={production}
+          castMembers={castMembers}
+          allLocations={allLocations}
+          actions={actions}
+          additionalsByDate={additionalsByDate}
+          additionalsByDayId={additionalsByDayId}
+          selectedDayIds={selectedDayIds}
+          onSelectionChange={handleSelectionChange}
+          onDateChangePending={handleDateChangePending}
+          onMoveSelectedAnchoredTo={handleMoveSelectedAnchoredTo}
+          expandedIds={expandedIds}
+          onToggleExpanded={handleToggleExpanded}
+        />
       ) : (
         <div className="pm-day-list">
           {dateGroups.map(([, daysInGroup]) =>
