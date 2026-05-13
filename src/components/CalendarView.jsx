@@ -13,11 +13,17 @@ const CATEGORY_STYLE = {
 }
 
 function dayLabel(day) {
+  const loc = (day.location || day.locations?.[0] || '').trim()
+  const locStr = loc ? ' — ' + loc : ''
   switch (day.dayCategory) {
-    case 'main':     return `Day ${day.dayNumber ?? '?'}`
-    case 'prep':     return `Prep${day.dayLabel ? ' ' + day.dayLabel : ''}`
-    case 'splinter': return `Splinter${day.dayLabel ? ' ' + day.dayLabel : ''}`
-    default:         return `Other${day.dayLabel ? ' ' + day.dayLabel : ''}`
+    case 'main': {
+      // No date = in the scratchpad, show TBD regardless of stored number
+      const num = day.date ? (day.dayNumber ?? 'TBD') : 'TBD'
+      return `Day ${num}${locStr}`
+    }
+    case 'prep':     return `Prep${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
+    case 'splinter': return `Splinter${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
+    default:         return `Other${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
   }
 }
 
@@ -119,13 +125,21 @@ function DayEditModal({
 
 function DayStrip({
   day, isSelected, onSelect, onClick,
-  onDragStart, onDragEnd,
+  onDragStart, onDragEnd, inDrawer = false,
 }) {
-  const style = CATEGORY_STYLE[day.dayCategory] ?? CATEGORY_STYLE.other
-  const isSub = day.dayCategory !== 'main'
+  const style  = CATEGORY_STYLE[day.dayCategory] ?? CATEGORY_STYLE.other
+  const isSub  = day.dayCategory !== 'main'
+  const scenes = day.scenes ?? []
+  const sceneNums = scenes.map(s => s.sceneNumber).filter(Boolean)
+
   return (
     <div
-      className={`cal-strip${isSub ? ' cal-strip--sub' : ''}${isSelected ? ' cal-strip--selected' : ''}`}
+      className={[
+        'cal-strip',
+        isSub     ? 'cal-strip--sub'      : '',
+        isSelected ? 'cal-strip--selected' : '',
+        inDrawer   ? 'cal-strip--drawer'   : '',
+      ].filter(Boolean).join(' ')}
       style={{ '--strip-bg': style.bg, '--strip-text': style.text }}
       draggable
       onDragStart={e => onDragStart(e, day.id)}
@@ -143,7 +157,12 @@ function DayStrip({
       >
         {isSelected ? '✓' : ''}
       </span>
-      <span className="cal-strip-label">{dayLabel(day)}</span>
+      <div className="cal-strip-body">
+        <span className="cal-strip-label">{dayLabel(day)}</span>
+        {inDrawer && sceneNums.length > 0 && (
+          <span className="cal-strip-scenes">Sc {sceneNums.join(', ')}</span>
+        )}
+      </div>
     </div>
   )
 }
@@ -303,9 +322,15 @@ export default function CalendarView({
     setDragOverDrawer(false)
     const dayId = draggingIdRef.current
     if (!dayId) return
-    const day = shootDays.find(d => d.id === dayId)
-    if (!day || !day.date) return
-    if (window.confirm(`Move "${dayLabel(day)}" to the scratchpad (clear its date)?`)) {
+
+    if (selectedDayIds.has(dayId) && selectedDayIds.size > 1) {
+      // Move the whole selection into the scratchpad
+      shootDays
+        .filter(d => selectedDayIds.has(d.id) && d.date)
+        .forEach(d => actions.updateShootDay(d.id, 'date', ''))
+    } else {
+      const day = shootDays.find(d => d.id === dayId)
+      if (!day || !day.date) return
       actions.updateShootDay(dayId, 'date', '')
     }
   }
@@ -456,6 +481,7 @@ export default function CalendarView({
                     onClick={id => setEditingDayId(id)}
                     onDragStart={onStripDragStart}
                     onDragEnd={onStripDragEnd}
+                    inDrawer={true}
                   />
                 ))}
               </div>

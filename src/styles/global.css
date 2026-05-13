@@ -8348,7 +8348,7 @@ select.pm-input { cursor: pointer; }
 .cal-strip {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   border-radius: 4px;
   padding: 3px 5px 3px 3px;
   background: var(--strip-bg);
@@ -8359,15 +8359,20 @@ select.pm-input { cursor: pointer; }
   user-select: none;
   transition: filter 0.1s, outline 0.1s;
   position: relative;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .cal-strip:hover { filter: brightness(0.92); }
 .cal-strip--sub  { opacity: 0.85; font-size: 10.5px; margin-left: 8px; }
 .cal-strip--selected {
   outline: 2px solid #fff;
   box-shadow: 0 0 0 3px #f59e0b;
+}
+/* Drawer strips: wider, show two lines */
+.cal-strip--drawer {
+  align-items: flex-start;
+  padding: 5px 8px 5px 4px;
+  min-width: 130px;
+  max-width: 220px;
 }
 
 .cal-strip-check {
@@ -8383,14 +8388,33 @@ select.pm-input { cursor: pointer; }
   cursor: pointer;
   transition: background 0.1s;
   line-height: 1;
+  margin-top: 1px;
 }
 .cal-strip-check:hover { background: rgba(255,255,255,0.45); }
+
+/* Body wraps label + optional scene line */
+.cal-strip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
 .cal-strip-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+}
+.cal-strip-scenes {
+  font-size: 10px;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  letter-spacing: 0.01em;
 }
 
 /* Drawer */
