@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import ShootDayCard from '../components/ShootDayCard'
 import CalendarView from '../components/CalendarView'
 import { useCrewStore } from '../store/useCrewStore'
@@ -19,6 +19,23 @@ export default function Schedule({ store, actions }) {
   const { shootDays, production, castMembers } = store
   const { resources, bookings } = useCrewStore()
   const { assignments } = useAccommodationStore()
+
+  // ── Auto-renumber: runs after React commits whenever any main day's date changes
+  // Uses a ref so the effect always calls the latest store closure.
+  const actionsRef = useRef(actions)
+  actionsRef.current = actions
+
+  const renumberKey = useMemo(() =>
+    shootDays
+      .filter(d => d.dayCategory === 'main' && d.date)
+      .map(d => `${d.id}:${d.date}`)
+      .sort()
+      .join('|')
+  , [shootDays])
+
+  useEffect(() => {
+    if (renumberKey) actionsRef.current.resequenceDayNumbers()
+  }, [renumberKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── View mode ───────────────────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState(() =>

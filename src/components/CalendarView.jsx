@@ -254,15 +254,17 @@ export default function CalendarView({
     draggingIdRef.current = dayId
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', dayId)
-    // Ghost label
     const day = shootDays.find(d => d.id === dayId)
     if (day) e.dataTransfer.setData('application/json', JSON.stringify({ label: dayLabel(day) }))
+    // Pop the drawer open as a visible drop target as soon as a drag begins
+    setDrawerOpen(true)
   }
 
   function onStripDragEnd() {
     draggingIdRef.current = null
     setDragOverDate(null)
     setDragOverDrawer(false)
+    // Leave drawer open so user can see what landed there
   }
 
   function onCellDragOver(e, dateStr) {
