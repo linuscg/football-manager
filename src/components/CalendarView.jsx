@@ -178,19 +178,26 @@ function AddDayMenu({ date, mainDayOnDate, onAdd, onClose }) {
   ]
   return (
     <div className="cal-add-menu" onClick={e => e.stopPropagation()}>
-      {items.map(({ label, cat }) => (
-        <button
-          key={cat}
-          className="cal-add-menu-item"
-          onMouseDown={e => {
-            e.preventDefault()
-            onAdd(cat, date, mainDayOnDate)
-            onClose()
-          }}
-        >
-          {label}
-        </button>
-      ))}
+      {items.map(({ label, cat }) => {
+        const disabled = cat === 'main' && !!mainDayOnDate
+        return (
+          <button
+            key={cat}
+            className={`cal-add-menu-item${disabled ? ' cal-add-menu-item--disabled' : ''}`}
+            disabled={disabled}
+            title={disabled ? 'A main shoot day already exists on this date' : undefined}
+            onMouseDown={e => {
+              e.preventDefault()
+              if (disabled) return
+              onAdd(cat, date, mainDayOnDate)
+              onClose()
+            }}
+          >
+            {label}
+            {disabled && <span className="cal-add-menu-item-note"> (already scheduled)</span>}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -206,14 +213,26 @@ export default function CalendarView({
 }) {
   const today = todayStr()
 
-  // ── Month state — initialise to first shoot day or current month ───────────
+  // ── Month state — persisted to localStorage ────────────────────────────────
   const [monthState, setMonthState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fm_calendar_month')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (typeof parsed.year === 'number' && typeof parsed.month === 'number') return parsed
+      }
+    } catch {}
     const firstDated = [...shootDays]
       .filter(d => d.date)
       .sort((a, b) => a.date.localeCompare(b.date))[0]
     const ref = firstDated ? new Date(firstDated.date + 'T00:00:00') : new Date()
     return { year: ref.getFullYear(), month: ref.getMonth() }
   })
+
+  function saveAndSetMonth(newState) {
+    localStorage.setItem('fm_calendar_month', JSON.stringify(newState))
+    setMonthState(newState)
+  }
 
   const { year, month } = monthState
   const grid = buildMonthGrid(year, month)
@@ -247,14 +266,23 @@ export default function CalendarView({
 
   // ── Month navigation ───────────────────────────────────────────────────────
   function prevMonth() {
-    setMonthState(s => s.month === 0 ? { year: s.year - 1, month: 11 } : { ...s, month: s.month - 1 })
+    setMonthState(s => {
+      const next = s.month === 0 ? { year: s.year - 1, month: 11 } : { ...s, month: s.month - 1 }
+      localStorage.setItem('fm_calendar_month', JSON.stringify(next))
+      return next
+    })
   }
   function nextMonth() {
-    setMonthState(s => s.month === 11 ? { year: s.year + 1, month: 0 } : { ...s, month: s.month + 1 })
+    setMonthState(s => {
+      const next = s.month === 11 ? { year: s.year + 1, month: 0 } : { ...s, month: s.month + 1 }
+      localStorage.setItem('fm_calendar_month', JSON.stringify(next))
+      return next
+    })
   }
   function goToToday() {
     const now = new Date()
-    setMonthState({ year: now.getFullYear(), month: now.getMonth() })
+    const next = { year: now.getFullYear(), month: now.getMonth() }
+    saveAndSetMonth(next)
   }
 
   // ── Add day from calendar ──────────────────────────────────────────────────
@@ -305,8 +333,36 @@ export default function CalendarView({
     if (!day || day.date === dropDate) return
 
     if (selectedDayIds.has(dayId) && selectedDayIds.size > 1) {
+      // Multi-select move: check if any dragged main day would clash with an
+      // existing main day on the target date (after applying the same delta)
+      const selected = shootDays.filter(d => selectedDayIds.has(d.id) && d.date)
+      const anchor   = selected.find(d => d.id === dayId)
+      if (anchor) {
+        const delta = Math.round(
+          (new Date(dropDate + 'T00:00:00') - new Date(anchor.date + 'T00:00:00')) / 86400000
+        )
+        // Build a set of dates occupied by main days NOT in the selection
+        const existingMainDates = new Set(
+          shootDays
+            .filter(d => d.dayCategory === 'main' && d.date && !selectedDayIds.has(d.id))
+            .map(d => d.date)
+        )
+        const wouldClash = selected.some(d => {
+          if (d.dayCategory !== 'main') return false
+          const newDate = addDaysToDate(d.date, delta)
+          return existingMainDates.has(newDate)
+        })
+        if (wouldClash) return
+      }
       onMoveDaysTo(dayId, dropDate)
     } else {
+      // Single-day move: block if dragging a main day onto a date that already has one
+      if (day.dayCategory === 'main') {
+        const existingMain = shootDays.find(
+          d => d.dayCategory === 'main' && d.date === dropDate && d.id !== day.id
+        )
+        if (existingMain) return
+      }
       onDateChange(day, dropDate)
     }
   }

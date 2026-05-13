@@ -8335,7 +8335,17 @@ select.pm-input { cursor: pointer; }
   border-bottom: 1px solid #f3f4f6;
 }
 .cal-add-menu-item:last-child { border-bottom: none; }
-.cal-add-menu-item:hover { background: #f0f7ff; color: #2563eb; }
+.cal-add-menu-item:hover:not(:disabled) { background: #f0f7ff; color: #2563eb; }
+.cal-add-menu-item--disabled,
+.cal-add-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: #9ca3af;
+}
+.cal-add-menu-item-note {
+  font-size: 10px;
+  opacity: 0.8;
+}
 
 /* Day cells list */
 .cal-cell-days {

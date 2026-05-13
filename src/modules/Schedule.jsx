@@ -74,6 +74,13 @@ export default function Schedule({ store, actions }) {
   // Single day: also moves sub-days on the same date (main day only)
   function handleDateChange(day, newDate) {
     if (!newDate || newDate === day.date) return
+    // Block placing a second main day on a date that already has one
+    if (day.dayCategory === 'main') {
+      const clash = shootDays.find(
+        d => d.dayCategory === 'main' && d.date === newDate && d.id !== day.id
+      )
+      if (clash) return
+    }
     actions.updateShootDay(day.id, 'date', newDate)
     if (day.dayCategory === 'main' && day.date) {
       shootDays
@@ -90,6 +97,17 @@ export default function Schedule({ store, actions }) {
     const delta = Math.round(
       (new Date(newStartDate + 'T00:00:00') - new Date(sorted[0].date + 'T00:00:00')) / 86400000
     )
+    // Check for main-day clashes (existing main days NOT in selection)
+    const existingMainDates = new Set(
+      shootDays
+        .filter(d => d.dayCategory === 'main' && d.date && !selectedDayIds.has(d.id))
+        .map(d => d.date)
+    )
+    const wouldClash = sorted.some(d => {
+      if (d.dayCategory !== 'main') return false
+      return existingMainDates.has(addDays(d.date, delta))
+    })
+    if (wouldClash) return
     sorted.forEach(d => actions.updateShootDay(d.id, 'date', addDays(d.date, delta)))
     setSelectedDayIds(new Set())
   }
