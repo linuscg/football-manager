@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import ShootDayCard from './ShootDayCard'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,6 +80,12 @@ function DayEditModal({
     actions.deleteShootDay(id)
     onClose()
   }
+
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   return (
     <div className="cal-edit-overlay" onClick={onClose}>
