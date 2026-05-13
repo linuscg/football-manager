@@ -24,6 +24,7 @@ function mapResource(row) {
     poNumber:      row.po_number       ?? '',
     hireStartDate: row.hire_start_date ?? '',
     hireEndDate:   row.hire_end_date   ?? '',
+    personId:      row.person_id       ?? null,
   }
 }
 
@@ -145,12 +146,13 @@ export function useCrewStore() {
     poNumber:      'po_number',
     hireStartDate: 'hire_start_date',
     hireEndDate:   'hire_end_date',
+    personId:      'person_id',
   }
 
   function updateResource(id, field, value) {
     optR(rs => rs.map(r => r.id === id ? { ...r, [field]: value } : r))
     const col = FIELD_MAP[field] ?? field
-    const dbValue = (field === 'hireStartDate' || field === 'hireEndDate')
+    const dbValue = (field === 'hireStartDate' || field === 'hireEndDate' || field === 'personId')
       ? (value || null)
       : value
     dbWrite(supabase.from('resources').update({ [col]: dbValue }).eq('id', id))

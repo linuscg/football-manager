@@ -7985,3 +7985,134 @@ select.pm-input { cursor: pointer; }
   border-color: #d97706 !important;
   color: #92400e;
 }
+
+/* ── Phase 2: People search dropdown in gantt name field ──────────────────── */
+
+.gantt-name-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+.gantt-name-input-wrap .gantt-input-name {
+  flex: 1;
+  min-width: 0;
+}
+.gantt-person-linked {
+  font-size: 7px;
+  color: #2563eb;
+  margin-left: 3px;
+  flex-shrink: 0;
+  line-height: 1;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.people-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 200px;
+  max-width: 300px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  z-index: 200;
+  overflow: hidden;
+}
+.people-dropdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+}
+.people-dropdown-item:last-child { border-bottom: none; }
+.people-dropdown-item:hover { background: #f0f7ff; }
+.people-dropdown-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.people-dropdown-meta {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Phase 2: Crew Database page ─────────────────────────────────────────── */
+
+.crew-db-loading {
+  padding: 40px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+}
+.crew-db-no-results {
+  padding: 20px 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+.crew-db-search {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+  background: #fff;
+  outline: none;
+  width: 240px;
+}
+.crew-db-search:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+.crew-db-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.crew-db-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.crew-db-th {
+  text-align: left;
+  padding: 9px 12px;
+  font-weight: 500;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+.crew-db-th--name  { width: 200px; }
+.crew-db-th--action { width: 40px; }
+.crew-db-row:hover td { background: #fafafa; }
+.crew-db-row:last-child td { border-bottom: none; }
+.crew-db-cell {
+  padding: 5px 8px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+.crew-db-cell--name  { min-width: 180px; }
+.crew-db-cell--notes { min-width: 200px; }
+.crew-db-cell--action { text-align: center; }
+.crew-db-input {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 13px;
+  color: #374151;
+  background: transparent;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.crew-db-input:hover  { border-color: #e5e7eb; background: #fff; }
+.crew-db-input:focus  { border-color: #2563eb; background: #fff; box-shadow: 0 0 0 2px rgba(37,99,235,0.08); }

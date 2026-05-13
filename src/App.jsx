@@ -25,6 +25,7 @@ import HotelList             from './modules/HotelList'
 import CrewHotels            from './modules/CrewHotels'
 import WeeklyTMO             from './modules/WeeklyTMO'
 import TravelTimes           from './modules/TravelTimes'
+import CrewDatabase          from './modules/CrewDatabase'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ const FM_NAV = [
   { id: 'crew',      num: '02', label: 'Crew & Equipment' },
   { id: 'callsheet', num: '03', label: 'Daily Info'       },
   { id: 'budget',    num: '04', label: 'Cost Tracking'    },
+  { id: 'crew-db',   num: '05', label: 'Crew Database'    },
 ]
 
 const FM_MODULE_SUB = {
@@ -70,6 +72,7 @@ const FM_MODULE_SUB = {
   crew:      'Booking gantt',
   callsheet: 'Call sheet',
   budget:    'Cost tracking',
+  'crew-db': 'Cross-production people roster',
 }
 
 // ─── Accommodation nav ────────────────────────────────────────────────────────
@@ -632,6 +635,9 @@ function AppShell({ session, signOut }) {
             )}
             {topTab === 'fm' && fmModule === 'budget' && (
               <Budget store={store} onUpdate={updateProduction} />
+            )}
+            {topTab === 'fm' && fmModule === 'crew-db' && (
+              <CrewDatabase />
             )}
 
             {/* ── Crew Times tab ────────────────────────────────────────────── */}

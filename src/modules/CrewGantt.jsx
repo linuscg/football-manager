@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useCrewStore } from '../store/useCrewStore'
+import { useCrewPeopleStore } from '../store/useCrewPeopleStore'
 
 // ─── Phase definitions ────────────────────────────────────────────────────────
 
@@ -127,16 +128,19 @@ function ResourceRow({
   onCellMouseDown, onCellMouseEnter,
   onUpdate, onDelete, onMoveUp, onMoveDown, onPhaseToggle,
   typeResources,
+  // People database
+  people, onCreatePerson, onUpdatePerson,
 }) {
-  // Build suggestions from all other resources of the same type
+  // Build suggestions from all other resources (for role/dept/etc.)
   const others = typeResources.filter(r => r.id !== resource.id)
-  const nameSuggestions  = uniq(others.map(r => r.name))
-  const roleSuggestions  = uniq(others.map(r => r.role))
-  const deptSuggestions  = uniq(others.map(r => r.department))
-  const catSuggestions   = uniq(others.map(r => r.category))
+  const roleSuggestions   = uniq(others.map(r => r.role))
+  const deptSuggestions   = uniq(others.map(r => r.department))
+  const catSuggestions    = uniq(others.map(r => r.category))
   const vendorSuggestions = uniq(others.map(r => r.vendor))
+
   const [expanded,       setExpanded]       = useState(false)
   const [lName,          setLName]          = useState(resource.name)
+  const [lPersonId,      setLPersonId]      = useState(resource.personId)
   const [lRole,          setLRole]          = useState(resource.role)
   const [lCat,           setLCat]           = useState(resource.category)
   const [lDept,          setLDept]          = useState(resource.department)
@@ -149,7 +153,11 @@ function ResourceRow({
   const [lHireStart,     setLHireStart]     = useState(resource.hireStartDate)
   const [lHireEnd,       setLHireEnd]       = useState(resource.hireEndDate)
 
+  // People-search dropdown
+  const [showPeopleDrop, setShowPeopleDrop] = useState(false)
+
   useEffect(() => setLName(resource.name),                   [resource.name])
+  useEffect(() => setLPersonId(resource.personId),           [resource.personId])
   useEffect(() => setLRole(resource.role),                   [resource.role])
   useEffect(() => setLCat(resource.category),                [resource.category])
   useEffect(() => setLDept(resource.department),             [resource.department])
@@ -166,37 +174,79 @@ function ResourceRow({
     if (local !== original) onUpdate(resource.id, field, local)
   }
 
-  // When a name is chosen that matches an existing resource, auto-fill blank fields
-  function handleNameBlur() {
-    commit('name', lName, resource.name)
-    if (!lName.trim()) return
-    const match = typeResources.find(
-      r => r.id !== resource.id &&
-           r.name.trim().toLowerCase() === lName.trim().toLowerCase()
-    )
-    if (!match) return
-    const fills = [
-      ['role',         lRole,         match.role,         setLRole],
-      ['department',   lDept,         match.department,   setLDept],
-      ['category',     lCat,          match.category,     setLCat],
-      ['contactEmail', lContactEmail, match.contactEmail, setLContactEmail],
-      ['contactPhone', lContactPhone, match.contactPhone, setLContactPhone],
-      ['vendor',        lVendor,     match.vendor,         setLVendor],
-      ['poNumber',      lPoNumber,   match.poNumber,       setLPoNumber],
-      ['notes',         lNotes,      match.notes,          setLNotes],
-      ['hireStartDate', lHireStart,  match.hireStartDate,  setLHireStart],
-      ['hireEndDate',   lHireEnd,    match.hireEndDate,    setLHireEnd],
-    ]
-    for (const [field, current, value, setter] of fills) {
-      if (!current && value) { setter(value); onUpdate(resource.id, field, value) }
+  // Filtered people for the dropdown (only shown when activeTab === 'crew')
+  const filteredPeople = lName.trim().length > 0
+    ? people.filter(p => p.name.toLowerCase().includes(lName.toLowerCase()))
+    : people
+
+  // Link a person from the dropdown
+  function selectPerson(person) {
+    setLName(person.name)
+    setLPersonId(person.id)
+    setShowPeopleDrop(false)
+    onUpdate(resource.id, 'name',     person.name)
+    onUpdate(resource.id, 'personId', person.id)
+    // Auto-fill blank contact fields
+    if (!lContactEmail && person.email) {
+      setLContactEmail(person.email)
+      onUpdate(resource.id, 'contactEmail', person.email)
     }
-    // Copy cost settings if not yet set
-    if (!lCostAmount && match.costAmount) {
-      setLCostAmount(match.costAmount)
-      onUpdate(resource.id, 'costAmount',  match.costAmount)
-      onUpdate(resource.id, 'costType',    match.costType)
-      onUpdate(resource.id, 'weekType',    match.weekType)
+    if (!lContactPhone && person.phone) {
+      setLContactPhone(person.phone)
+      onUpdate(resource.id, 'contactPhone', person.phone)
     }
+  }
+
+  // On blur: commit name, then either link an exact match or auto-create in DB
+  async function handleNameBlur() {
+    setShowPeopleDrop(false)
+    const trimmed = lName.trim()
+    commit('name', trimmed, resource.name)
+    if (!trimmed) return
+
+    // Only run people-linking for crew rows
+    if (activeTab !== 'crew') return
+
+    // Exact match → link silently (handles cases where user typed without selecting)
+    const exact = people.find(p => p.name.toLowerCase() === trimmed.toLowerCase())
+    if (exact) {
+      if (lPersonId !== exact.id) {
+        setLPersonId(exact.id)
+        onUpdate(resource.id, 'personId', exact.id)
+        // Auto-fill blank contact fields from the linked person
+        if (!lContactEmail && exact.email) {
+          setLContactEmail(exact.email)
+          onUpdate(resource.id, 'contactEmail', exact.email)
+        }
+        if (!lContactPhone && exact.phone) {
+          setLContactPhone(exact.phone)
+          onUpdate(resource.id, 'contactPhone', exact.phone)
+        }
+      }
+      return
+    }
+
+    // No match — create a new person record and link it
+    const newId = await onCreatePerson({
+      name:  trimmed,
+      email: lContactEmail,
+      phone: lContactPhone,
+    })
+    if (newId) {
+      setLPersonId(newId)
+      onUpdate(resource.id, 'personId', newId)
+    }
+  }
+
+  // Email/phone commits: update resource AND the linked person record
+  function commitEmail() {
+    commit('contactEmail', lContactEmail, resource.contactEmail)
+    if (lPersonId) onUpdatePerson(lPersonId, 'email', lContactEmail)
+  }
+
+  function commitPhone() {
+    commit('contactPhone', lContactPhone, resource.contactPhone)
+    if (lPersonId) onUpdatePerson(lPersonId, 'phone', lContactPhone)
   }
 
   return (
@@ -213,17 +263,37 @@ function ResourceRow({
               {expanded ? '▾' : '▸'}
             </button>
             <div className="gantt-name-fields">
-              <input
-                className="gantt-input gantt-input-name"
-                value={lName}
-                placeholder={activeTab === 'crew' ? 'Name' : 'Item name'}
-                list={`name-${resource.id}`}
-                onChange={e => setLName(e.target.value)}
-                onBlur={handleNameBlur}
-              />
-              <datalist id={`name-${resource.id}`}>
-                {nameSuggestions.map(s => <option key={s} value={s} />)}
-              </datalist>
+              <div className="gantt-name-input-wrap">
+                <input
+                  className="gantt-input gantt-input-name"
+                  value={lName}
+                  placeholder={activeTab === 'crew' ? 'Name' : 'Item name'}
+                  onChange={e => { setLName(e.target.value); if (activeTab === 'crew') setShowPeopleDrop(true) }}
+                  onFocus={() => { if (activeTab === 'crew') setShowPeopleDrop(true) }}
+                  onBlur={handleNameBlur}
+                />
+                {lPersonId && (
+                  <span className="gantt-person-linked" title="Linked to crew database">●</span>
+                )}
+                {activeTab === 'crew' && showPeopleDrop && filteredPeople.length > 0 && (
+                  <div className="people-dropdown">
+                    {filteredPeople.slice(0, 8).map(person => (
+                      <div
+                        key={person.id}
+                        className="people-dropdown-item"
+                        onMouseDown={e => { e.preventDefault(); selectPerson(person) }}
+                      >
+                        <span className="people-dropdown-name">{person.name}</span>
+                        {(person.email || person.phone) && (
+                          <span className="people-dropdown-meta">
+                            {person.email || person.phone}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {activeTab === 'crew' ? (
                 <>
@@ -395,7 +465,7 @@ function ResourceRow({
                       value={lContactEmail}
                       placeholder="email@example.com"
                       onChange={e => setLContactEmail(e.target.value)}
-                      onBlur={() => commit('contactEmail', lContactEmail, resource.contactEmail)}
+                      onBlur={commitEmail}
                     />
                   </div>
                   <div className="details-group">
@@ -406,7 +476,7 @@ function ResourceRow({
                       value={lContactPhone}
                       placeholder="+44 7700 900000"
                       onChange={e => setLContactPhone(e.target.value)}
-                      onBlur={() => commit('contactPhone', lContactPhone, resource.contactPhone)}
+                      onBlur={commitPhone}
                     />
                   </div>
                   <div className="details-group">
@@ -545,6 +615,12 @@ export default function CrewGantt({ production, shootDays }) {
     setBooking,
     moveResourceUp, moveResourceDown,
   } = useCrewStore()
+
+  const {
+    people,
+    findOrCreatePerson,
+    updatePerson: updateCrewPerson,
+  } = useCrewPeopleStore()
 
   const importFileRef = useRef(null)
   const [importMsg, setImportMsg] = useState(null)  // null | { count, type }
@@ -1129,6 +1205,9 @@ export default function CrewGantt({ production, shootDays }) {
                         onMoveDown={moveResourceDown}
                         onPhaseToggle={togglePhase}
                         typeResources={activeTab === 'crew' ? crewResources : equipResources}
+                        people={people}
+                        onCreatePerson={findOrCreatePerson}
+                        onUpdatePerson={updateCrewPerson}
                       />
                     ))}
                   </Fragment>
