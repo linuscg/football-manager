@@ -25,7 +25,7 @@ function dayLabel(day) {
     case 'prep':      return `Prep${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
     case 'splinter':  return `Splinter${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
     case 'rehearsal': return `Rehearsal${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
-    default:          return `Other${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
+    default:          return `${day.dayLabel ? day.dayLabel : 'Other'}${locStr}`
   }
 }
 
