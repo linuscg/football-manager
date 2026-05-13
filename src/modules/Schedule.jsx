@@ -3,6 +3,7 @@ import ShootDayCard from '../components/ShootDayCard'
 import CalendarView from '../components/CalendarView'
 import { useCrewStore } from '../store/useCrewStore'
 import { useAccommodationStore } from '../store/useAccommodationStore'
+import { exportScheduleListPDF, exportScheduleCalendarPDF } from '../lib/exportSchedulePDF'
 
 function todayStr() {
   const t = new Date()
@@ -275,7 +276,16 @@ export default function Schedule({ store, actions }) {
               onClick={() => switchView('calendar')} title="Calendar view"
             >▦ Calendar</button>
           </div>
-          <button className="pm-btn pm-btn--ghost" onClick={() => window.print()}>Print board</button>
+          <button
+            className="pm-btn pm-btn--ghost"
+            onClick={() => {
+              if (viewMode === 'calendar') {
+                exportScheduleCalendarPDF({ shootDays, production })
+              } else {
+                exportScheduleListPDF({ shootDays, production, castMembers: castMembers ?? [] })
+              }
+            }}
+          >↓ Export PDF</button>
           <button className="pm-btn pm-btn--primary" onClick={handleAddDay}>+ Add shoot day</button>
         </div>
       </div>
