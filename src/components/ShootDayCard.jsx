@@ -172,7 +172,7 @@ export default function ShootDayCard({
   production = {},
   castMembers = [],
   allLocations = [],
-  onDateChangePending,
+  onDateChange,
 }) {
   // Resolve which day type applies and calculate wrap time
   const effectiveDayType = day.dayType || production.defaultDayType || 'SWD'
@@ -395,8 +395,8 @@ export default function ShootDayCard({
                 type="date"
                 value={day.date}
                 onChange={e => {
-                  if (onDateChangePending && e.target.value && e.target.value !== day.date) {
-                    onDateChangePending(day, e.target.value)
+                  if (onDateChange && e.target.value && e.target.value !== day.date) {
+                    onDateChange(day, e.target.value)
                   } else {
                     onUpdate(day.id, 'date', e.target.value)
                   }

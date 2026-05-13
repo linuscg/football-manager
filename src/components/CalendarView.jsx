@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import ShootDayCard from './ShootDayCard'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ function DayEditModal({
   day, shootDays, actions,
   additionalsByDate, additionalsByDayId,
   production, castMembers, allLocations,
-  onDateChangePending, onClose,
+  onDateChange, onClose,
 }) {
   const index = shootDays.findIndex(d => d.id === day.id)
   const additionals = day.dayCategory === 'main'
@@ -104,9 +104,9 @@ function DayEditModal({
             production={production}
             castMembers={castMembers ?? []}
             allLocations={allLocations}
-            onDateChangePending={(d, newDate) => {
+            onDateChange={(d, newDate) => {
+              onDateChange(d, newDate)
               onClose()
-              onDateChangePending(d, newDate)
             }}
           />
         </div>
@@ -182,7 +182,7 @@ export default function CalendarView({
   shootDays, production, castMembers, allLocations, actions,
   additionalsByDate, additionalsByDayId,
   selectedDayIds, onSelectionChange,
-  onDateChangePending, onMoveSelectedAnchoredTo,
+  onDateChange, onMoveDaysTo,
   expandedIds, onToggleExpanded,
 }) {
   const today = todayStr()
@@ -284,10 +284,9 @@ export default function CalendarView({
     if (!day || day.date === dropDate) return
 
     if (selectedDayIds.has(dayId) && selectedDayIds.size > 1) {
-      // Multi-select drag: move all selected, anchored to this day
-      onMoveSelectedAnchoredTo(dayId, dropDate)
+      onMoveDaysTo(dayId, dropDate)
     } else {
-      onDateChangePending(day, dropDate)
+      onDateChange(day, dropDate)
     }
   }
 
@@ -474,7 +473,7 @@ export default function CalendarView({
           production={production}
           castMembers={castMembers}
           allLocations={allLocations}
-          onDateChangePending={onDateChangePending}
+          onDateChange={onDateChange}
           onClose={() => setEditingDayId(null)}
         />
       )}
