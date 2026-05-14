@@ -1,4 +1,6 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
+
+const RESEND_API_KEY = 're_YoTz8hWx_HKbB1c9W8p111Hdcf7hrNWe5'
 import { useFulltimeCrewStore }  from '../store/useFulltimeCrewStore'
 import { useCrewStore }          from '../store/useCrewStore'
 import { useNewStartersStore }   from '../store/useNewStartersStore'
@@ -60,13 +62,35 @@ function applyPlaceholders(template, { name, startDate, endDate }) {
 
 // ─── Email config modal ────────────────────────────────────────────────────────
 
+const PLACEHOLDERS = [
+  { label: '{{name}}',       value: '{{name}}'       },
+  { label: '{{start_date}}', value: '{{start_date}}' },
+  { label: '{{end_date}}',   value: '{{end_date}}'   },
+]
+
 function EmailConfigModal({ onClose, onSaved }) {
   const [cfg, setCfg] = useState(loadEmailConfig)
   const [dragging, setDragging] = useState(false)
-  const dropRef = useRef(null)
+  const bodyRef = useRef(null)
 
   function set(field, value) {
     setCfg(c => ({ ...c, [field]: value }))
+  }
+
+  // Insert placeholder at the textarea's current cursor position
+  function insertPlaceholder(placeholder) {
+    const el = bodyRef.current
+    if (!el) return
+    const start = el.selectionStart
+    const end   = el.selectionEnd
+    const current = cfg.body ?? ''
+    const next = current.slice(0, start) + placeholder + current.slice(end)
+    set('body', next)
+    // Restore cursor position after the inserted text
+    requestAnimationFrame(() => {
+      el.focus()
+      el.setSelectionRange(start + placeholder.length, start + placeholder.length)
+    })
   }
 
   function handleFileDrop(e) {
@@ -108,18 +132,6 @@ function EmailConfigModal({ onClose, onSaved }) {
         </div>
 
         <div className="ns-modal-body">
-          <div className="ns-field">
-            <label className="ns-label">Resend API Key</label>
-            <input
-              className="ns-input"
-              type="password"
-              value={cfg.apiKey ?? ''}
-              placeholder="re_xxxxxxxxxxxxxxxxxxxx"
-              onChange={e => set('apiKey', e.target.value)}
-            />
-            <div className="ns-hint">Get your key from <a href="https://resend.com" target="_blank" rel="noreferrer">resend.com</a>. Stored locally in your browser.</div>
-          </div>
-
           <div className="ns-field-row">
             <div className="ns-field">
               <label className="ns-label">From name</label>
@@ -139,11 +151,26 @@ function EmailConfigModal({ onClose, onSaved }) {
           <div className="ns-field">
             <label className="ns-label">
               Email body
-              <span className="ns-placeholder-hint">
-                Placeholders: <code>{'{{name}}'}</code> <code>{'{{start_date}}'}</code> <code>{'{{end_date}}'}</code>
-              </span>
             </label>
+            <div className="ns-placeholder-bar">
+              <span className="ns-placeholder-bar-label">Insert:</span>
+              {PLACEHOLDERS.map(p => (
+                <button
+                  key={p.value}
+                  type="button"
+                  className="ns-placeholder-btn"
+                  onMouseDown={e => {
+                    // Use mousedown so we don't lose textarea focus/selection before click
+                    e.preventDefault()
+                    insertPlaceholder(p.value)
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
             <textarea
+              ref={bodyRef}
               className="ns-textarea"
               rows={10}
               value={cfg.body ?? ''}
@@ -155,7 +182,6 @@ function EmailConfigModal({ onClose, onSaved }) {
           <div className="ns-field">
             <label className="ns-label">Attachments</label>
             <div
-              ref={dropRef}
               className={`ns-drop-zone${dragging ? ' ns-drop-zone--active' : ''}`}
               onDragOver={e => { e.preventDefault(); setDragging(true) }}
               onDragLeave={() => setDragging(false)}
@@ -382,11 +408,6 @@ export default function NewStarters() {
 
   async function handleSendEmail(person) {
     const cfg = loadEmailConfig()
-    if (!cfg.apiKey) {
-      setSendMsg({ type: 'err', text: 'No Resend API key configured. Click "Edit Welcome Email" to add one.' })
-      setTimeout(() => setSendMsg(null), 5000)
-      return
-    }
     if (!cfg.fromEmail) {
       setSendMsg({ type: 'err', text: 'No "from" email configured. Click "Edit Welcome Email" to add one.' })
       setTimeout(() => setSendMsg(null), 5000)
@@ -414,7 +435,7 @@ export default function NewStarters() {
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
         body:    JSON.stringify(payload),
       })
       if (res.ok) {
