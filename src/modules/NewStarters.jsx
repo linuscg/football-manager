@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 
-const RESEND_API_KEY = 're_YoTz8hWx_HKbB1c9W8p111Hdcf7hrNWe5'
+const RESEND_API_KEY  = 're_YoTz8hWx_HKbB1c9W8p111Hdcf7hrNWe5'
+const RESEND_FROM     = 'Football Manager <noreply@footballmanager.xyz>'
 import { useFulltimeCrewStore }  from '../store/useFulltimeCrewStore'
 import { useCrewStore }          from '../store/useCrewStore'
 import { useNewStartersStore }   from '../store/useNewStartersStore'
@@ -132,17 +133,6 @@ function EmailConfigModal({ onClose, onSaved }) {
         </div>
 
         <div className="ns-modal-body">
-          <div className="ns-field-row">
-            <div className="ns-field">
-              <label className="ns-label">From name</label>
-              <input className="ns-input" value={cfg.fromName ?? ''} placeholder="Production Office" onChange={e => set('fromName', e.target.value)} />
-            </div>
-            <div className="ns-field">
-              <label className="ns-label">From email</label>
-              <input className="ns-input" type="email" value={cfg.fromEmail ?? ''} placeholder="hello@yourdomain.com" onChange={e => set('fromEmail', e.target.value)} />
-            </div>
-          </div>
-
           <div className="ns-field">
             <label className="ns-label">Subject</label>
             <input className="ns-input" value={cfg.subject ?? ''} placeholder="Welcome to the team, {{name}}!" onChange={e => set('subject', e.target.value)} />
@@ -423,18 +413,13 @@ export default function NewStarters() {
 
   async function handleSendEmail(person) {
     const cfg = loadEmailConfig()
-    if (!cfg.fromEmail) {
-      setSendMsg({ type: 'err', text: 'No "from" email configured. Click "Edit Welcome Email" to add one.' })
-      setTimeout(() => setSendMsg(null), 5000)
-      return
-    }
     if (!person.email) return
 
     setSendingId(person.id)
 
     const body    = applyPlaceholders(cfg.body    ?? '', person)
     const subject = applyPlaceholders(cfg.subject ?? 'Welcome to the team!', person)
-    const from    = cfg.fromName ? `${cfg.fromName} <${cfg.fromEmail}>` : cfg.fromEmail
+    const from    = RESEND_FROM
 
     const payload = {
       from,
