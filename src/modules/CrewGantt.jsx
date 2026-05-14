@@ -207,7 +207,28 @@ function ResourceRow({
     // Only run people-linking for crew rows
     if (activeTab !== 'crew') return
 
-    // Exact match → link silently (handles cases where user typed without selecting)
+    // If this row is already linked to a person, update that person's name
+    // (rather than creating an orphan duplicate record)
+    if (lPersonId) {
+      const linked = people.find(p => p.id === lPersonId)
+      if (linked && linked.name.toLowerCase() !== trimmed.toLowerCase()) {
+        // Check if another person already has this exact name
+        const conflict = people.find(p => p.id !== lPersonId && p.name.toLowerCase() === trimmed.toLowerCase())
+        if (conflict) {
+          // Re-link to the existing person with this name
+          setLPersonId(conflict.id)
+          onUpdate(resource.id, 'personId', conflict.id)
+          if (!lContactEmail && conflict.email) { setLContactEmail(conflict.email); onUpdate(resource.id, 'contactEmail', conflict.email) }
+          if (!lContactPhone && conflict.phone) { setLContactPhone(conflict.phone); onUpdate(resource.id, 'contactPhone', conflict.phone) }
+        } else {
+          // Update the linked person's name in the crew database
+          onUpdatePerson(lPersonId, 'name', trimmed)
+        }
+      }
+      return
+    }
+
+    // Not yet linked — look for an exact match in the database
     const exact = people.find(p => p.name.toLowerCase() === trimmed.toLowerCase())
     if (exact) {
       if (lPersonId !== exact.id) {
@@ -994,7 +1015,13 @@ export default function CrewGantt({ production, shootDays }) {
 
         <div className="gantt-toolbar">
           {/* Add / import resource */}
-          <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={() => addResource(activeTab)}>
+          <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={async () => {
+            const resourceId = addResource(activeTab)
+            if (activeTab === 'crew' && resourceId) {
+              const personId = await findOrCreatePerson({ name: 'New Person' })
+              if (personId) updateResource(resourceId, 'personId', personId)
+            }
+          }}>
             + Add {typeLabel}
           </button>
           <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadTemplate} title="Download CSV template">
@@ -1228,7 +1255,13 @@ export default function CrewGantt({ production, shootDays }) {
                 <td colSpan={colSpecs.length + 1}>
                   <button
                     className="pm-btn pm-btn--ghost pm-btn--sm gantt-add-bottom-btn"
-                    onClick={() => addResource(activeTab)}
+                    onClick={async () => {
+                      const resourceId = addResource(activeTab)
+                      if (activeTab === 'crew' && resourceId) {
+                        const personId = await findOrCreatePerson({ name: 'New Person' })
+                        if (personId) updateResource(resourceId, 'personId', personId)
+                      }
+                    }}
                   >
                     + Add {typeLabel}
                   </button>
