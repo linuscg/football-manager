@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-const RESEND_API_KEY = 're_YoTz8hWx_HKbB1c9W8p111Hdcf7hrNWe5'
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const FROM_ADDRESS   = 'Football Manager <noreply@footballmanager.xyz>'
 
 const corsHeaders = {
