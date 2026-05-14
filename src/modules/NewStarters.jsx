@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react'
 
-const RESEND_API_KEY  = 're_YoTz8hWx_HKbB1c9W8p111Hdcf7hrNWe5'
-const RESEND_FROM     = 'Football Manager <noreply@footballmanager.xyz>'
+// API key + from address live in the Edge Function (supabase/functions/send-welcome-email)
 import { useFulltimeCrewStore }  from '../store/useFulltimeCrewStore'
 import { useCrewStore }          from '../store/useCrewStore'
 import { useNewStartersStore }   from '../store/useNewStartersStore'
@@ -338,8 +337,10 @@ export default function NewStarters() {
   const [weekStart, setWeekStart] = useState(() => {
     const saved = localStorage.getItem('fm_new_starters_week')
     if (saved) {
-      const d = new Date(saved)
-      if (!isNaN(d)) return startOfWeek(d)
+      // Parse as local time (appending T00:00:00 avoids UTC-midnight rollback
+      // that shifts the date to the previous day in timezones ahead of UTC)
+      const d = new Date(saved + 'T00:00:00')
+      if (!isNaN(d)) return d  // already stored as the Monday — no need to re-run startOfWeek
     }
     return startOfWeek(new Date())
   })
@@ -419,10 +420,8 @@ export default function NewStarters() {
 
     const body    = applyPlaceholders(cfg.body    ?? '', person)
     const subject = applyPlaceholders(cfg.subject ?? 'Welcome to the team!', person)
-    const from    = RESEND_FROM
 
     const payload = {
-      from,
       to:      [person.email],
       subject,
       text:    body,
@@ -433,10 +432,15 @@ export default function NewStarters() {
     }
 
     try {
-      const res = await fetch('https://api.resend.com/emails', {
+      const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
+      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`
+      const res = await fetch(fnUrl, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
-        body:    JSON.stringify(payload),
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify(payload),
       })
       if (res.ok) {
         await updateStatus(person.id, person._crewType ?? 'additional', 'emailSent', true)
