@@ -8324,6 +8324,8 @@ select.pm-input { cursor: pointer; }
   transition: background 0.1s;
   min-height: 100px;
   vertical-align: top;
+  min-width: 0;      /* prevent grid blowout */
+  overflow: hidden;  /* contain strip widths to the cell */
 }
 .cal-cell--empty    { background: #fafafa; }
 .cal-cell--weekend  { background: #fafafa; }
@@ -8436,6 +8438,8 @@ select.pm-input { cursor: pointer; }
   transition: filter 0.1s, outline 0.1s;
   position: relative;
   overflow: hidden;
+  width: 100%;       /* fill the cell — never push it wider */
+  box-sizing: border-box;
 }
 .cal-strip:hover { filter: brightness(0.92); }
 .cal-strip--sub  { opacity: 0.85; font-size: 10.5px; margin-left: 8px; }
@@ -8477,11 +8481,14 @@ select.pm-input { cursor: pointer; }
   min-width: 0;
 }
 .cal-strip-label {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
   flex: 1;
   min-width: 0;
+  line-height: 1.35;
 }
 .cal-strip-scenes {
   font-size: 10px;
