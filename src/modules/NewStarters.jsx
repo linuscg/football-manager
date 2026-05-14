@@ -489,6 +489,13 @@ export default function NewStarters() {
         <button className="ns-week-btn" onClick={() => navigateWeek(-7)}>‹</button>
         <span className="ns-week-label">{fmtWeekRange(weekStart)}</span>
         <button className="ns-week-btn" onClick={() => navigateWeek(7)}>›</button>
+        <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => {
+          const today = startOfWeek(new Date())
+          setWeekStart(today)
+          localStorage.setItem('fm_new_starters_week', toISO(today))
+        }}>
+          Jump to this week
+        </button>
       </div>
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
