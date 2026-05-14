@@ -1,9 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
-const FROM_ADDRESS   = 'Football Manager <noreply@footballmanager.xyz>'
-
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -63,16 +60,24 @@ serve(async (req) => {
       })
     }
 
-    // ── Fetch production name ───────────────────────────────────────────────
-    const { data: production } = await adminClient
+    // ── Fetch production name (using the specific productionId from the request) ──
+    const { data: production, error: prodError } = await adminClient
       .from('production')
       .select('name')
       .eq('id', productionId)
-      .maybeSingle()
+      .single()
 
-    const productionName = production?.name || 'the production'
+    if (prodError || !production) {
+      return new Response(JSON.stringify({ error: 'Production not found.' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
-    // ── Generate invite token and store invite row ──────────────────────────
+    const productionName = production.name
+    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1)
+
+    // ── Store invite row ────────────────────────────────────────────────────
     const token = crypto.randomUUID()
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -102,76 +107,29 @@ serve(async (req) => {
       })
     }
 
-    // ── Build the invite URL ────────────────────────────────────────────────
+    // ── Build redirect URL containing our invite token ──────────────────────
     const appUrl = Deno.env.get('APP_URL') ?? 'https://footballmanager.xyz'
-    const inviteUrl = `${appUrl}?invite=${token}`
+    const redirectTo = `${appUrl}?invite=${token}`
 
-    // ── Generate a magic link WITHOUT sending an email ─────────────────────
-    // generateLink creates the Supabase auth record and returns the link;
-    // we then send our own email via Resend so we control the content.
-    const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
-      type: 'invite',
-      email: cleanEmail,
-      options: {
-        redirectTo: inviteUrl,
-      },
-    })
+    // ── Send invite email via Supabase Auth (uses your email template) ──────
+    // We pass production_name and role_label explicitly so the template
+    // {{ .Data.production_name }} and {{ .Data.role_label }} always resolve
+    // to the correct values for THIS specific production.
+    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+      cleanEmail,
+      {
+        redirectTo,
+        data: {
+          production_id:   productionId,
+          production_name: productionName,   // ← correct name for THIS production
+          role_label:      roleLabel,        // ← e.g. "Member", "Admin"
+        },
+      }
+    )
 
-    if (linkError || !linkData?.properties?.action_link) {
-      // Clean up the invite row
+    if (inviteError) {
       await adminClient.from('invites').delete().eq('token', token)
-      return new Response(JSON.stringify({ error: linkError?.message ?? 'Failed to generate invite link.' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const magicLink = linkData.properties.action_link
-
-    // ── Send the email via Resend ───────────────────────────────────────────
-    const emailHtml = `
-      <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #1e293b;">
-        <img src="https://footballmanager.xyz/favicon.svg" alt="Football Manager" width="40" height="40"
-          style="margin-bottom: 24px; display: block;" />
-
-        <h2 style="margin: 0 0 8px; font-size: 22px; font-weight: 700;">You've been invited</h2>
-        <p style="margin: 0 0 24px; color: #64748b; font-size: 15px;">
-          You've been invited to join <strong>${productionName}</strong> on Football Manager
-          as <strong>${role.charAt(0).toUpperCase() + role.slice(1)}</strong>.
-        </p>
-
-        <a href="${magicLink}"
-          style="display: inline-block; background: #4f46e5; color: #fff; text-decoration: none;
-                 padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 15px;">
-          Accept invitation
-        </a>
-
-        <p style="margin: 24px 0 0; font-size: 12px; color: #94a3b8;">
-          This link expires in 7 days. If you weren't expecting this invitation, you can ignore this email.
-        </p>
-      </div>
-    `
-
-    const resendRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from:    FROM_ADDRESS,
-        to:      [cleanEmail],
-        subject: `You've been invited to ${productionName}`,
-        html:    emailHtml,
-      }),
-    })
-
-    const resendData = await resendRes.json()
-
-    if (!resendRes.ok) {
-      // Clean up the invite row
-      await adminClient.from('invites').delete().eq('token', token)
-      return new Response(JSON.stringify({ error: resendData?.message ?? 'Failed to send email.' }), {
+      return new Response(JSON.stringify({ error: inviteError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
