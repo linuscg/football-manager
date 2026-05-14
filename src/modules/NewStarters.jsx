@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { supabase } from '../lib/supabase'
 
 // API key + from address live in the Edge Function (supabase/functions/send-welcome-email)
 import { useFulltimeCrewStore }  from '../store/useFulltimeCrewStore'
@@ -432,7 +433,7 @@ export default function NewStarters() {
     }
 
     try {
-      const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
+      const { data: { session } } = await supabase.auth.getSession()
       const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`
       const res = await fetch(fnUrl, {
         method:  'POST',
