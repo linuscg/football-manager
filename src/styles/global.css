@@ -3591,7 +3591,7 @@ html, body {
 }
 
 .pm-g-corner {
-  position: sticky; left: 0; z-index: 5;
+  position: sticky; left: 0; top: 0; z-index: 6;
   background: #f3f4f6;
   width: 220px; min-width: 220px;
   text-align: left !important;
@@ -3609,7 +3609,7 @@ html, body {
 
 /* ── Phase banner header (spans all columns for that phase) ──── */
 .gantt-phase-banner-th {
-  position: relative; /* containing block so label sticks within this cell's span */
+  position: sticky; top: 0; z-index: 4; /* sticky so row 1 pins to top on scroll */
   background: color-mix(in srgb, var(--phase-color) 12%, #f9fafb);
   color: var(--phase-color);
   font-size: 10px;
@@ -3621,6 +3621,14 @@ html, body {
   border-bottom: 2px solid color-mix(in srgb, var(--phase-color) 30%, #e5e7eb);
   border-right: 2px solid color-mix(in srgb, var(--phase-color) 25%, #e5e7eb);
   white-space: nowrap;
+}
+
+/* ── Date column headers (row 2) — sticky below the phase banner row ── */
+.pm-g-tbl thead .pm-g-day,
+.pm-g-tbl thead .gantt-phase-sum-th {
+  position: sticky;
+  top: 28px; /* height of the phase banner row above */
+  z-index: 3;
 }
 
 /* The label sticks just past the name column (220px) so it stays

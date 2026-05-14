@@ -954,11 +954,22 @@ export default function CrewGantt({ production, shootDays }) {
     const newStart = field === 'hireStartDate' ? value : (resource.hireStartDate || '')
     const newEnd   = field === 'hireEndDate'   ? value : (resource.hireEndDate   || '')
     if (!newStart || !newEnd || newStart > newEnd) return
+
+    // Book all main shoot days in the new range
     const inRange = shootDays.filter(
       d => d.dayCategory === 'main' && !d.isNonShootDay && d.date >= newStart && d.date <= newEnd
     )
     for (const day of inRange) {
       setBooking(id, day.date, 'booked', null)
+    }
+
+    // Clear any 'booked' main-unit cells that now fall outside the new range
+    const outside = bookings.filter(
+      b => b.resourceId === id && b.status === 'booked' && !b.dayId &&
+           (b.date < newStart || b.date > newEnd)
+    )
+    for (const b of outside) {
+      setBooking(id, b.date, null, null)
     }
   }
 
