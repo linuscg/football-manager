@@ -345,7 +345,22 @@ export default function NewStarters() {
   const { resources, bookings }                = useCrewStore()
   const { statuses, updateStatus }             = useNewStartersStore()
 
-  const [weekStart,     setWeekStart]     = useState(() => startOfWeek(new Date()))
+  const [weekStart, setWeekStart] = useState(() => {
+    const saved = localStorage.getItem('fm_new_starters_week')
+    if (saved) {
+      const d = new Date(saved)
+      if (!isNaN(d)) return startOfWeek(d)
+    }
+    return startOfWeek(new Date())
+  })
+
+  function navigateWeek(delta) {
+    setWeekStart(w => {
+      const next = addDays(w, delta)
+      localStorage.setItem('fm_new_starters_week', toISO(next))
+      return next
+    })
+  }
   const [showEmailCfg,  setShowEmailCfg]  = useState(false)
   const [emailCfg,      setEmailCfg]      = useState(loadEmailConfig)
   const [sendingId,     setSendingId]     = useState(null)
@@ -486,9 +501,9 @@ export default function NewStarters() {
 
       {/* ── Week navigator ───────────────────────────────────────────────────── */}
       <div className="ns-week-nav">
-        <button className="ns-week-btn" onClick={() => setWeekStart(w => addDays(w, -7))}>‹</button>
+        <button className="ns-week-btn" onClick={() => navigateWeek(-7)}>‹</button>
         <span className="ns-week-label">{fmtWeekRange(weekStart)}</span>
-        <button className="ns-week-btn" onClick={() => setWeekStart(w => addDays(w,  7))}>›</button>
+        <button className="ns-week-btn" onClick={() => navigateWeek(7)}>›</button>
       </div>
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
