@@ -8,7 +8,7 @@ const ROLE_COLORS = {
   member: { bg: '#f0fdf4', color: '#166534' },
 }
 
-export default function AdminPage({ currentProductionId, session, memberRole }) {
+export default function AdminPage({ currentProductionId, productionName, session, memberRole }) {
   const canAdmin = memberRole === 'owner' || memberRole === 'admin'
 
   const [members,    setMembers]    = useState([])
@@ -144,6 +144,16 @@ export default function AdminPage({ currentProductionId, session, memberRole }) 
       {/* ── Invite form ────────────────────────────────────────────────────── */}
       <div className="admin-section">
         <h2 className="admin-section-title">Invite Someone</h2>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: '#f0f7ff', border: '1px solid #bfdbfe',
+          borderRadius: 8, padding: '8px 14px', marginBottom: 12,
+        }}>
+          <span style={{ fontSize: 13, color: '#6b7280' }}>Inviting to:</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#1e40af' }}>
+            {productionName || 'Untitled Production'}
+          </span>
+        </div>
         <p className="admin-section-sub">
           They'll receive an email to set up their account and join this production.
         </p>

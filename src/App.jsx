@@ -612,6 +612,7 @@ function AppShell({ session, signOut }) {
             {topTab === 'setup' && setupModule === 'setup-admin' && (
               <AdminPage
                 currentProductionId={currentProductionId}
+                productionName={store.production.name}
                 session={session}
                 memberRole={memberRole}
               />
