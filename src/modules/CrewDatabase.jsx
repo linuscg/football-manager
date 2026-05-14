@@ -7,19 +7,25 @@ import { useCrewPeopleStore } from '../store/useCrewPeopleStore'
 // If the resource has a personId, edits also sync to the crew_people record.
 
 function CrewRow({ resource, onUpdate, onUpdatePerson, people }) {
-  const [lName,  setLName]  = useState(resource.name)
-  const [lRole,  setLRole]  = useState(resource.role)
-  const [lDept,  setLDept]  = useState(resource.department)
-  const [lEmail, setLEmail] = useState(resource.contactEmail)
-  const [lPhone, setLPhone] = useState(resource.contactPhone)
-  const [lNotes, setLNotes] = useState(resource.notes)
+  const [lName,      setLName]      = useState(resource.name)
+  const [lRole,      setLRole]      = useState(resource.role)
+  const [lDept,      setLDept]      = useState(resource.department)
+  const [lEmail,     setLEmail]     = useState(resource.contactEmail)
+  const [lPhone,     setLPhone]     = useState(resource.contactPhone)
+  const [lNotes,     setLNotes]     = useState(resource.notes)
+  const [lRate,      setLRate]      = useState(resource.costAmount)
+  const [lStartDate, setLStartDate] = useState(resource.hireStartDate)
+  const [lEndDate,   setLEndDate]   = useState(resource.hireEndDate)
 
-  useEffect(() => setLName(resource.name),         [resource.name])
-  useEffect(() => setLRole(resource.role),         [resource.role])
-  useEffect(() => setLDept(resource.department),   [resource.department])
-  useEffect(() => setLEmail(resource.contactEmail),[resource.contactEmail])
-  useEffect(() => setLPhone(resource.contactPhone),[resource.contactPhone])
-  useEffect(() => setLNotes(resource.notes),       [resource.notes])
+  useEffect(() => setLName(resource.name),             [resource.name])
+  useEffect(() => setLRole(resource.role),             [resource.role])
+  useEffect(() => setLDept(resource.department),       [resource.department])
+  useEffect(() => setLEmail(resource.contactEmail),    [resource.contactEmail])
+  useEffect(() => setLPhone(resource.contactPhone),    [resource.contactPhone])
+  useEffect(() => setLNotes(resource.notes),           [resource.notes])
+  useEffect(() => setLRate(resource.costAmount),       [resource.costAmount])
+  useEffect(() => setLStartDate(resource.hireStartDate),[resource.hireStartDate])
+  useEffect(() => setLEndDate(resource.hireEndDate),   [resource.hireEndDate])
 
   function commit(field, local, original) {
     if (local.trim() !== original) onUpdate(resource.id, field, local.trim())
@@ -73,6 +79,34 @@ function CrewRow({ resource, onUpdate, onUpdatePerson, people }) {
           placeholder="Department"
           onChange={e => setLDept(e.target.value)}
           onBlur={() => commit('department', lDept, resource.department)}
+        />
+      </td>
+      <td className="crew-db-cell crew-db-cell--date">
+        <input
+          className="crew-db-input"
+          type="date"
+          value={lStartDate}
+          onChange={e => { setLStartDate(e.target.value); onUpdate(resource.id, 'hireStartDate', e.target.value) }}
+        />
+      </td>
+      <td className="crew-db-cell crew-db-cell--date">
+        <input
+          className="crew-db-input"
+          type="date"
+          value={lEndDate}
+          onChange={e => { setLEndDate(e.target.value); onUpdate(resource.id, 'hireEndDate', e.target.value) }}
+        />
+      </td>
+      <td className="crew-db-cell crew-db-cell--rate">
+        <input
+          className="crew-db-input"
+          type="number"
+          min="0"
+          step="0.01"
+          value={lRate}
+          placeholder="0.00"
+          onChange={e => setLRate(e.target.value)}
+          onBlur={() => { if (lRate !== resource.costAmount) onUpdate(resource.id, 'costAmount', lRate) }}
         />
       </td>
       <td className="crew-db-cell">
@@ -176,6 +210,9 @@ export default function CrewDatabase() {
                   <th className="crew-db-th crew-db-th--name">Name</th>
                   <th className="crew-db-th">Role</th>
                   <th className="crew-db-th">Department</th>
+                  <th className="crew-db-th crew-db-th--date">Start date</th>
+                  <th className="crew-db-th crew-db-th--date">End date</th>
+                  <th className="crew-db-th crew-db-th--rate">Day rate</th>
                   <th className="crew-db-th">Email</th>
                   <th className="crew-db-th">Phone</th>
                   <th className="crew-db-th crew-db-cell--notes">Notes</th>

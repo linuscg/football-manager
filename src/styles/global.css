@@ -8153,8 +8153,12 @@ select.pm-input { cursor: pointer; }
   border-bottom: 1px solid #e5e7eb;
   white-space: nowrap;
 }
-.crew-db-th--name  { width: 200px; }
+.crew-db-th--name   { width: 180px; }
 .crew-db-th--action { width: 40px; }
+.crew-db-th--date   { width: 130px; }
+.crew-db-th--rate   { width: 100px; }
+.crew-db-cell--date { width: 130px; }
+.crew-db-cell--rate { width: 100px; }
 .crew-db-row:hover td { background: #fafafa; }
 .crew-db-row:last-child td { border-bottom: none; }
 .crew-db-cell {
