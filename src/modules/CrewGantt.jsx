@@ -1015,13 +1015,7 @@ export default function CrewGantt({ production, shootDays }) {
 
         <div className="gantt-toolbar">
           {/* Add / import resource */}
-          <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={async () => {
-            const resourceId = addResource(activeTab)
-            if (activeTab === 'crew' && resourceId) {
-              const personId = await findOrCreatePerson({ name: 'New Person' })
-              if (personId) updateResource(resourceId, 'personId', personId)
-            }
-          }}>
+          <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={() => addResource(activeTab)}>
             + Add {typeLabel}
           </button>
           <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadTemplate} title="Download CSV template">
@@ -1255,13 +1249,7 @@ export default function CrewGantt({ production, shootDays }) {
                 <td colSpan={colSpecs.length + 1}>
                   <button
                     className="pm-btn pm-btn--ghost pm-btn--sm gantt-add-bottom-btn"
-                    onClick={async () => {
-                      const resourceId = addResource(activeTab)
-                      if (activeTab === 'crew' && resourceId) {
-                        const personId = await findOrCreatePerson({ name: 'New Person' })
-                        if (personId) updateResource(resourceId, 'personId', personId)
-                      }
-                    }}
+                    onClick={() => addResource(activeTab)}
                   >
                     + Add {typeLabel}
                   </button>

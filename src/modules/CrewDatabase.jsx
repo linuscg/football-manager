@@ -1,22 +1,47 @@
 import { useState, useEffect } from 'react'
+import { useCrewStore }       from '../store/useCrewStore'
 import { useCrewPeopleStore } from '../store/useCrewPeopleStore'
 
-// ─── Editable person row ───────────────────────────────────────────────────────
+// ─── Editable crew row ─────────────────────────────────────────────────────────
+// Shows a resource (from the Gantt) with editable contact fields.
+// If the resource has a personId, edits also sync to the crew_people record.
 
-function PersonRow({ person, onUpdate, onDelete }) {
-  const [lName,  setLName]  = useState(person.name)
-  const [lEmail, setLEmail] = useState(person.email)
-  const [lPhone, setLPhone] = useState(person.phone)
-  const [lNotes, setLNotes] = useState(person.notes)
+function CrewRow({ resource, onUpdate, onUpdatePerson, people }) {
+  const [lName,  setLName]  = useState(resource.name)
+  const [lRole,  setLRole]  = useState(resource.role)
+  const [lDept,  setLDept]  = useState(resource.department)
+  const [lEmail, setLEmail] = useState(resource.contactEmail)
+  const [lPhone, setLPhone] = useState(resource.contactPhone)
+  const [lNotes, setLNotes] = useState(resource.notes)
 
-  useEffect(() => setLName(person.name),   [person.name])
-  useEffect(() => setLEmail(person.email), [person.email])
-  useEffect(() => setLPhone(person.phone), [person.phone])
-  useEffect(() => setLNotes(person.notes), [person.notes])
+  useEffect(() => setLName(resource.name),         [resource.name])
+  useEffect(() => setLRole(resource.role),         [resource.role])
+  useEffect(() => setLDept(resource.department),   [resource.department])
+  useEffect(() => setLEmail(resource.contactEmail),[resource.contactEmail])
+  useEffect(() => setLPhone(resource.contactPhone),[resource.contactPhone])
+  useEffect(() => setLNotes(resource.notes),       [resource.notes])
 
   function commit(field, local, original) {
-    if (local !== original) onUpdate(person.id, field, local)
+    if (local.trim() !== original) onUpdate(resource.id, field, local.trim())
   }
+
+  function commitEmail() {
+    if (lEmail !== resource.contactEmail) {
+      onUpdate(resource.id, 'contactEmail', lEmail)
+      if (resource.personId) onUpdatePerson(resource.personId, 'email', lEmail)
+    }
+  }
+
+  function commitPhone() {
+    if (lPhone !== resource.contactPhone) {
+      onUpdate(resource.id, 'contactPhone', lPhone)
+      if (resource.personId) onUpdatePerson(resource.personId, 'phone', lPhone)
+    }
+  }
+
+  const linked = resource.personId
+    ? people.find(p => p.id === resource.personId)
+    : null
 
   return (
     <tr className="crew-db-row">
@@ -26,7 +51,28 @@ function PersonRow({ person, onUpdate, onDelete }) {
           value={lName}
           placeholder="Full name"
           onChange={e => setLName(e.target.value)}
-          onBlur={() => commit('name', lName, person.name)}
+          onBlur={() => commit('name', lName, resource.name)}
+        />
+        {linked && (
+          <span className="gantt-person-linked" title="Linked to crew database" style={{ marginLeft: 4 }}>●</span>
+        )}
+      </td>
+      <td className="crew-db-cell">
+        <input
+          className="crew-db-input"
+          value={lRole}
+          placeholder="Role / job title"
+          onChange={e => setLRole(e.target.value)}
+          onBlur={() => commit('role', lRole, resource.role)}
+        />
+      </td>
+      <td className="crew-db-cell">
+        <input
+          className="crew-db-input"
+          value={lDept}
+          placeholder="Department"
+          onChange={e => setLDept(e.target.value)}
+          onBlur={() => commit('department', lDept, resource.department)}
         />
       </td>
       <td className="crew-db-cell">
@@ -36,7 +82,7 @@ function PersonRow({ person, onUpdate, onDelete }) {
           value={lEmail}
           placeholder="email@example.com"
           onChange={e => setLEmail(e.target.value)}
-          onBlur={() => commit('email', lEmail, person.email)}
+          onBlur={commitEmail}
         />
       </td>
       <td className="crew-db-cell">
@@ -46,7 +92,7 @@ function PersonRow({ person, onUpdate, onDelete }) {
           value={lPhone}
           placeholder="+44 7700 900000"
           onChange={e => setLPhone(e.target.value)}
-          onBlur={() => commit('phone', lPhone, person.phone)}
+          onBlur={commitPhone}
         />
       </td>
       <td className="crew-db-cell crew-db-cell--notes">
@@ -55,18 +101,8 @@ function PersonRow({ person, onUpdate, onDelete }) {
           value={lNotes}
           placeholder="Notes…"
           onChange={e => setLNotes(e.target.value)}
-          onBlur={() => commit('notes', lNotes, person.notes)}
+          onBlur={() => commit('notes', lNotes, resource.notes)}
         />
-      </td>
-      <td className="crew-db-cell crew-db-cell--action">
-        <button
-          className="pm-icon-btn danger"
-          title="Remove from database"
-          onClick={() => {
-            if (window.confirm(`Remove "${person.name}" from the crew database?\n\nThis will unlink them from any productions but won't delete their bookings.`))
-              onDelete(person.id)
-          }}
-        >✕</button>
       </td>
     </tr>
   )
@@ -75,20 +111,24 @@ function PersonRow({ person, onUpdate, onDelete }) {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CrewDatabase() {
-  const { people, loading, findOrCreatePerson, updatePerson, deletePerson } = useCrewPeopleStore()
+  const { resources, loading, addResource, updateResource } = useCrewStore()
+  const { people, updatePerson: updateCrewPerson }          = useCrewPeopleStore()
   const [search, setSearch] = useState('')
 
-  const filtered = search.trim()
-    ? people.filter(p =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.email.toLowerCase().includes(search.toLowerCase()) ||
-        p.phone.toLowerCase().includes(search.toLowerCase())
-      )
-    : people
+  // Only crew-type resources, sorted by name
+  const crew = resources
+    .filter(r => r.type === 'crew')
+    .sort((a, b) => a.name.localeCompare(b.name))
 
-  async function handleAdd() {
-    await findOrCreatePerson({ name: 'New Person' })
-  }
+  const filtered = search.trim()
+    ? crew.filter(r =>
+        r.name.toLowerCase().includes(search.toLowerCase()) ||
+        r.role.toLowerCase().includes(search.toLowerCase()) ||
+        r.department.toLowerCase().includes(search.toLowerCase()) ||
+        r.contactEmail.toLowerCase().includes(search.toLowerCase()) ||
+        r.contactPhone.toLowerCase().includes(search.toLowerCase())
+      )
+    : crew
 
   return (
     <div className="pm-module">
@@ -97,18 +137,18 @@ export default function CrewDatabase() {
           <div className="pm-eyebrow">Section V</div>
           <h1 className="pm-h1">Crew Database</h1>
           <div className="pm-h1-sub">
-            Cross-production roster · {people.length} {people.length === 1 ? 'person' : 'people'}
+            Production roster · {crew.length} {crew.length === 1 ? 'person' : 'people'}
           </div>
         </div>
         <div className="pm-module-head-actions">
           <input
             className="crew-db-search"
             type="search"
-            placeholder="Search by name, email or phone…"
+            placeholder="Search by name, role, email…"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <button className="pm-btn pm-btn--primary" onClick={handleAdd}>
+          <button className="pm-btn pm-btn--primary" onClick={() => addResource('crew')}>
             + Add person
           </button>
         </div>
@@ -116,38 +156,39 @@ export default function CrewDatabase() {
 
       {loading ? (
         <div className="crew-db-loading">Loading…</div>
-      ) : people.length === 0 ? (
+      ) : crew.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">👤</div>
-          <div className="empty-state-text">No people yet.</div>
+          <div className="empty-state-text">No crew yet.</div>
           <div className="empty-state-sub">
-            People are added automatically when you type names in the Crew &amp; Equipment gantt,
-            or you can add them manually here.
+            Add crew members here or in the Crew &amp; Equipment Gantt — they'll appear in both places.
           </div>
         </div>
       ) : (
         <>
           {search && filtered.length === 0 && (
-            <div className="crew-db-no-results">No people match &ldquo;{search}&rdquo;.</div>
+            <div className="crew-db-no-results">No crew match &ldquo;{search}&rdquo;.</div>
           )}
           <div className="crew-db-table-wrap">
             <table className="crew-db-table">
               <thead>
                 <tr>
                   <th className="crew-db-th crew-db-th--name">Name</th>
+                  <th className="crew-db-th">Role</th>
+                  <th className="crew-db-th">Department</th>
                   <th className="crew-db-th">Email</th>
                   <th className="crew-db-th">Phone</th>
-                  <th className="crew-db-th">Notes</th>
-                  <th className="crew-db-th crew-db-th--action" />
+                  <th className="crew-db-th crew-db-cell--notes">Notes</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(person => (
-                  <PersonRow
-                    key={person.id}
-                    person={person}
-                    onUpdate={updatePerson}
-                    onDelete={deletePerson}
+                {filtered.map(resource => (
+                  <CrewRow
+                    key={resource.id}
+                    resource={resource}
+                    onUpdate={updateResource}
+                    onUpdatePerson={updateCrewPerson}
+                    people={people}
                   />
                 ))}
               </tbody>
