@@ -26,13 +26,14 @@ import CrewHotels            from './modules/CrewHotels'
 import WeeklyTMO             from './modules/WeeklyTMO'
 import TravelTimes           from './modules/TravelTimes'
 import CrewDatabase          from './modules/CrewDatabase'
+import NewStarters           from './modules/NewStarters'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
 const TOP_TABS = [
   { id: 'setup',      label: 'Admin'            },
   { id: 'fm',         label: 'Football Manager' },
-  { id: 'crew-times', label: 'Crew Times'       },
+  { id: 'crew-times', label: 'Crew'             },
   { id: 'catering',   label: 'Catering'         },
   { id: 'accomm',     label: 'Accommodation'    },
 ]
@@ -109,12 +110,14 @@ const CT_NAV = [
   { id: 'ct-crew',       num: '01', label: 'Fulltime Crew' },
   { id: 'ct-backpage',   num: '02', label: 'Backpage'      },
   { id: 'ct-timesheets', num: '03', label: 'Timesheets'    },
+  { id: 'ct-starters',   num: '04', label: 'New Starters'  },
 ]
 
 const CT_MODULE_SUB = {
   'ct-crew':       'Full-time crew list',
   'ct-backpage':   'Daily back page',
   'ct-timesheets': 'Weekly timesheets',
+  'ct-starters':   'Weekly new starter onboarding',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -650,6 +653,9 @@ function AppShell({ session, signOut }) {
             )}
             {topTab === 'crew-times' && ctModule === 'ct-timesheets' && (
               <Timesheets store={store} />
+            )}
+            {topTab === 'crew-times' && ctModule === 'ct-starters' && (
+              <NewStarters />
             )}
 
             {/* ── Catering tab ──────────────────────────────────────────────── */}

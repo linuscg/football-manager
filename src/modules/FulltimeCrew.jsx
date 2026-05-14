@@ -39,17 +39,21 @@ function MemberRow({
   deptSuggestions, roleSuggestions,
   onDragStart, onDragOver, onDrop, onDragEnd,
 }) {
-  const [lName,  setLName]  = useState(member.name)
-  const [lRole,  setLRole]  = useState(member.role)
-  const [lDept,  setLDept]  = useState(member.department)
-  const [lPhone, setLPhone] = useState(member.phone)
-  const [lEmail, setLEmail] = useState(member.email)
+  const [lName,      setLName]      = useState(member.name)
+  const [lRole,      setLRole]      = useState(member.role)
+  const [lDept,      setLDept]      = useState(member.department)
+  const [lPhone,     setLPhone]     = useState(member.phone)
+  const [lEmail,     setLEmail]     = useState(member.email)
+  const [lStartDate, setLStartDate] = useState(member.startDate)
+  const [lEndDate,   setLEndDate]   = useState(member.endDate)
 
-  useEffect(() => setLName(member.name),        [member.name])
-  useEffect(() => setLRole(member.role),        [member.role])
-  useEffect(() => setLDept(member.department),  [member.department])
-  useEffect(() => setLPhone(member.phone),      [member.phone])
-  useEffect(() => setLEmail(member.email),      [member.email])
+  useEffect(() => setLName(member.name),            [member.name])
+  useEffect(() => setLRole(member.role),            [member.role])
+  useEffect(() => setLDept(member.department),      [member.department])
+  useEffect(() => setLPhone(member.phone),          [member.phone])
+  useEffect(() => setLEmail(member.email),          [member.email])
+  useEffect(() => setLStartDate(member.startDate),  [member.startDate])
+  useEffect(() => setLEndDate(member.endDate),      [member.endDate])
 
   function commit(field, val, orig) {
     if (val !== orig) onUpdate(member.id, field, val)
@@ -108,6 +112,24 @@ function MemberRow({
         <datalist id={`ftc-dept-${member.id}`}>
           {deptSuggestions.map(s => <option key={s} value={s} />)}
         </datalist>
+      </td>
+
+      <td className="ftc-cell ftc-cell--date">
+        <input
+          className="ftc-input"
+          type="date"
+          value={lStartDate}
+          onChange={e => { setLStartDate(e.target.value); onUpdate(member.id, 'startDate', e.target.value) }}
+        />
+      </td>
+
+      <td className="ftc-cell ftc-cell--date">
+        <input
+          className="ftc-input"
+          type="date"
+          value={lEndDate}
+          onChange={e => { setLEndDate(e.target.value); onUpdate(member.id, 'endDate', e.target.value) }}
+        />
       </td>
 
       <td className="ftc-cell">
@@ -320,6 +342,8 @@ export default function FulltimeCrew() {
                 <th className="ftc-th">Name</th>
                 <th className="ftc-th">Role</th>
                 <th className="ftc-th">Department</th>
+                <th className="ftc-th ftc-th--date">Start Date</th>
+                <th className="ftc-th ftc-th--date">End Date</th>
                 <th className="ftc-th">Phone</th>
                 <th className="ftc-th">Email</th>
                 <th className="ftc-th ftc-th-del" />
@@ -329,7 +353,7 @@ export default function FulltimeCrew() {
               {groups.map(([deptName, deptMembers]) => (
                 <Fragment key={deptName}>
                   <tr className="ftc-dept-row">
-                    <td colSpan={7}>
+                    <td colSpan={9}>
                       <span className="ftc-dept-label">{deptName}</span>
                       <span className="ftc-dept-count">{deptMembers.length}</span>
                     </td>

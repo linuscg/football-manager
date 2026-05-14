@@ -13,6 +13,8 @@ function mapMember(row) {
     phone:      row.phone       ?? '',
     email:      row.email       ?? '',
     sortOrder:  row.sort_order  ?? 0,
+    startDate:  row.start_date  ?? '',
+    endDate:    row.end_date    ?? '',
   }
 }
 
@@ -68,7 +70,7 @@ export function useFulltimeCrewStore() {
     const prodId    = getCurrentProductionId()
     const newId     = crypto.randomUUID()
     const sortOrder = members.length
-    const blank = { id: newId, name: '', department: '', role: '', phone: '', email: '', sortOrder }
+    const blank = { id: newId, name: '', department: '', role: '', phone: '', email: '', sortOrder, startDate: '', endDate: '' }
     setMembers(ms => [...ms, blank])
     dbWrite(supabase.from('fulltime_crew').insert({
       id: newId, production_id: prodId, sort_order: sortOrder,
@@ -87,6 +89,8 @@ export function useFulltimeCrewStore() {
     role:       'role',
     phone:      'phone',
     email:      'email',
+    startDate:  'start_date',
+    endDate:    'end_date',
   }
 
   function updateMember(id, field, value) {
