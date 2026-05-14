@@ -100,6 +100,38 @@ export default function AdminPage({ currentProductionId, productionName, session
     loadData()
   }
 
+  // ── Resend invite ─────────────────────────────────────────────────────────────
+  const [resending, setResending] = useState({}) // inviteId → bool
+  const [resendResult, setResendResult] = useState({}) // inviteId → { ok, message }
+
+  async function handleResendInvite(inv) {
+    setResending(r => ({ ...r, [inv.id]: true }))
+    setResendResult(r => ({ ...r, [inv.id]: null }))
+
+    // Delete the old invite row first so a fresh one gets created
+    await supabase.from('invites').delete().eq('id', inv.id)
+
+    const { data, error } = await supabase.functions.invoke('send-invite', {
+      body: {
+        email:        inv.email,
+        productionId: currentProductionId,
+        role:         inv.role,
+      },
+    })
+
+    if (error || data?.error) {
+      setResendResult(r => ({ ...r, [inv.id]: { ok: false, message: error?.message ?? data?.error ?? 'Failed to resend.' } }))
+      setResending(r => ({ ...r, [inv.id]: false }))
+      // Reload so the deleted row comes back if it still exists
+      loadData()
+    } else {
+      setResendResult(r => ({ ...r, [inv.id]: { ok: true, message: 'Resent!' } }))
+      setResending(r => ({ ...r, [inv.id]: false }))
+      loadData()
+      setTimeout(() => setResendResult(r => ({ ...r, [inv.id]: null })), 3000)
+    }
+  }
+
   // ── Remove member ────────────────────────────────────────────────────────────
   async function handleRemoveMember(userId) {
     setRemoveError(null)
@@ -296,8 +328,10 @@ export default function AdminPage({ currentProductionId, productionName, session
           <div className="admin-invite-list">
             {invites.filter(i => !i.accepted).map(inv => {
               const roleStyle = ROLE_COLORS[inv.role] ?? ROLE_COLORS.member
-              const expires  = new Date(inv.expires_at)
-              const expired  = expires < new Date()
+              const expires   = new Date(inv.expires_at)
+              const expired   = expires < new Date()
+              const isBusy    = !!resending[inv.id]
+              const result    = resendResult[inv.id]
               return (
                 <div key={inv.id} className={`admin-invite-row${expired ? ' admin-invite-row--expired' : ''}`}>
                   <div className="admin-invite-email">{inv.email}</div>
@@ -310,6 +344,19 @@ export default function AdminPage({ currentProductionId, productionName, session
                   <span className={`admin-invite-status${expired ? ' admin-invite-status--exp' : ''}`}>
                     {expired ? 'Expired' : `Expires ${expires.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`}
                   </span>
+                  {result && (
+                    <span style={{ fontSize: 12, color: result.ok ? '#16a34a' : '#dc2626' }}>
+                      {result.message}
+                    </span>
+                  )}
+                  <button
+                    className="admin-invite-resend"
+                    onClick={() => handleResendInvite(inv)}
+                    disabled={isBusy}
+                    title="Resend invite"
+                  >
+                    {isBusy ? '…' : '↩ Resend'}
+                  </button>
                   <button
                     className="admin-member-remove"
                     onClick={() => handleCancelInvite(inv.id)}
