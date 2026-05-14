@@ -1,6 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
+const FROM_ADDRESS   = 'Football Manager <noreply@footballmanager.xyz>'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -60,7 +63,7 @@ serve(async (req) => {
       })
     }
 
-    // ── Fetch production name (using the specific productionId from the request) ──
+    // ── Fetch production name ───────────────────────────────────────────────
     const { data: production, error: prodError } = await adminClient
       .from('production')
       .select('name')
@@ -111,25 +114,75 @@ serve(async (req) => {
     const appUrl = Deno.env.get('APP_URL') ?? 'https://footballmanager.xyz'
     const redirectTo = `${appUrl}?invite=${token}`
 
-    // ── Send invite email via Supabase Auth (uses your email template) ──────
-    // We pass production_name and role_label explicitly so the template
-    // {{ .Data.production_name }} and {{ .Data.role_label }} always resolve
-    // to the correct values for THIS specific production.
-    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
-      cleanEmail,
-      {
-        redirectTo,
-        data: {
-          production_id:   productionId,
-          production_name: productionName,   // ← correct name for THIS production
-          role_label:      roleLabel,        // ← e.g. "Member", "Admin"
-        },
-      }
-    )
+    // ── Generate magic link WITHOUT sending an email ────────────────────────
+    // inviteUserByEmail() reuses existing auth user metadata when the email
+    // already exists, so the wrong production name can bleed through.
+    // generateLink() gives us the magic link so we send our own email via
+    // Resend with the production name baked directly into the HTML.
+    const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+      type: 'invite',
+      email: cleanEmail,
+      options: { redirectTo },
+    })
 
-    if (inviteError) {
+    if (linkError || !linkData?.properties?.action_link) {
       await adminClient.from('invites').delete().eq('token', token)
-      return new Response(JSON.stringify({ error: inviteError.message }), {
+      return new Response(JSON.stringify({ error: linkError?.message ?? 'Failed to generate invite link.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const magicLink = linkData.properties.action_link
+
+    // ── Send email via Resend ───────────────────────────────────────────────
+    const html = `
+      <h2 style="font-family:sans-serif;color:#111827;">You've been invited to Football Manager</h2>
+
+      <p style="font-family:sans-serif;color:#374151;font-size:15px;line-height:1.6;">
+        You've been invited to join <strong>${productionName}</strong>
+        as <strong>${roleLabel}</strong>. Click below to set up your
+        account and get started.
+      </p>
+
+      <p style="margin:28px 0;">
+        <a href="${magicLink}"
+           style="font-family:sans-serif;background:#6366f1;color:#fff;text-decoration:none;
+                  padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;display:inline-block;">
+          Accept invitation →
+        </a>
+      </p>
+
+      <p style="font-family:sans-serif;color:#9ca3af;font-size:12px;line-height:1.6;">
+        If you weren't expecting this invite, you can safely ignore this email.<br/>
+        This link expires in 7 days.
+      </p>
+
+      <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0;" />
+
+      <p style="font-family:sans-serif;color:#9ca3af;font-size:11px;">
+        Football Manager · Production Management
+      </p>
+    `
+
+    const resendRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from:    FROM_ADDRESS,
+        to:      [cleanEmail],
+        subject: `You've been invited to ${productionName}`,
+        html,
+      }),
+    })
+
+    if (!resendRes.ok) {
+      const resendData = await resendRes.json()
+      await adminClient.from('invites').delete().eq('token', token)
+      return new Response(JSON.stringify({ error: resendData?.message ?? 'Failed to send email.' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
