@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAccommodationStore } from '../store/useAccommodationStore'
-import { useFulltimeCrewStore }  from '../store/useFulltimeCrewStore'
+import { useFullCrewList } from '../store/useFullCrewList'
 import { useCrewStore }          from '../store/useCrewStore'
 import { hotelColor }            from './HotelList'
 
@@ -53,7 +53,7 @@ function formatDate(dateS) {
 
 export default function WeeklyTMO({ production, castMembers = [] }) {
   const { hotels, assignments, loading: accLoading } = useAccommodationStore()
-  const { members: ftMembers, loading: ftLoading }   = useFulltimeCrewStore()
+  const { members: ftMembers, loading: ftLoading }   = useFullCrewList()
   const { resources, loading: crewLoading }          = useCrewStore()
 
   const loading   = accLoading || ftLoading || crewLoading

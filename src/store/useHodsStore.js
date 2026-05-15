@@ -10,6 +10,8 @@ function mapHod(row) {
     department: row.department ?? '',
     phone:      row.phone      ?? '',
     email:      row.email      ?? '',
+    startDate:  row.start_date ?? '',
+    endDate:    row.end_date   ?? '',
     sortOrder:  row.sort_order ?? 0,
   }
 }
@@ -62,6 +64,8 @@ export function useHodsStore() {
     department: 'department',
     phone:      'phone',
     email:      'email',
+    startDate:  'start_date',
+    endDate:    'end_date',
   }
 
   function updateHod(id, field, value) {

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useFulltimeCrewStore } from '../store/useFulltimeCrewStore'
+import { useFullCrewList } from '../store/useFullCrewList'
 import { useCrewStore }         from '../store/useCrewStore'
 import { useBackpageStore }     from '../store/useBackpageStore'
 // xlsx-js-style is loaded lazily (same pattern as exportBackpage.js)
@@ -73,7 +73,7 @@ const FALLBACK = 'Unassigned'
 
 export default function Timesheets({ store }) {
   const { production, shootDays } = store
-  const { members }               = useFulltimeCrewStore()
+  const { members }               = useFullCrewList()
   const { resources, bookings }   = useCrewStore()
   const {
     getDeptSetting, getMemberOverride, getDaySetting,

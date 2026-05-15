@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAccommodationStore } from '../store/useAccommodationStore'
-import { useFulltimeCrewStore }  from '../store/useFulltimeCrewStore'
+import { useFullCrewList }       from '../store/useFullCrewList'
 import { useCrewStore }          from '../store/useCrewStore'
 import { hotelColor }            from './HotelList'
 
@@ -110,7 +110,7 @@ function buildPhaseSpans(colSpecs) {
 
 export default function CastCrewHotels({ production, shootDays = [], castMembers = [] }) {
   const { hotels, assignments, loading: accLoading, setAssignment } = useAccommodationStore()
-  const { members: ftMembers,  loading: ftLoading  } = useFulltimeCrewStore()
+  const { members: ftMembers,  loading: ftLoading  } = useFullCrewList()
   const { resources, bookings, loading: crewLoading } = useCrewStore()
 
   const [selectedIdx, setSelectedIdx] = useState(0)

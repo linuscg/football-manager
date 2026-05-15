@@ -35,17 +35,21 @@ function sortAlpha(members) {
 // ─── HodRow ───────────────────────────────────────────────────────────────────
 
 function HodRow({ hod, onUpdate, deptSuggestions }) {
-  const [lName,  setLName]  = useState(hod.name)
-  const [lTitle, setLTitle] = useState(hod.title)
-  const [lDept,  setLDept]  = useState(hod.department)
-  const [lPhone, setLPhone] = useState(hod.phone)
-  const [lEmail, setLEmail] = useState(hod.email)
+  const [lName,      setLName]      = useState(hod.name)
+  const [lTitle,     setLTitle]     = useState(hod.title)
+  const [lDept,      setLDept]      = useState(hod.department)
+  const [lPhone,     setLPhone]     = useState(hod.phone)
+  const [lEmail,     setLEmail]     = useState(hod.email)
+  const [lStartDate, setLStartDate] = useState(hod.startDate)
+  const [lEndDate,   setLEndDate]   = useState(hod.endDate)
 
   useEffect(() => setLName(hod.name),           [hod.name])
   useEffect(() => setLTitle(hod.title),         [hod.title])
   useEffect(() => setLDept(hod.department),     [hod.department])
   useEffect(() => setLPhone(hod.phone),         [hod.phone])
   useEffect(() => setLEmail(hod.email),         [hod.email])
+  useEffect(() => setLStartDate(hod.startDate), [hod.startDate])
+  useEffect(() => setLEndDate(hod.endDate),     [hod.endDate])
 
   function commit(field, val, orig) {
     if (val !== orig) onUpdate(hod.id, field, val)
@@ -87,8 +91,22 @@ function HodRow({ hod, onUpdate, deptSuggestions }) {
           {deptSuggestions.map(s => <option key={s} value={s} />)}
         </datalist>
       </td>
-      <td className="ftc-cell ftc-cell--date" />
-      <td className="ftc-cell ftc-cell--date" />
+      <td className="ftc-cell ftc-cell--date">
+        <input
+          className="ftc-input"
+          type="date"
+          value={lStartDate}
+          onChange={e => { setLStartDate(e.target.value); onUpdate(hod.id, 'startDate', e.target.value) }}
+        />
+      </td>
+      <td className="ftc-cell ftc-cell--date">
+        <input
+          className="ftc-input"
+          type="date"
+          value={lEndDate}
+          onChange={e => { setLEndDate(e.target.value); onUpdate(hod.id, 'endDate', e.target.value) }}
+        />
+      </td>
       <td className="ftc-cell">
         <input
           className="ftc-input"

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useFulltimeCrewStore }    from '../store/useFulltimeCrewStore'
+import { useFullCrewList } from '../store/useFullCrewList'
 import { useCrewStore }            from '../store/useCrewStore'
 import { useBackpageStore }        from '../store/useBackpageStore'
 import { exportBackpageXLSX }      from '../lib/exportBackpage'
@@ -414,7 +414,7 @@ function DeptSection({
 
 export default function Backpage({ store }) {
   const { production, shootDays } = store
-  const { members }                    = useFulltimeCrewStore()
+  const { members }                    = useFullCrewList()
   const { resources, bookings } = useCrewStore()
   const {
     loading: bpLoading,

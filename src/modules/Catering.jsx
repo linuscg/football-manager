@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { useFulltimeCrewStore } from '../store/useFulltimeCrewStore'
+import { useFullCrewList } from '../store/useFullCrewList'
 import { useCrewStore }         from '../store/useCrewStore'
 import { useBackpageStore }     from '../store/useBackpageStore'
 import { useCateringStore }     from '../store/useCateringStore'
@@ -108,7 +108,7 @@ function PersonRow({ person, onToggle, onNoteChange, onDelete }) {
 export default function Catering({ store }) {
   const { production, shootDays, castMembers } = store
 
-  const { members: ftcMembers }      = useFulltimeCrewStore()
+  const { members: ftcMembers }      = useFullCrewList()
   const { resources, bookings }      = useCrewStore()
   const { getMemberOverride }        = useBackpageStore()
   const {

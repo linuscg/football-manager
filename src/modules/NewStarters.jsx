@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 // API key + from address live in the Edge Function (supabase/functions/send-welcome-email)
-import { useFulltimeCrewStore }  from '../store/useFulltimeCrewStore'
+import { useFullCrewList }        from '../store/useFullCrewList'
 import { useCrewStore }          from '../store/useCrewStore'
 import { useNewStartersStore }   from '../store/useNewStartersStore'
 
@@ -331,7 +331,7 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function NewStarters() {
-  const { members }                            = useFulltimeCrewStore()
+  const { members }                            = useFullCrewList()
   const { resources, bookings }                = useCrewStore()
   const { statuses, updateStatus }             = useNewStartersStore()
 

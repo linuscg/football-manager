@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useCrewStore }           from '../store/useCrewStore'
-import { useFulltimeCrewStore }   from '../store/useFulltimeCrewStore'
+import { useFullCrewList } from '../store/useFullCrewList'
 import { useBackpageStore }       from '../store/useBackpageStore'
 import { generatePreCallSummary } from '../lib/backpageSummary'
 
@@ -91,7 +91,7 @@ function todayDateStr() {
 export default function CallSheet({ store, castMembers = [] }) {
   const { shootDays, production } = store
   const { resources, bookings }   = useCrewStore()
-  const { members: ftcMembers }   = useFulltimeCrewStore()
+  const { members: ftcMembers }   = useFullCrewList()
   const { getDeptSetting, getMemberOverride } = useBackpageStore()
 
   // All days sorted chronologically, then by sortOrder within the same date
