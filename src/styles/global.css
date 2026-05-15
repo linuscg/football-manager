@@ -8942,3 +8942,73 @@ select.pm-input { cursor: pointer; }
 .cal-edit-inner {
   /* ShootDayCard renders its own bg/border — just give it room */
 }
+
+/* ── DPR module ───────────────────────────────────────────────────────────── */
+.dpr-wrap { padding: 16px 24px 60px; max-width: 1400px; }
+.dpr-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: 24px; padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.dpr-day-picker { display: flex; gap: 12px; align-items: center; }
+.dpr-day-select {
+  font-size: 14px; padding: 8px 12px; border-radius: 8px;
+  border: 1px solid #d1d5db; background: #fff; min-width: 280px;
+}
+.dpr-section {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+  padding: 20px 24px; margin-bottom: 16px;
+}
+.dpr-section-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #6b7280; margin-bottom: 14px;
+}
+.dpr-grid { display: grid; gap: 12px 18px; }
+.dpr-grid-2 { grid-template-columns: 1fr 1fr; }
+.dpr-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.dpr-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.dpr-field { display: flex; flex-direction: column; gap: 4px; position: relative; }
+.dpr-field-label { font-size: 11px; color: #6b7280; font-weight: 500; }
+.dpr-field input, .dpr-field select, .dpr-field textarea {
+  font-size: 13px; padding: 7px 9px; border: 1px solid #d1d5db;
+  border-radius: 6px; background: #fff; font-family: inherit;
+}
+.dpr-field input:focus, .dpr-field select:focus, .dpr-field textarea:focus {
+  outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px #e0e7ff;
+}
+.dpr-field textarea { resize: vertical; min-height: 60px; }
+.dpr-diff-warning {
+  position: absolute; right: 8px; top: 26px;
+  color: #f59e0b; font-size: 14px; cursor: help;
+}
+.dpr-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+.dpr-table th {
+  text-align: left; padding: 6px 8px; background: #f9fafb;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #6b7280; border-bottom: 1px solid #e5e7eb;
+}
+.dpr-table td { padding: 4px 6px; vertical-align: top; }
+.dpr-table tr.dpr-row--removed { opacity: 0.5; background: #f9fafb; }
+.dpr-table input, .dpr-table select {
+  font-size: 12px; padding: 4px 6px; border: 1px solid #e5e7eb;
+  border-radius: 4px; background: #fff; width: 100%;
+}
+.dpr-badge {
+  font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+  letter-spacing: 0.06em; white-space: nowrap;
+}
+.dpr-badge--added   { background: #fef3c7; color: #b45309; }
+.dpr-badge--removed { background: #fee2e2; color: #b91c1c; }
+.dpr-badge--diff    { background: #fef3c7; color: #b45309; }
+.dpr-add-btn {
+  font-size: 11px; padding: 6px 12px; margin-top: 8px;
+  background: #f3f4f6; border: 1px dashed #d1d5db; border-radius: 6px;
+  cursor: pointer; color: #374151;
+}
+.dpr-add-btn:hover { background: #e5e7eb; }
+.dpr-remove-btn {
+  background: none; border: none; color: #9ca3af; cursor: pointer;
+  font-size: 14px; padding: 2px 6px;
+}
+.dpr-remove-btn:hover { color: #dc2626; }
+.dpr-export-btns { display: flex; gap: 8px; }

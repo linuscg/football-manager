@@ -27,6 +27,7 @@ import WeeklyTMO             from './modules/WeeklyTMO'
 import TravelTimes           from './modules/TravelTimes'
 import CrewDatabase          from './modules/CrewDatabase'
 import NewStarters           from './modules/NewStarters'
+import DPR                   from './modules/DPR'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ const TOP_TABS = [
   { id: 'crew-times', label: 'Crew'             },
   { id: 'catering',   label: 'Catering'         },
   { id: 'accomm',     label: 'Accommodation'    },
+  { id: 'dpr',        label: 'DPR'              },
 ]
 
 // ─── Project Setup nav ────────────────────────────────────────────────────────
@@ -362,7 +364,9 @@ function AppShell({ session, signOut }) {
           ? CAT_NAV
           : topTab === 'accomm'
             ? ACCOMM_NAV
-            : []
+            : topTab === 'dpr'
+              ? []
+              : []
 
   const activeModule = topTab === 'setup'
     ? setupModule
@@ -372,7 +376,9 @@ function AppShell({ session, signOut }) {
         ? ctModule
         : topTab === 'catering'
           ? catModule
-          : accommModule
+          : topTab === 'dpr'
+            ? null
+            : accommModule
 
   function handleNavClick(id) {
     if (topTab === 'setup')      navigateSetup(id)
@@ -388,6 +394,7 @@ function AppShell({ session, signOut }) {
     if (topTab === 'crew-times') return CT_NAV.find(n => n.id === ctModule)?.label ?? ''
     if (topTab === 'catering')   return CAT_NAV.find(n => n.id === catModule)?.label ?? 'Catering'
     if (topTab === 'accomm')     return ACCOMM_NAV.find(n => n.id === accommModule)?.label ?? 'Accommodation'
+    if (topTab === 'dpr')        return 'Daily Production Report'
     return ''
   })()
 
@@ -402,6 +409,7 @@ function AppShell({ session, signOut }) {
     if (topTab === 'crew-times') return CT_MODULE_SUB[ctModule] ?? ''
     if (topTab === 'catering')   return CAT_MODULE_SUB[catModule] ?? ''
     if (topTab === 'accomm')     return ACCOMM_MODULE_SUB[accommModule] ?? ''
+    if (topTab === 'dpr')        return 'Per-day shoot report'
     return ''
   })()
 
@@ -686,6 +694,15 @@ function AppShell({ session, signOut }) {
             )}
             {topTab === 'accomm' && accommModule === 'accomm-travel' && (
               <TravelTimes shootDays={store.shootDays} />
+            )}
+
+            {/* ── DPR tab ───────────────────────────────────────────────────── */}
+            {topTab === 'dpr' && (
+              <DPR
+                productionName={store.production.name}
+                shootDays={store.shootDays}
+                castMembers={store.castMembers}
+              />
             )}
 
           </div>
