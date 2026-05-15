@@ -4277,7 +4277,7 @@ select.pm-input { cursor: pointer; }
   white-space: nowrap;
 }
 
-.ftc-th-drag { width: 36px; }
+.ftc-th-drag { width: 90px; }
 .ftc-th-del  { width: 40px; }
 
 /* ── Department header rows ────────────────────────────────── */
@@ -4328,7 +4328,8 @@ select.pm-input { cursor: pointer; }
   border-radius: 5px;
   padding: 2px 4px;
   cursor: pointer;
-  width: 70px;
+  width: 80px;
+  max-width: 80px;
 }
 .ftc-level-select:focus { outline: none; border-color: #7c3aed; }
 
@@ -4354,9 +4355,9 @@ select.pm-input { cursor: pointer; }
 }
 
 .ftc-cell-drag {
-  width: 36px;
-  padding: 3px 4px 3px 8px;
-  text-align: center;
+  width: 90px;
+  padding: 3px 8px;
+  text-align: left;
 }
 
 .ftc-drag-handle {
