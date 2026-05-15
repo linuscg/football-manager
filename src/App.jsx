@@ -647,7 +647,7 @@ function AppShell({ session, signOut }) {
 
             {/* ── Crew Times tab ────────────────────────────────────────────── */}
             {topTab === 'crew-times' && ctModule === 'ct-crew' && (
-              <FulltimeCrew />
+              <FulltimeCrew productionName={store.production.name} />
             )}
             {topTab === 'crew-times' && ctModule === 'ct-backpage' && (
               <Backpage store={store} />

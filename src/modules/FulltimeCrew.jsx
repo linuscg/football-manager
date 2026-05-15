@@ -24,13 +24,28 @@ function parseCSV(text) {
   })
 }
 
-function sortAlpha(members) {
-  return [...members].sort((a, b) => {
-    const d = (a.department || '').toLowerCase().localeCompare((b.department || '').toLowerCase())
-    if (d !== 0) return d
-    return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
-  })
+function deptPriority(dept) {
+  const d = (dept || '').toLowerCase().trim()
+  if (d === 'director' || d === 'directors') return 0
+  if (d === 'producer' || d === 'producers') return 1
+  if (d === 'production') return 2
+  return 3
 }
+
+// ─── Level options ────────────────────────────────────────────────────────────
+
+const LEVEL_OPTIONS = [
+  { value: 1, label: '1 — HOD' },
+  { value: 2, label: '2 — 2IC' },
+  { value: 3, label: '3' },
+  { value: 4, label: '4' },
+  { value: 5, label: '5' },
+  { value: 6, label: '6' },
+  { value: 7, label: '7' },
+  { value: 8, label: '8' },
+  { value: 9, label: '9' },
+  { value: 10, label: '10' },
+]
 
 // ─── HodRow ───────────────────────────────────────────────────────────────────
 
@@ -58,7 +73,15 @@ function HodRow({ hod, onUpdate, deptSuggestions }) {
   return (
     <tr className="ftc-row ftc-row--hod">
       <td className="ftc-cell ftc-cell-drag">
-        <span className="ftc-hod-badge" title="Head of Department">HOD</span>
+        <select
+          className="ftc-level-select"
+          value={hod.level ?? 1}
+          onChange={e => onUpdate(hod.id, 'level', parseInt(e.target.value))}
+        >
+          {LEVEL_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
       </td>
       <td className="ftc-cell ftc-cell-name">
         <input
@@ -135,10 +158,9 @@ function HodRow({ hod, onUpdate, deptSuggestions }) {
 // ─── MemberRow ────────────────────────────────────────────────────────────────
 
 function MemberRow({
-  member, isDragOver, isDragging,
+  member,
   onUpdate, onDelete,
   deptSuggestions, roleSuggestions,
-  onDragStart, onDragOver, onDrop, onDragEnd,
 }) {
   const [lName,      setLName]      = useState(member.name)
   const [lRole,      setLRole]      = useState(member.role)
@@ -161,20 +183,17 @@ function MemberRow({
   }
 
   return (
-    <tr
-      className={[
-        'ftc-row',
-        isDragging ? 'is-dragging' : '',
-        isDragOver ? 'drag-over'   : '',
-      ].filter(Boolean).join(' ')}
-      draggable
-      onDragStart={() => onDragStart(member.id)}
-      onDragOver={e => { e.preventDefault(); onDragOver(member.id) }}
-      onDrop={() => onDrop(member.id)}
-      onDragEnd={onDragEnd}
-    >
+    <tr className="ftc-row">
       <td className="ftc-cell ftc-cell-drag">
-        <span className="ftc-drag-handle" title="Drag to reorder">⠿</span>
+        <select
+          className="ftc-level-select"
+          value={member.level ?? 5}
+          onChange={e => onUpdate(member.id, 'level', parseInt(e.target.value))}
+        >
+          {LEVEL_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
       </td>
 
       <td className="ftc-cell ftc-cell-name">
@@ -273,7 +292,7 @@ function MemberRow({
 
 const CSV_HEADERS = ['Name', 'Role', 'Department', 'Phone', 'Email']
 
-export default function FulltimeCrew() {
+export default function FulltimeCrew({ productionName }) {
   const {
     members, loading, error,
     addMember, deleteMember, updateMember,
@@ -282,90 +301,123 @@ export default function FulltimeCrew() {
 
   const { hods, updateHod } = useHodsStore()
 
-  // ── Local display order (alphabetical by default; drag can reorder for the session) ──
-
-  const [displayIds, setDisplayIds] = useState([])
-
-  useEffect(() => {
-    // Re-sort alphabetically whenever the SET of member IDs changes
-    // (new member added, member deleted). Preserves current order when only data changes.
-    const incomingIds = new Set(members.map(m => m.id))
-    const currentIds  = new Set(displayIds)
-    const unchanged   = incomingIds.size === currentIds.size &&
-                        [...incomingIds].every(id => currentIds.has(id))
-    if (!unchanged) {
-      setDisplayIds(sortAlpha(members).map(m => m.id))
-    }
-  }, [members]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Ordered member objects for rendering
-  const displayMembers = displayIds
-    .map(id => members.find(m => m.id === id))
-    .filter(Boolean)
-
-  // ── Drag state ─────────────────────────────────────────────────────────────
-
-  const dragId    = useRef(null)
-  const [dragOverId, setDragOverId] = useState(null)
-
-  function onDragStart(id) {
-    dragId.current = id
-  }
-
-  function onDragOver(id) {
-    if (id !== dragId.current) setDragOverId(id)
-  }
-
-  function onDrop(targetId) {
-    if (!dragId.current || dragId.current === targetId) {
-      dragId.current = null; setDragOverId(null); return
-    }
-    setDisplayIds(ids => {
-      const from = ids.indexOf(dragId.current)
-      const to   = ids.indexOf(targetId)
-      if (from === -1 || to === -1) return ids
-      const next = [...ids]
-      next.splice(from, 1)
-      next.splice(to, 0, dragId.current)
-      return next
-    })
-    dragId.current = null
-    setDragOverId(null)
-  }
-
-  function onDragEnd() {
-    dragId.current = null
-    setDragOverId(null)
-  }
-
   // ── Autocomplete suggestions ───────────────────────────────────────────────
 
   const deptSuggestions = uniq(members.map(m => m.department))
   const roleSuggestions = uniq(members.map(m => m.role))
 
-  // ── Grouping — merge HODs (at top of dept) with regular members ────────────
+  // ── Grouping — merge HODs with regular members, sorted by dept priority then level then name ──
 
   const FALLBACK = 'Unassigned'
   const groupMap = {}
 
-  // HODs first (so they land at the top of each department group)
   for (const h of hods) {
     const key = h.department.trim() || FALLBACK
     if (!groupMap[key]) groupMap[key] = { hods: [], members: [] }
     groupMap[key].hods.push(h)
   }
-  for (const m of displayMembers) {
+  for (const m of members) {
     const key = m.department.trim() || FALLBACK
     if (!groupMap[key]) groupMap[key] = { hods: [], members: [] }
     groupMap[key].members.push(m)
   }
 
-  // Departments sorted alphabetically; Unassigned last
+  // Sort HODs and members within each group by level then name
+  for (const key of Object.keys(groupMap)) {
+    groupMap[key].hods.sort((a, b) => {
+      const la = a.level ?? 1, lb = b.level ?? 1
+      if (la !== lb) return la - lb
+      return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
+    })
+    groupMap[key].members.sort((a, b) => {
+      const la = a.level ?? 5, lb = b.level ?? 5
+      if (la !== lb) return la - lb
+      return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
+    })
+  }
+
+  // Sort departments by priority, then alpha within same priority; Unassigned last
   const groups = Object.entries(groupMap).sort(([a], [b]) => {
     if (a === FALLBACK) return 1
     if (b === FALLBACK) return -1
-    return a.localeCompare(b)
+    const pa = deptPriority(a), pb = deptPriority(b)
+    if (pa !== pb) return pa - pb
+    return a.toLowerCase().localeCompare(b.toLowerCase())
   })
+
+  // ── Export Unit List ───────────────────────────────────────────────────────
+
+  function handleExportUnitList() {
+    const prodName = productionName || 'Untitled Production'
+    const now = new Date()
+    const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+
+    const deptBlocks = groups.map(([deptName, { hods: deptHods, members: deptMembers }]) => {
+      const rows = [
+        ...deptHods.map(h => `
+          <tr>
+            <td>${h.name || ''}</td>
+            <td>${h.title || ''}</td>
+            <td>${h.phone || ''}</td>
+            <td>${h.email || ''}</td>
+          </tr>`),
+        ...deptMembers.map(m => `
+          <tr>
+            <td>${m.name || ''}</td>
+            <td>${m.role || ''}</td>
+            <td>${m.phone || ''}</td>
+            <td>${m.email || ''}</td>
+          </tr>`),
+      ].join('')
+
+      return `
+        <div class="dept">
+          <div class="dept-name">${deptName}</div>
+          <table><tbody>${rows}</tbody></table>
+        </div>`
+    }).join('')
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Unit List — ${prodName}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #111; padding: 40px; font-size: 13px; }
+    .header { margin-bottom: 32px; border-bottom: 2px solid #111; padding-bottom: 16px; }
+    .header h1 { font-size: 22px; font-weight: 700; }
+    .header p { font-size: 12px; color: #666; margin-top: 4px; }
+    .dept { margin-bottom: 24px; }
+    .dept-name { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #666; border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 5px 8px; vertical-align: top; }
+    td:first-child { width: 220px; font-weight: 600; }
+    td:nth-child(2) { width: 200px; color: #444; }
+    td:nth-child(3) { width: 140px; color: #666; font-size: 12px; }
+    td:nth-child(4) { color: #666; font-size: 12px; }
+    tr:nth-child(even) td { background: #f9f9f9; }
+    @media print {
+      body { padding: 20px; }
+      @page { margin: 15mm; size: A4; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${prodName}</h1>
+    <p>Unit List — ${dateStr}</p>
+  </div>
+  ${deptBlocks}
+</body>
+</html>`
+
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print() }, 500)
+  }
 
   // ── CSV template ───────────────────────────────────────────────────────────
 
@@ -430,6 +482,7 @@ export default function FulltimeCrew() {
           <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadTemplate}>↓ Template</button>
           <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => importRef.current?.click()}>↑ Import CSV</button>
           <input ref={importRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleImportFile} />
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={handleExportUnitList}>↓ Export Unit List</button>
           <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={addMember}>+ Add Crew Member</button>
         </div>
       </div>
@@ -470,7 +523,7 @@ export default function FulltimeCrew() {
                       <span className="ftc-dept-count">{deptHods.length + deptMembers.length}</span>
                     </td>
                   </tr>
-                  {/* HODs first, at the top of the department */}
+                  {/* HODs first, sorted by level then name */}
                   {deptHods.map(hod => (
                     <HodRow
                       key={hod.id}
@@ -479,21 +532,15 @@ export default function FulltimeCrew() {
                       deptSuggestions={deptSuggestions}
                     />
                   ))}
-                  {/* Regular crew members below */}
+                  {/* Regular crew members below, sorted by level then name */}
                   {deptMembers.map(member => (
                     <MemberRow
                       key={member.id}
                       member={member}
-                      isDragging={dragId.current === member.id}
-                      isDragOver={dragOverId === member.id}
                       onUpdate={updateMember}
                       onDelete={deleteMember}
                       deptSuggestions={deptSuggestions}
                       roleSuggestions={roleSuggestions}
-                      onDragStart={onDragStart}
-                      onDragOver={onDragOver}
-                      onDrop={onDrop}
-                      onDragEnd={onDragEnd}
                     />
                   ))}
                 </Fragment>

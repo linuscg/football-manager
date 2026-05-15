@@ -13,6 +13,7 @@ function mapHod(row) {
     startDate:  row.start_date ?? '',
     endDate:    row.end_date   ?? '',
     sortOrder:  row.sort_order ?? 0,
+    level:      row.level      ?? 1,
   }
 }
 
@@ -66,6 +67,7 @@ export function useHodsStore() {
     email:      'email',
     startDate:  'start_date',
     endDate:    'end_date',
+    level:      'level',
   }
 
   function updateHod(id, field, value) {
