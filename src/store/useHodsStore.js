@@ -4,12 +4,13 @@ import { getCurrentProductionId, onProductionChange } from '../lib/productionCon
 
 function mapHod(row) {
   return {
-    id:        row.id,
-    name:      row.name      ?? '',
-    title:     row.title     ?? '',
-    phone:     row.phone     ?? '',
-    email:     row.email     ?? '',
-    sortOrder: row.sort_order ?? 0,
+    id:         row.id,
+    name:       row.name       ?? '',
+    title:      row.title      ?? '',
+    department: row.department ?? '',
+    phone:      row.phone      ?? '',
+    email:      row.email      ?? '',
+    sortOrder:  row.sort_order ?? 0,
   }
 }
 
@@ -46,7 +47,7 @@ export function useHodsStore() {
     const prodId    = getCurrentProductionId()
     const newId     = crypto.randomUUID()
     const sortOrder = hods.length
-    setHods(hs => [...hs, { id: newId, name: '', title: '', phone: '', email: '', sortOrder }])
+    setHods(hs => [...hs, { id: newId, name: '', title: '', department: '', phone: '', email: '', sortOrder }])
     dbWrite(supabase.from('hods').insert({ id: newId, production_id: prodId, sort_order: sortOrder }))
   }
 
@@ -55,9 +56,17 @@ export function useHodsStore() {
     dbWrite(supabase.from('hods').delete().eq('id', id))
   }
 
+  const HOD_FIELD_MAP = {
+    name:       'name',
+    title:      'title',
+    department: 'department',
+    phone:      'phone',
+    email:      'email',
+  }
+
   function updateHod(id, field, value) {
     setHods(hs => hs.map(h => h.id === id ? { ...h, [field]: value } : h))
-    dbWrite(supabase.from('hods').update({ [field]: value }).eq('id', id))
+    dbWrite(supabase.from('hods').update({ [HOD_FIELD_MAP[field] ?? field]: value }).eq('id', id))
   }
 
   return { hods, addHod, deleteHod, updateHod }

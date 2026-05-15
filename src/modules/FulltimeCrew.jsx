@@ -32,6 +32,88 @@ function sortAlpha(members) {
   })
 }
 
+// ─── HodRow ───────────────────────────────────────────────────────────────────
+
+function HodRow({ hod, onUpdate, deptSuggestions }) {
+  const [lName,  setLName]  = useState(hod.name)
+  const [lTitle, setLTitle] = useState(hod.title)
+  const [lDept,  setLDept]  = useState(hod.department)
+  const [lPhone, setLPhone] = useState(hod.phone)
+  const [lEmail, setLEmail] = useState(hod.email)
+
+  useEffect(() => setLName(hod.name),           [hod.name])
+  useEffect(() => setLTitle(hod.title),         [hod.title])
+  useEffect(() => setLDept(hod.department),     [hod.department])
+  useEffect(() => setLPhone(hod.phone),         [hod.phone])
+  useEffect(() => setLEmail(hod.email),         [hod.email])
+
+  function commit(field, val, orig) {
+    if (val !== orig) onUpdate(hod.id, field, val)
+  }
+
+  return (
+    <tr className="ftc-row ftc-row--hod">
+      <td className="ftc-cell ftc-cell-drag">
+        <span className="ftc-hod-badge" title="Head of Department">HOD</span>
+      </td>
+      <td className="ftc-cell ftc-cell-name">
+        <input
+          className="ftc-input"
+          value={lName}
+          placeholder="Full name"
+          onChange={e => setLName(e.target.value)}
+          onBlur={() => commit('name', lName, hod.name)}
+        />
+      </td>
+      <td className="ftc-cell">
+        <input
+          className="ftc-input"
+          value={lTitle}
+          placeholder="Job title"
+          onChange={e => setLTitle(e.target.value)}
+          onBlur={() => commit('title', lTitle, hod.title)}
+        />
+      </td>
+      <td className="ftc-cell">
+        <input
+          className="ftc-input"
+          value={lDept}
+          placeholder="Department"
+          list={`ftc-hod-dept-${hod.id}`}
+          onChange={e => { setLDept(e.target.value); onUpdate(hod.id, 'department', e.target.value) }}
+          onBlur={() => commit('department', lDept, hod.department)}
+        />
+        <datalist id={`ftc-hod-dept-${hod.id}`}>
+          {deptSuggestions.map(s => <option key={s} value={s} />)}
+        </datalist>
+      </td>
+      <td className="ftc-cell ftc-cell--date" />
+      <td className="ftc-cell ftc-cell--date" />
+      <td className="ftc-cell">
+        <input
+          className="ftc-input"
+          value={lPhone}
+          placeholder="+44 7700 900000"
+          type="tel"
+          onChange={e => setLPhone(e.target.value)}
+          onBlur={() => commit('phone', lPhone, hod.phone)}
+        />
+      </td>
+      <td className="ftc-cell">
+        <input
+          className="ftc-input"
+          value={lEmail}
+          placeholder="email@example.com"
+          type="email"
+          onChange={e => setLEmail(e.target.value)}
+          onBlur={() => commit('email', lEmail, hod.email)}
+        />
+      </td>
+      <td className="ftc-cell ftc-cell-del" />
+    </tr>
+  )
+}
+
 // ─── MemberRow ────────────────────────────────────────────────────────────────
 
 function MemberRow({
@@ -180,7 +262,7 @@ export default function FulltimeCrew() {
     importMembers,
   } = useFulltimeCrewStore()
 
-  const { hods } = useHodsStore()
+  const { hods, updateHod } = useHodsStore()
 
   // ── Local display order (alphabetical by default; drag can reorder for the session) ──
 
@@ -243,15 +325,23 @@ export default function FulltimeCrew() {
   const deptSuggestions = uniq(members.map(m => m.department))
   const roleSuggestions = uniq(members.map(m => m.role))
 
-  // ── Grouping (from displayMembers so drag order is preserved) ──────────────
+  // ── Grouping — merge HODs (at top of dept) with regular members ────────────
 
   const FALLBACK = 'Unassigned'
   const groupMap = {}
+
+  // HODs first (so they land at the top of each department group)
+  for (const h of hods) {
+    const key = h.department.trim() || FALLBACK
+    if (!groupMap[key]) groupMap[key] = { hods: [], members: [] }
+    groupMap[key].hods.push(h)
+  }
   for (const m of displayMembers) {
     const key = m.department.trim() || FALLBACK
-    if (!groupMap[key]) groupMap[key] = []
-    groupMap[key].push(m)
+    if (!groupMap[key]) groupMap[key] = { hods: [], members: [] }
+    groupMap[key].members.push(m)
   }
+
   // Departments sorted alphabetically; Unassigned last
   const groups = Object.entries(groupMap).sort(([a], [b]) => {
     if (a === FALLBACK) return 1
@@ -298,7 +388,8 @@ export default function FulltimeCrew() {
 
   // ── Stats ──────────────────────────────────────────────────────────────────
 
-  const deptCount = Object.keys(groupMap).filter(k => k !== FALLBACK).length
+  const deptCount  = Object.keys(groupMap).filter(k => k !== FALLBACK).length
+  const totalCount = members.length + hods.length
 
   if (loading) return <div className="ftc-state">Loading…</div>
   if (error)   return <div className="ftc-state ftc-state--error">Error: {error}</div>
@@ -309,8 +400,8 @@ export default function FulltimeCrew() {
       {/* ── Top bar ──────────────────────────────────────────────────────────── */}
       <div className="ftc-top">
         <div className="ftc-summary">
-          {members.length > 0
-            ? <><strong>{members.length}</strong> crew member{members.length !== 1 ? 's' : ''} across <strong>{deptCount}</strong> department{deptCount !== 1 ? 's' : ''}</>
+          {totalCount > 0
+            ? <><strong>{totalCount}</strong> crew member{totalCount !== 1 ? 's' : ''} across <strong>{deptCount}</strong> department{deptCount !== 1 ? 's' : ''}</>
             : 'No crew added yet'
           }
         </div>
@@ -353,51 +444,24 @@ export default function FulltimeCrew() {
               </tr>
             </thead>
             <tbody>
-              {/* ── Heads of Department (from Project Setup) ─────────────────── */}
-              {hods.length > 0 && (
-                <Fragment key="__hods__">
-                  <tr className="ftc-dept-row">
-                    <td colSpan={9}>
-                      <span className="ftc-dept-label">Heads of Department</span>
-                      <span className="ftc-dept-count">{hods.length}</span>
-                      <span className="ftc-dept-source">Managed in Project Setup</span>
-                    </td>
-                  </tr>
-                  {hods.map(hod => (
-                    <tr key={hod.id} className="ftc-row ftc-row--hod">
-                      <td className="ftc-cell ftc-cell-drag" />
-                      <td className="ftc-cell ftc-cell-name">
-                        <span className="ftc-hod-val">{hod.name || <em style={{ color: '#9ca3af' }}>—</em>}</span>
-                      </td>
-                      <td className="ftc-cell">
-                        <span className="ftc-hod-val">{hod.title || <em style={{ color: '#9ca3af' }}>—</em>}</span>
-                      </td>
-                      <td className="ftc-cell">
-                        <span className="ftc-hod-val" style={{ color: '#9ca3af', fontSize: 12 }}>Head of Dept</span>
-                      </td>
-                      <td className="ftc-cell ftc-cell--date" />
-                      <td className="ftc-cell ftc-cell--date" />
-                      <td className="ftc-cell">
-                        <span className="ftc-hod-val">{hod.phone || <em style={{ color: '#9ca3af' }}>—</em>}</span>
-                      </td>
-                      <td className="ftc-cell">
-                        <span className="ftc-hod-val">{hod.email || <em style={{ color: '#9ca3af' }}>—</em>}</span>
-                      </td>
-                      <td className="ftc-cell ftc-cell-del" />
-                    </tr>
-                  ))}
-                </Fragment>
-              )}
-
-              {/* ── Regular fulltime crew ─────────────────────────────────────── */}
-              {groups.map(([deptName, deptMembers]) => (
+              {groups.map(([deptName, { hods: deptHods, members: deptMembers }]) => (
                 <Fragment key={deptName}>
                   <tr className="ftc-dept-row">
                     <td colSpan={9}>
                       <span className="ftc-dept-label">{deptName}</span>
-                      <span className="ftc-dept-count">{deptMembers.length}</span>
+                      <span className="ftc-dept-count">{deptHods.length + deptMembers.length}</span>
                     </td>
                   </tr>
+                  {/* HODs first, at the top of the department */}
+                  {deptHods.map(hod => (
+                    <HodRow
+                      key={hod.id}
+                      hod={hod}
+                      onUpdate={updateHod}
+                      deptSuggestions={deptSuggestions}
+                    />
+                  ))}
+                  {/* Regular crew members below */}
                   {deptMembers.map(member => (
                     <MemberRow
                       key={member.id}

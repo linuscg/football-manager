@@ -4307,20 +4307,17 @@ select.pm-input { cursor: pointer; }
   padding: 1px 7px;
 }
 
-.ftc-dept-source {
-  margin-left: 10px;
-  font-size: 10px;
-  color: #a5b4fc;
-  font-style: italic;
-}
-
-.ftc-row--hod { opacity: 0.85; }
-.ftc-row--hod:hover { background: #fafafe; }
-.ftc-hod-val {
-  font-size: 13px;
-  color: #374151;
-  padding: 0 2px;
-  display: block;
+.ftc-row--hod { background: #fdfcff; }
+.ftc-row--hod:hover { background: #f5f3ff; }
+.ftc-hod-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #7c3aed;
+  background: #ede9fe;
+  border-radius: 4px;
+  padding: 2px 5px;
+  white-space: nowrap;
 }
 
 /* ── Data rows ─────────────────────────────────────────────── */
