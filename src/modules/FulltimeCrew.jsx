@@ -32,20 +32,38 @@ function deptPriority(dept) {
   return 3
 }
 
-// ─── Level options ────────────────────────────────────────────────────────────
+// ─── Level options + colours ──────────────────────────────────────────────────
 
 const LEVEL_OPTIONS = [
-  { value: 1, label: '1 — HOD' },
-  { value: 2, label: '2 — 2IC' },
-  { value: 3, label: '3' },
-  { value: 4, label: '4' },
-  { value: 5, label: '5' },
-  { value: 6, label: '6' },
-  { value: 7, label: '7' },
-  { value: 8, label: '8' },
-  { value: 9, label: '9' },
+  { value: 1,  label: '1 — HOD' },
+  { value: 2,  label: '2 — 2IC' },
+  { value: 3,  label: '3' },
+  { value: 4,  label: '4' },
+  { value: 5,  label: '5' },
+  { value: 6,  label: '6' },
+  { value: 7,  label: '7' },
+  { value: 8,  label: '8' },
+  { value: 9,  label: '9' },
   { value: 10, label: '10' },
 ]
+
+const LEVEL_COLORS = {
+  1:  { color: '#5b21b6', bg: '#ede9fe', border: '#c4b5fd' }, // deep purple  — HOD
+  2:  { color: '#3730a3', bg: '#e0e7ff', border: '#a5b4fc' }, // indigo       — 2IC
+  3:  { color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' }, // blue
+  4:  { color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' }, // sky
+  5:  { color: '#047857', bg: '#d1fae5', border: '#6ee7b7' }, // emerald
+  6:  { color: '#4d7c0f', bg: '#ecfccb', border: '#bef264' }, // lime
+  7:  { color: '#b45309', bg: '#fef3c7', border: '#fcd34d' }, // amber
+  8:  { color: '#c2410c', bg: '#ffedd5', border: '#fdba74' }, // orange
+  9:  { color: '#b91c1c', bg: '#fee2e2', border: '#fca5a5' }, // red
+  10: { color: '#374151', bg: '#f3f4f6', border: '#d1d5db' }, // grey
+}
+
+function levelStyle(level) {
+  const c = LEVEL_COLORS[level] ?? LEVEL_COLORS[5]
+  return { color: c.color, background: c.bg, borderColor: c.border }
+}
 
 // ─── HodRow ───────────────────────────────────────────────────────────────────
 
@@ -76,6 +94,7 @@ function HodRow({ hod, onUpdate, deptSuggestions }) {
         <select
           className="ftc-level-select"
           value={hod.level ?? 1}
+          style={levelStyle(hod.level ?? 1)}
           onChange={e => onUpdate(hod.id, 'level', parseInt(e.target.value))}
         >
           {LEVEL_OPTIONS.map(o => (
@@ -188,6 +207,7 @@ function MemberRow({
         <select
           className="ftc-level-select"
           value={member.level ?? 5}
+          style={levelStyle(member.level ?? 5)}
           onChange={e => onUpdate(member.id, 'level', parseInt(e.target.value))}
         >
           {LEVEL_OPTIONS.map(o => (
