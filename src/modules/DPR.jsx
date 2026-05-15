@@ -71,6 +71,32 @@ function sumTimeStrings(a, b) {
   return formatSeconds(sa + sb)
 }
 
+export function parsePages(str) {
+  if (!str) return 0
+  const s = String(str).trim()
+  if (!s || s === '-') return 0
+  const m = s.match(/^(\d+)\s+(\d+)\/(\d+)$/) ||
+            s.match(/^(\d+)\/(\d+)$/) ||
+            s.match(/^([\d.]+)$/)
+  if (!m) return parseFloat(s) || 0
+  if (m.length === 4) return parseInt(m[1], 10) + parseInt(m[2], 10) / parseInt(m[3], 10)
+  if (m.length === 3) return parseInt(m[1], 10) / parseInt(m[2], 10)
+  return parseFloat(m[1]) || 0
+}
+
+export function formatPages(num) {
+  if (!num) return '0'
+  const whole = Math.floor(num)
+  const frac = num - whole
+  if (!frac) return String(whole)
+  const eighths = Math.round(frac * 8)
+  if (eighths === 0) return String(whole)
+  if (eighths === 8) return String(whole + 1)
+  return whole ? `${whole} ${eighths}/8` : `${eighths}/8`
+}
+
+export { formatDate, shortDate, todayISO, pickInitialDay, LS_KEY }
+
 function findLunchLocation(locations) {
   if (!Array.isArray(locations)) return ''
   const re = /lunch|catering|crew\s*meal|meal/i
@@ -185,6 +211,7 @@ function CellSelect({ value, options, onCommit }) {
 
 export default function DPR({ productionName, shootDays, castMembers }) {
   const { dprs, loading, ensureDpr, updateDpr } = useDprStore()
+  // `dprs` is the full list of DPR records — used for the Overall Schedule rollup.
   const { hods } = useHodsStore()
   const { resources, bookings } = useCrewStore()
   const { records: cateringRecords } = useCateringStore()
@@ -389,8 +416,19 @@ export default function DPR({ productionName, shootDays, castMembers }) {
   }
 
   // ── Department lookups ───────────────────────────────────────────────────
-  const directorHod  = hods.find(h => /director/i.test(h.department))
-  const producerHods = hods.filter(h => /producer/i.test(h.department))
+  function matchHods(list, regex) {
+    return list.filter(h => regex.test(h.title || '') || regex.test(h.department || ''))
+  }
+  const directors      = matchHods(hods, /^director\b|directing|^director\s*$/i)
+                          .filter(h => !/assistant/i.test(h.title || ''))
+  const execProducers  = matchHods(hods, /executive producer/i)
+  const lineProducers  = matchHods(hods, /line producer/i)
+  const producers      = matchHods(hods, /producer/i).filter(h =>
+    !execProducers.find(e => e.id === h.id) &&
+    !lineProducers.find(l => l.id === h.id)
+  )
+  const directorHod  = directors[0] ?? null
+  const producerHods = producers
 
   // ── Cast lookup ──────────────────────────────────────────────────────────
   function castMemberById(id) {
@@ -621,6 +659,18 @@ export default function DPR({ productionName, shootDays, castMembers }) {
         </div>
       </div>
 
+      {/* HOD info strip */}
+      {(directors.length || execProducers.length || producers.length || lineProducers.length) ? (
+        <div className="dpr-header-info">
+          {[
+            directors.length      && `Director: ${directors.map(h => h.name).filter(Boolean).join(', ')}`,
+            execProducers.length  && `Executive Producer: ${execProducers.map(h => h.name).filter(Boolean).join(', ')}`,
+            producers.length      && `Producers: ${producers.map(h => h.name).filter(Boolean).join(', ')}`,
+            lineProducers.length  && `Line Producers: ${lineProducers.map(h => h.name).filter(Boolean).join(', ')}`,
+          ].filter(Boolean).join('   ·   ')}
+        </div>
+      ) : null}
+
       {/* Header strip */}
       <div className="dpr-section">
         <div className="dpr-section-title">Header</div>
@@ -705,6 +755,39 @@ export default function DPR({ productionName, shootDays, castMembers }) {
           <TextareaField label="Lunch Location" value={dpr.lunchLocation} onCommit={v => updateDpr(dpr.id, 'lunchLocation', v)} />
         </div>
       </div>
+
+      {/* Overall Schedule (auto-calculated) */}
+      {(() => {
+        const mainShootDays = shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay)
+        const sortedByDate  = [...mainShootDays].filter(d => d.date).sort((a, b) => a.date.localeCompare(b.date))
+        const startDate     = sortedByDate[0]?.date ?? ''
+        const finishDate    = sortedByDate[sortedByDate.length - 1]?.date ?? ''
+        const estDays       = mainShootDays.length
+        const today         = todayISO()
+        const daysToDate    = sortedByDate.filter(d => d.date <= today).length
+        const remainingDays = sortedByDate.filter(d => d.date > today).length
+        const splitDayCount = dprs.filter(d => d.splitDay).length
+        const nightCount    = dprs.filter(d => d.nightWork).length
+        const sixthDayCount = dprs.filter(d => d.sixthDay).length
+        const bankHolCount  = dprs.filter(d => d.bankHoliday).length
+        const ro = { background: '#f9fafb' }
+        return (
+          <div className="dpr-section">
+            <div className="dpr-section-title">Overall Schedule</div>
+            <div className="dpr-grid dpr-grid-3">
+              <div className="dpr-field"><span className="dpr-field-label">Start Date</span>     <input value={formatDate(startDate)}  readOnly style={ro} /></div>
+              <div className="dpr-field"><span className="dpr-field-label">Finish Date</span>    <input value={formatDate(finishDate)} readOnly style={ro} /></div>
+              <div className="dpr-field"><span className="dpr-field-label">Est'd Days</span>     <input value={estDays}                readOnly style={ro} /></div>
+              <div className="dpr-field"><span className="dpr-field-label">Days to Date</span>   <input value={daysToDate}             readOnly style={ro} /></div>
+              <div className="dpr-field"><span className="dpr-field-label">Remaining Days</span> <input value={remainingDays}          readOnly style={ro} /></div>
+              <div className="dpr-field"><span className="dpr-field-label">Split Days</span>     <input value={splitDayCount}          readOnly style={ro} /></div>
+              <div className="dpr-field"><span className="dpr-field-label">Nights</span>         <input value={nightCount}             readOnly style={ro} /></div>
+              <div className="dpr-field"><span className="dpr-field-label">6th Days</span>       <input value={sixthDayCount}          readOnly style={ro} /></div>
+              <div className="dpr-field"><span className="dpr-field-label">Bank Holidays</span>  <input value={bankHolCount}           readOnly style={ro} /></div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Scenes */}
       <div className="dpr-section">

@@ -9012,3 +9012,56 @@ select.pm-input { cursor: pointer; }
 }
 .dpr-remove-btn:hover { color: #dc2626; }
 .dpr-export-btns { display: flex; gap: 8px; }
+
+/* ── DPR HOD info strip ───────────────────────────────────────────────────── */
+.dpr-header-info {
+  font-size: 12px; color: #6b7280; padding: 0 0 14px 0;
+}
+
+/* ── Wrap Report ──────────────────────────────────────────────────────────── */
+.wrap-rep-wrap { padding: 16px 24px 60px; max-width: 900px; margin: 0 auto; }
+.wrap-rep-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: 24px;
+}
+.wrap-rep-title {
+  text-align: center; font-size: 22px; font-weight: 800;
+  letter-spacing: 0.08em; margin: 32px 0 20px;
+}
+.wrap-rep-table {
+  width: 100%; border-collapse: collapse;
+  border: 1px solid #d1d5db; background: #fff;
+}
+.wrap-rep-table tr { border-bottom: 1px solid #e5e7eb; }
+.wrap-rep-table tr.section-break { border-top: 4px solid #d1d5db; }
+.wrap-rep-table td {
+  padding: 8px 12px; vertical-align: middle; font-size: 13px;
+}
+.wrap-rep-table td.label {
+  font-weight: 700; text-transform: uppercase; width: 42%;
+  background: #fff; color: #111;
+}
+.wrap-rep-table td.value { color: #111; }
+.wrap-rep-table input, .wrap-rep-table textarea {
+  width: 100%; font-size: 13px; padding: 4px 6px;
+  border: 1px solid transparent; background: transparent; font-family: inherit;
+}
+.wrap-rep-table input:hover, .wrap-rep-table textarea:hover { border-color: #e5e7eb; }
+.wrap-rep-table input:focus, .wrap-rep-table textarea:focus {
+  outline: none; border-color: #6366f1; background: #fff;
+  box-shadow: 0 0 0 2px #e0e7ff;
+}
+.wrap-rep-table textarea { resize: vertical; min-height: 56px; }
+.wrap-rep-lunch { display: flex; gap: 8px; align-items: center; }
+.wrap-rep-lunch input { flex: 1; }
+.wrap-rep-panel {
+  margin-top: 40px; padding: 20px 24px;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+}
+.wrap-rep-panel-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #6b7280; margin-bottom: 14px;
+}
+.wrap-rep-panel-empty {
+  color: #9ca3af; font-size: 13px; padding: 16px 0;
+}

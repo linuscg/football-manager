@@ -28,6 +28,7 @@ import TravelTimes           from './modules/TravelTimes'
 import CrewDatabase          from './modules/CrewDatabase'
 import NewStarters           from './modules/NewStarters'
 import DPR                   from './modules/DPR'
+import WrapReport            from './modules/WrapReport'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -122,6 +123,18 @@ const CT_MODULE_SUB = {
   'ct-starters':   'Weekly new starter onboarding',
 }
 
+// ─── DPR nav ──────────────────────────────────────────────────────────────────
+
+const DPR_NAV = [
+  { id: 'dpr-main', num: '01', label: 'DPR'         },
+  { id: 'dpr-wrap', num: '02', label: 'Wrap Report' },
+]
+
+const DPR_MODULE_SUB = {
+  'dpr-main': 'Daily Production Report',
+  'dpr-wrap': 'Wrap Report',
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayFull() {
@@ -156,6 +169,12 @@ function getInitialCatModule() {
   const saved = localStorage.getItem('fm_cat_module')
   if (saved && CAT_NAV.find(n => n.id === saved)) return saved
   return 'cat-list'
+}
+
+function getInitialDprModule() {
+  const saved = localStorage.getItem('fm_dpr_module')
+  if (saved && DPR_NAV.find(n => n.id === saved)) return saved
+  return 'dpr-main'
 }
 
 function getInitialAccommModule() {
@@ -243,6 +262,7 @@ function AppShell({ session, signOut }) {
   const [fmModule,     setFmModule]     = useState(getInitialFmModule)
   const [ctModule,     setCtModule]     = useState(getInitialCtModule)
   const [catModule,    setCatModule]    = useState(getInitialCatModule)
+  const [dprModule,    setDprModule]    = useState(getInitialDprModule)
   const [accommModule, setAccommModule] = useState(getInitialAccommModule)
   const [prodMenuOpen, setProdMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
@@ -271,6 +291,11 @@ function AppShell({ session, signOut }) {
   function navigateCat(id) {
     setCatModule(id)
     localStorage.setItem('fm_cat_module', id)
+  }
+
+  function navigateDpr(id) {
+    setDprModule(id)
+    localStorage.setItem('fm_dpr_module', id)
   }
 
   function navigateAccomm(id) {
@@ -365,7 +390,7 @@ function AppShell({ session, signOut }) {
           : topTab === 'accomm'
             ? ACCOMM_NAV
             : topTab === 'dpr'
-              ? []
+              ? DPR_NAV
               : []
 
   const activeModule = topTab === 'setup'
@@ -377,7 +402,7 @@ function AppShell({ session, signOut }) {
         : topTab === 'catering'
           ? catModule
           : topTab === 'dpr'
-            ? null
+            ? dprModule
             : accommModule
 
   function handleNavClick(id) {
@@ -385,6 +410,7 @@ function AppShell({ session, signOut }) {
     if (topTab === 'fm')         navigateFm(id)
     if (topTab === 'crew-times') navigateCt(id)
     if (topTab === 'catering')   navigateCat(id)
+    if (topTab === 'dpr')        navigateDpr(id)
     if (topTab === 'accomm')     navigateAccomm(id)
   }
 
@@ -394,7 +420,7 @@ function AppShell({ session, signOut }) {
     if (topTab === 'crew-times') return CT_NAV.find(n => n.id === ctModule)?.label ?? ''
     if (topTab === 'catering')   return CAT_NAV.find(n => n.id === catModule)?.label ?? 'Catering'
     if (topTab === 'accomm')     return ACCOMM_NAV.find(n => n.id === accommModule)?.label ?? 'Accommodation'
-    if (topTab === 'dpr')        return 'Daily Production Report'
+    if (topTab === 'dpr')        return DPR_NAV.find(n => n.id === dprModule)?.label ?? 'DPR'
     return ''
   })()
 
@@ -409,7 +435,7 @@ function AppShell({ session, signOut }) {
     if (topTab === 'crew-times') return CT_MODULE_SUB[ctModule] ?? ''
     if (topTab === 'catering')   return CAT_MODULE_SUB[catModule] ?? ''
     if (topTab === 'accomm')     return ACCOMM_MODULE_SUB[accommModule] ?? ''
-    if (topTab === 'dpr')        return 'Per-day shoot report'
+    if (topTab === 'dpr')        return DPR_MODULE_SUB[dprModule] ?? ''
     return ''
   })()
 
@@ -697,11 +723,17 @@ function AppShell({ session, signOut }) {
             )}
 
             {/* ── DPR tab ───────────────────────────────────────────────────── */}
-            {topTab === 'dpr' && (
+            {topTab === 'dpr' && dprModule === 'dpr-main' && (
               <DPR
                 productionName={store.production.name}
                 shootDays={store.shootDays}
                 castMembers={store.castMembers}
+              />
+            )}
+            {topTab === 'dpr' && dprModule === 'dpr-wrap' && (
+              <WrapReport
+                productionName={store.production.name}
+                shootDays={store.shootDays}
               />
             )}
 
