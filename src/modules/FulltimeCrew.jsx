@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useFulltimeCrewStore } from '../store/useFulltimeCrewStore'
+import { useHodsStore }         from '../store/useHodsStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -179,6 +180,8 @@ export default function FulltimeCrew() {
     importMembers,
   } = useFulltimeCrewStore()
 
+  const { hods } = useHodsStore()
+
   // ── Local display order (alphabetical by default; drag can reorder for the session) ──
 
   const [displayIds, setDisplayIds] = useState([])
@@ -350,6 +353,43 @@ export default function FulltimeCrew() {
               </tr>
             </thead>
             <tbody>
+              {/* ── Heads of Department (from Project Setup) ─────────────────── */}
+              {hods.length > 0 && (
+                <Fragment key="__hods__">
+                  <tr className="ftc-dept-row">
+                    <td colSpan={9}>
+                      <span className="ftc-dept-label">Heads of Department</span>
+                      <span className="ftc-dept-count">{hods.length}</span>
+                      <span className="ftc-dept-source">Managed in Project Setup</span>
+                    </td>
+                  </tr>
+                  {hods.map(hod => (
+                    <tr key={hod.id} className="ftc-row ftc-row--hod">
+                      <td className="ftc-cell ftc-cell-drag" />
+                      <td className="ftc-cell ftc-cell-name">
+                        <span className="ftc-hod-val">{hod.name || <em style={{ color: '#9ca3af' }}>—</em>}</span>
+                      </td>
+                      <td className="ftc-cell">
+                        <span className="ftc-hod-val">{hod.title || <em style={{ color: '#9ca3af' }}>—</em>}</span>
+                      </td>
+                      <td className="ftc-cell">
+                        <span className="ftc-hod-val" style={{ color: '#9ca3af', fontSize: 12 }}>Head of Dept</span>
+                      </td>
+                      <td className="ftc-cell ftc-cell--date" />
+                      <td className="ftc-cell ftc-cell--date" />
+                      <td className="ftc-cell">
+                        <span className="ftc-hod-val">{hod.phone || <em style={{ color: '#9ca3af' }}>—</em>}</span>
+                      </td>
+                      <td className="ftc-cell">
+                        <span className="ftc-hod-val">{hod.email || <em style={{ color: '#9ca3af' }}>—</em>}</span>
+                      </td>
+                      <td className="ftc-cell ftc-cell-del" />
+                    </tr>
+                  ))}
+                </Fragment>
+              )}
+
+              {/* ── Regular fulltime crew ─────────────────────────────────────── */}
               {groups.map(([deptName, deptMembers]) => (
                 <Fragment key={deptName}>
                   <tr className="ftc-dept-row">

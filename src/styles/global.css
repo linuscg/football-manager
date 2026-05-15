@@ -4307,6 +4307,22 @@ select.pm-input { cursor: pointer; }
   padding: 1px 7px;
 }
 
+.ftc-dept-source {
+  margin-left: 10px;
+  font-size: 10px;
+  color: #a5b4fc;
+  font-style: italic;
+}
+
+.ftc-row--hod { opacity: 0.85; }
+.ftc-row--hod:hover { background: #fafafe; }
+.ftc-hod-val {
+  font-size: 13px;
+  color: #374151;
+  padding: 0 2px;
+  display: block;
+}
+
 /* ── Data rows ─────────────────────────────────────────────── */
 .ftc-row {
   border-bottom: 1px solid var(--pm-rule-soft, #eef0f4);
