@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo, Fragment } from 'react'
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { useDprStore } from '../store/useDprStore'
 import { useHodsStore } from '../store/useHodsStore'
+import { useCrewStore } from '../store/useCrewStore'
+import { useCateringStore } from '../store/useCateringStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,44 @@ function pickInitialDay(shootDays) {
 function newId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
+function parseTime(str) {
+  if (!str) return 0
+  const parts = String(str).split(':').map(n => parseInt(n, 10) || 0)
+  if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2]
+  if (parts.length === 2) return parts[0]*60 + parts[1]
+  return 0
+}
+
+function formatSeconds(s) {
+  if (!s) return ''
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`
+}
+
+function sumTimeStrings(a, b) {
+  const sa = parseTime(a), sb = parseTime(b)
+  if (!sa && !sb) return ''
+  return formatSeconds(sa + sb)
+}
+
+function findLunchLocation(locations) {
+  if (!Array.isArray(locations)) return ''
+  const re = /lunch|catering|crew\s*meal|meal/i
+  for (const loc of locations) {
+    if (typeof loc === 'string') {
+      if (re.test(loc)) return loc
+    } else if (loc && typeof loc === 'object') {
+      const candidates = [loc.name, loc.label, loc.description, loc.address, loc.type, loc.role]
+      for (const c of candidates) {
+        if (typeof c === 'string' && re.test(c)) {
+          return loc.address || loc.name || loc.label || c
+        }
+      }
+    }
+  }
+  return ''
 }
 
 // ─── Reusable diff-aware field ────────────────────────────────────────────────
@@ -146,6 +186,9 @@ function CellSelect({ value, options, onCommit }) {
 export default function DPR({ productionName, shootDays, castMembers }) {
   const { dprs, loading, ensureDpr, updateDpr } = useDprStore()
   const { hods } = useHodsStore()
+  const { resources, bookings } = useCrewStore()
+  const { records: cateringRecords } = useCateringStore()
+  const prefilledRef = useRef(new Set())
 
   const mainDays = useMemo(
     () => shootDays.filter(d => d.dayCategory === 'main' && !d.isNonShootDay),
@@ -177,12 +220,145 @@ export default function DPR({ productionName, shootDays, castMembers }) {
     [dprs, selectedDayId]
   )
 
-  // Auto-create dpr_day row on first selection
+  // Auto-create dpr_day row on first selection, then auto-pull/prefill.
   useEffect(() => {
-    if (selectedDayId && !loading && !dprs.find(d => d.shootDayId === selectedDayId)) {
-      ensureDpr(selectedDayId)
-    }
-  }, [selectedDayId, loading, dprs, ensureDpr])
+    if (!selectedDayId || loading) return
+    const day = shootDays.find(d => d.id === selectedDayId)
+    if (!day) return
+
+    let cancelled = false
+    ;(async () => {
+      const existing = dprs.find(d => d.shootDayId === selectedDayId)
+      const dprRow = existing ?? await ensureDpr(selectedDayId)
+      if (cancelled || !dprRow) return
+
+      const dprId = dprRow.id
+      const isFirstPrefill = !prefilledRef.current.has(dprId)
+
+      // ── Auto-pull scenes ──
+      if ((dprRow.scenes?.length ?? 0) === 0 && (day.scenes?.length ?? 0) > 0) {
+        const items = (day.scenes ?? []).map(sc => {
+          const castList = (sc.castMemberIds ?? [])
+            .map(id => castMembers?.find(c => c.id === id))
+            .filter(Boolean)
+            .map(c => c.castNumber ?? c.name)
+            .join(', ')
+          return {
+            id: newId(),
+            source_id: sc.id,
+            removed: false,
+            source: {
+              sceneNumber: sc.sceneNumber, dayNight: sc.dayNight, intExt: sc.intExt,
+              description: sc.description, pages: sc.pages, location: sc.location, castList,
+            },
+            scene_number: sc.sceneNumber, day_night: sc.dayNight, int_ext: sc.intExt,
+            description: sc.description, pages: sc.pages, location: sc.location,
+            cast_list: castList, status: 'scheduled', is_pickup: false,
+          }
+        })
+        updateDpr(dprId, 'scenes', items)
+      }
+
+      // ── Auto-pull cast ──
+      const idsInUse = new Set()
+      for (const sc of day.scenes ?? []) for (const id of sc.castMemberIds ?? []) idsInUse.add(id)
+      if ((dprRow.castMembers?.length ?? 0) === 0 && idsInUse.size > 0) {
+        const items = [...idsInUse].map(id => {
+          const c = castMembers?.find(x => x.id === id) ?? null
+          const source = {
+            number: c?.castNumber ?? '', character: c?.role ?? '', cast: c?.name ?? '',
+          }
+          return {
+            id: newId(), source_id: id, removed: false, source,
+            number: source.number, character: source.character, cast: source.cast,
+            status: '', pickup: '', arrive: '', call: '', ndb: '',
+            hmu_costume: '', set_time: '', lunch_range: '',
+            wrap: '', depart: '', drop_off: '', total_hours: '',
+          }
+        })
+        updateDpr(dprId, 'castMembers', items)
+      }
+
+      // ── Auto-fill scalar fields from schedule ──
+      if (!String(dprRow.unitCall ?? '').trim() && day.generalCall) {
+        updateDpr(dprId, 'unitCall', day.generalCall)
+      }
+      if (!String(dprRow.unitBaseAddress ?? '').trim() && day.unitBase) {
+        updateDpr(dprId, 'unitBaseAddress', day.unitBase)
+      }
+      if (!String(dprRow.lunchLocation ?? '').trim()) {
+        const lunch = findLunchLocation(day.locations)
+        if (lunch) updateDpr(dprId, 'lunchLocation', lunch)
+      }
+
+      // ── Catering auto-fill ──
+      const dayCatering = cateringRecords.filter(r => r.dayId === selectedDayId)
+      const cateringEst = dayCatering.length
+      const cateringAct = dayCatering.filter(r => r.collected === true).length
+      if ((!dprRow.cateringEstimated || dprRow.cateringEstimated === 0) && cateringEst > 0) {
+        updateDpr(dprId, 'cateringEstimated', cateringEst)
+      }
+      if ((!dprRow.cateringActual || dprRow.cateringActual === 0) && cateringAct > 0) {
+        updateDpr(dprId, 'cateringActual', cateringAct)
+      }
+
+      // ── Previous-values prefill (only on first observation for this DPR id) ──
+      if (isFirstPrefill) {
+        prefilledRef.current.add(dprId)
+        const dayIdx = mainDays.findIndex(d => d.id === selectedDayId)
+        const prior = dayIdx > 0
+          ? dprs.find(d => d.shootDayId === mainDays[dayIdx - 1].id)
+          : null
+        if (
+          prior &&
+          (dprRow.setUpsPrevious ?? 0) === 0 &&
+          (dprRow.soundPrevious ?? 0) === 0 &&
+          (dprRow.videoPrevious ?? 0) === 0
+        ) {
+          updateDpr(dprId, 'setUpsPrevious', (Number(prior.setUpsToday) || 0) + (Number(prior.setUpsPrevious) || 0))
+          updateDpr(dprId, 'soundPrevious', (Number(prior.soundToday) || 0) + (Number(prior.soundPrevious) || 0))
+          updateDpr(dprId, 'videoPrevious', (Number(prior.videoToday) || 0) + (Number(prior.videoPrevious) || 0))
+          if (prior.timingsToday) updateDpr(dprId, 'timingsPrevious', prior.timingsToday)
+
+          const combineScriptMin = (prev, today) => {
+            if (!prev && !today) return ''
+            const hasColon = (String(prev).includes(':') || String(today).includes(':'))
+            if (hasColon) {
+              const sum = sumTimeStrings(prev, today)
+              if (sum) return sum
+            }
+            const np = parseFloat(prev), nt = parseFloat(today)
+            if (!isNaN(np) || !isNaN(nt)) return String((isNaN(np) ? 0 : np) + (isNaN(nt) ? 0 : nt))
+            return today || prev || ''
+          }
+          const newScriptMinPrevEst = combineScriptMin(prior.scriptMinPrevEst, prior.scriptMinTodayEst)
+          if (newScriptMinPrevEst) updateDpr(dprId, 'scriptMinPrevEst', newScriptMinPrevEst)
+          const newScriptMinPrevAct = combineScriptMin(prior.scriptMinPrevAct, prior.scriptMinTodayAct)
+          if (newScriptMinPrevAct) updateDpr(dprId, 'scriptMinPrevAct', newScriptMinPrevAct)
+
+          const priorCam = prior.camInventory ?? {}
+          const nextCam = { ...(dprRow.camInventory ?? {}) }
+          for (const k of ['a', 'b', 't', 'c']) {
+            const prev = Number(priorCam[`${k}_prev`]) || 0
+            const today = Number(priorCam[`${k}_today`]) || 0
+            if (prev + today > 0) nextCam[`${k}_prev`] = prev + today
+          }
+          if (Object.keys(nextCam).length) updateDpr(dprId, 'camInventory', nextCam)
+
+          const priorSa = prior.saCountsCosts ?? {}
+          const nextSa = { ...(dprRow.saCountsCosts ?? {}) }
+          const prevCount = (Number(priorSa.prev_count) || 0) + (Number(priorSa.today_count) || 0)
+          const prevCost = (Number(priorSa.prev_cost) || 0) + (Number(priorSa.today_cost) || 0)
+          if (prevCount > 0) nextSa.prev_count = prevCount
+          if (prevCost > 0) nextSa.prev_cost = prevCost
+          if (prevCount > 0 || prevCost > 0) updateDpr(dprId, 'saCountsCosts', nextSa)
+        }
+      }
+    })()
+
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDayId, loading, dprs.length])
 
   // ── Empty state ──────────────────────────────────────────────────────────
   if (!shootDays.length || !mainDays.length) {
@@ -835,6 +1011,65 @@ export default function DPR({ productionName, shootDays, castMembers }) {
         </div>
       </div>
 
+      {/* Booked from Gantt */}
+      {(() => {
+        const dayBookings = bookings.filter(b => b.date === selectedDay.date && b.status !== 'cancelled')
+        const bookedResourceIds = new Set(dayBookings.map(b => b.resourceId))
+        const bookedResources = resources.filter(r => bookedResourceIds.has(r.id))
+        const bookedCrew = bookedResources.filter(r => r.type === 'crew')
+        const bookedEquipment = bookedResources.filter(r => r.type === 'equipment')
+        return (
+          <div className="dpr-section">
+            <div className="dpr-section-title">Booked from Gantt</div>
+            <div className="dpr-grid dpr-grid-2">
+              <div>
+                <div className="dpr-field-label" style={{ marginBottom: 6 }}>Additional Crew</div>
+                {bookedCrew.length === 0 ? (
+                  <div style={{ color: '#9ca3af', fontSize: 12 }}>No additional crew booked from the Gantt for this day.</div>
+                ) : (
+                  <table className="dpr-table">
+                    <thead>
+                      <tr><th>Name</th><th>Role</th><th>Department</th><th>Phone</th></tr>
+                    </thead>
+                    <tbody>
+                      {bookedCrew.map(r => (
+                        <tr key={r.id}>
+                          <td>{r.name}</td>
+                          <td>{r.role}</td>
+                          <td>{r.department}</td>
+                          <td>{r.contactPhone}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div>
+                <div className="dpr-field-label" style={{ marginBottom: 6 }}>Additional Equipment</div>
+                {bookedEquipment.length === 0 ? (
+                  <div style={{ color: '#9ca3af', fontSize: 12 }}>No additional equipment booked from the Gantt for this day.</div>
+                ) : (
+                  <table className="dpr-table">
+                    <thead>
+                      <tr><th>Name</th><th>Category/Department</th><th>Notes</th></tr>
+                    </thead>
+                    <tbody>
+                      {bookedEquipment.map(r => (
+                        <tr key={r.id}>
+                          <td>{r.name}</td>
+                          <td>{r.category || r.department}</td>
+                          <td>{r.notes}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Additional crew / equipment / facilities */}
       <div className="dpr-section">
         <div className="dpr-section-title">Additional Crew / Equipment / Facilities</div>
@@ -875,9 +1110,26 @@ export default function DPR({ productionName, shootDays, castMembers }) {
 // ─── Day picker ───────────────────────────────────────────────────────────────
 
 function DayPicker({ mainDays, value, onChange }) {
+  const idx = mainDays.findIndex(d => d.id === value)
+  const goPrev  = () => { if (idx > 0) onChange(mainDays[idx - 1].id) }
+  const goNext  = () => { if (idx >= 0 && idx < mainDays.length - 1) onChange(mainDays[idx + 1].id) }
+  const goToday = () => {
+    const today = todayISO()
+    const todayDay = mainDays.find(d => d.date === today)
+    if (todayDay) { onChange(todayDay.id); return }
+    const past = [...mainDays].filter(d => d.date && d.date <= today).sort((a, b) => b.date.localeCompare(a.date))[0]
+    if (past) onChange(past.id)
+    else if (mainDays.length) onChange(mainDays[0].id)
+  }
   return (
-    <div className="dpr-day-picker">
+    <div className="dpr-day-picker" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
       <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Shoot Day</span>
+      <button
+        className="pm-btn pm-btn--ghost pm-btn--sm"
+        onClick={goPrev}
+        disabled={idx <= 0}
+        title="Previous day"
+      >◀</button>
       <select
         className="dpr-day-select"
         value={value ?? ''}
@@ -889,6 +1141,17 @@ function DayPicker({ mainDays, value, onChange }) {
           </option>
         ))}
       </select>
+      <button
+        className="pm-btn pm-btn--ghost pm-btn--sm"
+        onClick={goNext}
+        disabled={idx < 0 || idx >= mainDays.length - 1}
+        title="Next day"
+      >▶</button>
+      <button
+        className="pm-btn pm-btn--ghost pm-btn--sm"
+        onClick={goToday}
+        title="Jump to today"
+      >Today</button>
     </div>
   )
 }
