@@ -80,7 +80,7 @@ function HodRow({ hod, onUpdate, deptSuggestions }) {
           value={lDept}
           placeholder="Department"
           list={`ftc-hod-dept-${hod.id}`}
-          onChange={e => { setLDept(e.target.value); onUpdate(hod.id, 'department', e.target.value) }}
+          onChange={e => setLDept(e.target.value)}
           onBlur={() => commit('department', lDept, hod.department)}
         />
         <datalist id={`ftc-hod-dept-${hod.id}`}>
