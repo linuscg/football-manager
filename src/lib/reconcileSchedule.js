@@ -153,6 +153,11 @@ export function reconcileSchedule(parsed, existing) {
   let summaryNewDays = 0, summaryChangedDays = 0, summaryNewScenes = 0, summaryChangedScenes = 0
 
   for (const pDay of (parsed.days ?? [])) {
+    // Skip weekend rest days — only midweek rest days are meaningful.
+    if (pDay.type === 'rest' && pDay.date) {
+      const dow = new Date(pDay.date + 'T00:00:00').getDay() // 0 = Sun, 6 = Sat
+      if (dow === 0 || dow === 6) continue
+    }
     const { dayCategory, isNonShootDay, dayLabel } = dayTypeToCategory(pDay.type)
     const pLocation = pDay.location ?? ''
 

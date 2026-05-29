@@ -84,7 +84,8 @@ OTHER RULES:
 - Scenes under an "Unscheduled" / "Scenes Not Scheduled" section (usually at the very end, no day number or date) go into ONE day with type "unscheduled", no dayNumber and no date.
 - Location/venue headers (e.g. "TRING PARK SCHOOL - Shoot 22 days", "THEATRE : Shoot 2 Days") apply to the days that follow until the next location header. Put the venue name in each day's "location".
 - Ignore "WEEK 1"/"WEEK 2" banners and sunrise/sunset lines.
-- "PRE-SHOOT DURING PREP WEEKS" scenes are type "prep". "REST DAY" entries are type "rest" (no scenes). Splinter unit work is "splinter". Normal numbered days are type "main".
+- "PRE-SHOOT DURING PREP WEEKS" scenes are type "prep". Splinter unit work is "splinter". Normal numbered days are type "main".
+- "REST DAY" entries are type "rest" (no scenes), BUT only include a rest day if it falls on a WEEKDAY (Monday–Friday). SKIP and do NOT output any rest day labelled or dated as a Saturday or Sunday (e.g. "Saturday - REST DAY", "Sunday - REST DAY") — weekend rest days are not needed.
 - If a value is missing, use an empty string (or empty array for castNumbers). Do not invent data.
 - Return ONLY the structured JSON matching the schema.`
 
