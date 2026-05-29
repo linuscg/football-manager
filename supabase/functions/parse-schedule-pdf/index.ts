@@ -74,6 +74,8 @@ BE METHODICAL — this is the most important thing:
 - Preserve the exact printed order of scenes within each day. Do not sort or rearrange them.
 - A strip is a SCENE only if it has the scene-row shape (an INT/EXT marker AND a bold SET name, usually with a time-of-day and a "Pgs" count). If a strip lacks INT/EXT and a set name, it is NOT a scene — it is either an "End of Day" banner (a delimiter) or free text (a note). When unsure, do not guess it into the wrong day.
 
+COLUMNS IN EACH SCENE ROW (left → right): scene number | INT/EXT | set name + description | time-of-day + story day | pages ("Pgs") | CAST | SA's. The SECOND-TO-LAST column is the CAST column, prefixed "C:" — e.g. "C: 1, 3, 4". Read EVERY number in it into "castNumbers" as an array of strings (["1","3","4"]). Almost every scene has a cast list — do not leave castNumbers empty unless the C: column is genuinely blank. The LAST column "SA's:" is a DIFFERENT thing (supporting artists / extras count) — put that number in "saCount", never in castNumbers. Do not confuse the two columns.
+
 HOW TO BUILD THE DAYS — follow this state machine EXACTLY:
 1. Keep a "current day" with an empty scene list and empty notes. Start one at the top of the schedule body.
 2. When you read a SCENE strip, append it to the CURRENT day's scenes (the day that is open right now — never a previous or later day). A scene strip has: a scene number (bold, left), an optional dance-sequence label beneath it (e.g. KNOCK, ANI, DANCE, BALLET — capture as danceSequence), INT/EXT, a bold SET name, a description line, a time-of-day word (Morning/Day/Dusk/Evening/Night) with a story-day number beneath it, a page count ("Pgs"), a cast list after "C:", and an "SA's:" count.
