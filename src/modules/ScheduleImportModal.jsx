@@ -40,7 +40,16 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
           body: { pdfBase64: b64 },
         })
         if (fnErr || data?.error) {
-          setError(fnErr?.message ?? data?.error ?? 'Failed to parse the schedule.')
+          // supabase.functions.invoke gives a generic "non-2xx" message —
+          // the real error body lives on fnErr.context (the Response).
+          let detail = data?.error ?? null
+          if (!detail && fnErr?.context && typeof fnErr.context.json === 'function') {
+            try {
+              const body = await fnErr.context.json()
+              detail = body?.error ?? (body ? JSON.stringify(body) : null)
+            } catch { /* ignore */ }
+          }
+          setError(detail ?? fnErr?.message ?? 'Failed to parse the schedule.')
           setPhase('error')
           return
         }
