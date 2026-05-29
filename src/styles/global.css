@@ -9221,7 +9221,26 @@ select.pm-input { cursor: pointer; }
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, #6366f1, #8b5cf6);
-  transition: width .25s ease;
+  transition: width .4s ease;
+  position: relative;
+  overflow: hidden;
+}
+/* Subtle sheen travelling right → left over the fill while loading. */
+.sched-import-progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  transform: translateX(100%);
+  animation: sched-import-sheen 1.6s ease-in-out infinite;
+}
+@keyframes sched-import-sheen {
+  to { transform: translateX(-100%); }
 }
 .sched-import-done {
   width: 40px; height: 40px; border-radius: 50%;

@@ -61,12 +61,14 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
   }
 
   // Ease the bar toward `cap` (never reaching it) so the wait feels alive
-  // even though the AI call gives us no real progress signal.
-  function startCreep(cap) {
+  // even though the parse gives us no real progress signal. `speed` scales how
+  // fast it eases — the parse stage (~50s) uses a slow value so the bar doesn't
+  // hit the cap and sit there.
+  function startCreep(cap, speed = 0.06) {
     stopCreep()
     creepRef.current = setInterval(() => {
-      setProgress(p => (p < cap ? p + Math.max(0.4, (cap - p) * 0.06) : p))
-    }, 220)
+      setProgress(p => (p < cap ? p + Math.max(0.15, (cap - p) * speed) : p))
+    }, 400)
   }
 
   // Clean up the interval if the modal unmounts mid-flight.
@@ -96,7 +98,8 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
         stopCreep()
         setStageIdx(1)
         setProgress(22)
-        startCreep(75)
+        // Parsing is the long pole (~50s) — ease very slowly toward 75%.
+        startCreep(75, 0.012)
         const { data, error: fnErr } = await supabase.functions.invoke('parse-schedule-pdf', {
           body: { pdfBase64: b64 },
         })
