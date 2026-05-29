@@ -67,12 +67,20 @@ const PROMPT = `You are parsing a film/TV "one-line" shooting schedule PDF into 
 CAST LEGEND:
 - The first page is usually a CAST MEMBERS legend: a numbered list mapping a cast number to a character name. Extract every entry into "cast".
 
-HOW TO BUILD THE DAYS — follow this process EXACTLY, reading the document strictly top to bottom:
+BE METHODICAL — this is the most important thing:
+- Process the document in strict physical reading order: page 1 top-to-bottom, then page 2 top-to-bottom, and so on. Never jump around or reorder.
+- Process ONE strip at a time, exactly in the order they are printed. Do not skip strips and do not look ahead.
+- A scene ALWAYS belongs to the day whose "End of Day" banner is the very next "End of Day" banner physically below that scene. Equivalently: a scene belongs to the day that is currently open when you reach it. Never move a scene to a different day than the one it physically sits in.
+- Preserve the exact printed order of scenes within each day. Do not sort or rearrange them.
+- A strip is a SCENE only if it has the scene-row shape (an INT/EXT marker AND a bold SET name, usually with a time-of-day and a "Pgs" count). If a strip lacks INT/EXT and a set name, it is NOT a scene — it is either an "End of Day" banner (a delimiter) or free text (a note). When unsure, do not guess it into the wrong day.
+
+HOW TO BUILD THE DAYS — follow this state machine EXACTLY:
 1. Keep a "current day" with an empty scene list and empty notes. Start one at the top of the schedule body.
-2. When you read a SCENE strip, add it to the current day's scenes. A scene strip has: a scene number (bold, left), an optional dance-sequence label beneath it (e.g. KNOCK, ANI, DANCE, BALLET — capture as danceSequence), INT/EXT, a bold SET name, a description line, a time-of-day word (Morning/Day/Dusk/Evening/Night) with a story-day number beneath it, a page count ("Pgs"), a cast list after "C:", and an "SA's:" count.
+2. When you read a SCENE strip, append it to the CURRENT day's scenes (the day that is open right now — never a previous or later day). A scene strip has: a scene number (bold, left), an optional dance-sequence label beneath it (e.g. KNOCK, ANI, DANCE, BALLET — capture as danceSequence), INT/EXT, a bold SET name, a description line, a time-of-day word (Morning/Day/Dusk/Evening/Night) with a story-day number beneath it, a page count ("Pgs"), a cast list after "C:", and an "SA's:" count.
 3. When you read an "End of Day #N -- <date> -- Total Pgs ..." banner: this CLOSES the current day. Set that day's dayNumber = N and date = the banner's date (ISO YYYY-MM-DD). Then START A NEW empty current day for whatever follows.
 4. Repeat to the end of the document. Every "End of Day" banner therefore produces exactly one day in the output, in order.
 5. AT THE END OF THE DOCUMENT: output the current still-open day even if there is NO closing "End of Day" banner after it. A day is never dropped just because the document ends (or an unscheduled section begins) without an "End of Day" banner.
+6. SELF-CHECK before returning: for each day, every scene you listed must physically sit between that day's opening point and its "End of Day" banner. If a scene ended up under the wrong day, fix it. The scene numbers within a day should match the scenes printed in that day's block on the page.
 
 ABSOLUTELY CRITICAL RULES FOR DAY BANNERS:
 - An "End of Day #N" banner is a DELIMITER. It is NEVER a scene and NEVER a note. Never put "End of Day" text into a day's notes. Never skip one. The number of days you output MUST equal the number of "End of Day" banners in the document (plus any prep/unscheduled days).
