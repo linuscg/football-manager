@@ -195,6 +195,35 @@ export function reconcileSchedule(parsed, existing) {
     return null
   }
 
+  // Non-main days (prep / splinter / unscheduled) usually have no day number and
+  // often no date in the PDF, so we match them to an existing day of the SAME
+  // category by SCENE-NUMBER overlap. This lets a re-import recognise, e.g., a
+  // pre-shoot day the user has since dated — keeping that date and just updating
+  // its scenes — instead of creating a duplicate.
+  function findExistingNonMainMatch(pDay, dayCategory) {
+    const pNums = new Set(
+      (pDay.scenes ?? []).map(s => String(s.sceneNumber ?? '').trim()).filter(Boolean)
+    )
+    if (!pNums.size) return null
+    const candidates = existingDays.filter(
+      d => d.dayCategory === dayCategory && !matchedExistingIds.has(d.id)
+    )
+    let best = null, bestScore = 0
+    for (const d of candidates) {
+      const eNums = new Set(
+        (d.scenes ?? []).map(s => String(s.sceneNumber ?? '').trim()).filter(Boolean)
+      )
+      if (!eNums.size) continue
+      let overlap = 0
+      for (const n of pNums) if (eNums.has(n)) overlap++
+      const union = new Set([...pNums, ...eNums]).size
+      const score = union ? overlap / union : 0   // Jaccard similarity
+      if (score > bestScore) { bestScore = score; best = d }
+    }
+    // Require a solid overlap to avoid false matches.
+    return bestScore >= 0.5 ? best : null
+  }
+
   // Reconcile the importer-managed Supporting-Artist (SA) row for a scene.
   // The importer only owns the row with a BLANK saName for a given scene/day;
   // user-added named SA groups (non-blank saName) are never touched.
@@ -245,10 +274,12 @@ export function reconcileSchedule(parsed, existing) {
     const { dayCategory, isNonShootDay, dayLabel } = dayTypeToCategory(pDay.type)
     const pLocation = pDay.location ?? ''
 
-    // Only main (incl. rest, which is dayCategory main) days participate in
-    // match/update against existing days. prep/splinter days are always inserted
-    // fresh — they're hard to match reliably and rarely overlap.
-    const matched = dayCategory === 'main' ? findExistingMainMatch(pDay) : null
+    // Main days match by number/date; non-main days (prep/splinter/unscheduled)
+    // match by scene-number overlap so a re-import keeps a day the user has
+    // since dated rather than duplicating it.
+    const matched = dayCategory === 'main'
+      ? findExistingMainMatch(pDay)
+      : findExistingNonMainMatch(pDay, dayCategory)
 
     if (matched) {
       matchedExistingIds.add(matched.id)
