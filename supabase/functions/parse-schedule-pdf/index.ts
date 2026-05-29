@@ -30,7 +30,7 @@ const responseSchema = {
       items: {
         type: 'object',
         properties: {
-          type:      { type: 'string', enum: ['main', 'prep', 'rest', 'splinter'], description: 'main = numbered shoot day; prep/pre-shoot = prep; rest = rest day; splinter = splinter unit.' },
+          type:      { type: 'string', enum: ['main', 'prep', 'rest', 'splinter', 'unscheduled'], description: 'main = numbered shoot day; prep/pre-shoot = prep; rest = rest day; splinter = splinter unit; unscheduled = scenes listed as unscheduled / not yet assigned to a day (usually at the end of the document).' },
           dayNumber: { type: 'integer', description: 'Shoot day number for main days, else null/0.', nullable: true },
           date:      { type: 'string', description: 'ISO date YYYY-MM-DD if known, else empty string.' },
           location:  { type: 'string', description: 'Location/venue header that applies to this day, e.g. "TRING PARK SCHOOL". Empty if unknown.' },
@@ -68,7 +68,9 @@ const PROMPT = `You are parsing a film/TV "one-line" shooting schedule PDF into 
 Rules:
 - The first page is usually a CAST MEMBERS legend: a numbered list mapping a cast number to a character name. Extract every entry into "cast".
 - The body is a sequence of scene rows grouped into shooting days. Each scene row has: a scene number (bold, left), an optional dance-sequence label printed beneath it (e.g. KNOCK, ANI, DANCE, BALLET — capture as danceSequence), INT/EXT, a bold SET name, a description line, a time-of-day word (Morning/Day/Dusk/Evening/Night) with a story-day number beneath it, a page count ("Pgs"), a cast list after "C:", and an "SA's:" count.
-- Day boundaries are marked by banners like "--- End of Day #1 -- Monday, 20 July 2026 --- Total Pgs ...". Use these to (a) close the current day, (b) set that day's dayNumber and date (convert the printed date to ISO YYYY-MM-DD).
+- Day boundaries are marked ONLY by banners like "--- End of Day #1 -- Monday, 20 July 2026 --- Total Pgs ...". Use these to (a) close the current day, (b) set that day's dayNumber and date (convert the printed date to ISO YYYY-MM-DD).
+- CRITICAL: A single shoot day often spans a page break. A page break, a repeated column header, or the page footer/header does NOT start a new day. Keep accumulating scenes into the SAME day until you reach the next "End of Day" banner. Never split one day into two just because its scenes continue on the next page.
+- Scenes listed under an "Unscheduled" / "Scenes Not Scheduled" section (usually at the very end of the document, with no day number or date) go into a single day with type "unscheduled" and no dayNumber/date.
 - Location/venue headers (e.g. "TRING PARK SCHOOL - Shoot 22 days", "THEATRE : Shoot 2 Days") apply to the days that follow until the next location header. Put the venue name in each day's "location".
 - "WEEK 1"/"WEEK 2" banners set weekLabel for following days.
 - "PRE-SHOOT DURING PREP WEEKS" scenes are type "prep". "REST DAY" entries are type "rest" days (no scenes). Splinter unit work is "splinter".
