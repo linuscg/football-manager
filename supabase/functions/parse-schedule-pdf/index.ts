@@ -72,6 +72,7 @@ HOW TO BUILD THE DAYS — follow this process EXACTLY, reading the document stri
 2. When you read a SCENE strip, add it to the current day's scenes. A scene strip has: a scene number (bold, left), an optional dance-sequence label beneath it (e.g. KNOCK, ANI, DANCE, BALLET — capture as danceSequence), INT/EXT, a bold SET name, a description line, a time-of-day word (Morning/Day/Dusk/Evening/Night) with a story-day number beneath it, a page count ("Pgs"), a cast list after "C:", and an "SA's:" count.
 3. When you read an "End of Day #N -- <date> -- Total Pgs ..." banner: this CLOSES the current day. Set that day's dayNumber = N and date = the banner's date (ISO YYYY-MM-DD). Then START A NEW empty current day for whatever follows.
 4. Repeat to the end of the document. Every "End of Day" banner therefore produces exactly one day in the output, in order.
+5. AT THE END OF THE DOCUMENT: output the current still-open day even if there is NO closing "End of Day" banner after it. A day is never dropped just because the document ends (or an unscheduled section begins) without an "End of Day" banner.
 
 ABSOLUTELY CRITICAL RULES FOR DAY BANNERS:
 - An "End of Day #N" banner is a DELIMITER. It is NEVER a scene and NEVER a note. Never put "End of Day" text into a day's notes. Never skip one. The number of days you output MUST equal the number of "End of Day" banners in the document (plus any prep/unscheduled days).
@@ -81,7 +82,8 @@ OTHER (non-scene, non-banner) STRIPS:
 - Strips that are neither a scene nor an "End of Day" banner — e.g. "ALL SCENES SCHEDULED TODAY TO RUN TOGETHER", "ALLOW TIME FOR VFX", "Miss Edwards (#5) NA in the PM", general instructions — are appended to the CURRENT (still-open) day's "notes" field, one per line. (These never close a day.)
 
 OTHER RULES:
-- Scenes under an "Unscheduled" / "Scenes Not Scheduled" section (usually at the very end, no day number or date) go into ONE day with type "unscheduled", no dayNumber and no date.
+- UNSCHEDULED: When you reach an "Unscheduled" / "Scenes Not Scheduled" header (usually near the end), close the current day and start ONE new day with type "unscheduled" (no dayNumber, no date). ALL scenes after that header go into this unscheduled day, even though there is NO "End of Day" banner after them. Make sure these scenes are captured — do not drop them.
+- SCENE NUMBERS: Use the scene number exactly as printed. If a scene strip has NO scene number, leave "sceneNumber" as an empty string — never invent or guess a number.
 - Location/venue headers (e.g. "TRING PARK SCHOOL - Shoot 22 days", "THEATRE : Shoot 2 Days") apply to the days that follow until the next location header. Put the venue name in each day's "location".
 - Ignore "WEEK 1"/"WEEK 2" banners and sunrise/sunset lines.
 - "PRE-SHOOT DURING PREP WEEKS" scenes are type "prep". Splinter unit work is "splinter". Normal numbered days are type "main".

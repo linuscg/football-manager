@@ -62,9 +62,47 @@ function diffScene(parsed, existing, resolvedCastIds) {
   return changes
 }
 
+// Strip any stray "End of Day ..." banner lines the parser may have dropped
+// into notes, plus blank lines.
+function cleanNotes(notes) {
+  return String(notes ?? '')
+    .split('\n')
+    .filter(line => line.trim() && !/end\s+of\s+day/i.test(line))
+    .join('\n')
+}
+
+// Merge parsed days that share the same main dayNumber (the AI sometimes splits
+// one shoot day into two with the same "Day N"). Scenes and notes are combined,
+// preserving order. Only merges type 'main' days with a non-null dayNumber.
+function mergeDuplicateDays(days) {
+  const out = []
+  const mainByNumber = new Map()  // dayNumber → index in out
+  for (const d of (days ?? [])) {
+    const key = d.type === 'main' && d.dayNumber != null ? d.dayNumber : null
+    if (key != null && mainByNumber.has(key)) {
+      const tgt = out[mainByNumber.get(key)]
+      tgt.scenes = [...(tgt.scenes ?? []), ...(d.scenes ?? [])]
+      tgt.notes  = [tgt.notes, d.notes].filter(Boolean).join('\n')
+      if (!tgt.date && d.date) tgt.date = d.date
+      if (!tgt.location && d.location) tgt.location = d.location
+    } else {
+      const copy = { ...d, scenes: [...(d.scenes ?? [])] }
+      if (key != null) mainByNumber.set(key, out.length)
+      out.push(copy)
+    }
+  }
+  return out
+}
+
 export function reconcileSchedule(parsed, existing) {
   const existingDays = existing.shootDays ?? []
   const existingCast = existing.castMembers ?? []
+
+  // Pre-process: merge duplicate day numbers and scrub notes.
+  parsed = {
+    ...parsed,
+    days: mergeDuplicateDays(parsed.days).map(d => ({ ...d, notes: cleanNotes(d.notes) })),
+  }
 
   // Commit lists
   const castToInsert    = []

@@ -419,6 +419,25 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
                 Tip: drag a scene onto another day to move it, or onto another scene to reorder it within a day.
               </div>
 
+              {plan.castToInsert?.length > 0 && (
+                <div className="sched-import-cast">
+                  <div className="sched-import-cast-title">
+                    New cast to be created ({plan.castToInsert.length})
+                  </div>
+                  <div className="sched-import-cast-list">
+                    {plan.castToInsert
+                      .slice()
+                      .sort((a, b) => (parseInt(a.castNumber, 10) || 999) - (parseInt(b.castNumber, 10) || 999))
+                      .map(c => (
+                        <span key={c.id} className="sched-import-cast-chip">
+                          {c.castNumber && <strong>{c.castNumber}</strong>} {c.name}
+                          {c.notes && <em> ({c.notes})</em>}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+
               <div className="sched-import-days">
                 {(preview ?? plan.preview).map((d, i) => (
                   <div
