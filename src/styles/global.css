@@ -9380,6 +9380,18 @@ select.pm-input { cursor: pointer; }
 }
 .sched-import-cast-chip strong { color: #15803d; margin-right: 3px; }
 .sched-import-cast-chip em { color: #6b7280; font-style: italic; }
+.sched-import-cast-chip--changed {
+  color: #92400e;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.sched-import-cast-chip--changed strong { color: #b45309; }
+.sched-import-cast-was {
+  margin-left: 5px;
+  font-size: 11px;
+  color: #b45309;
+  font-style: italic;
+}
 .sched-import-scene[draggable="true"]:active { cursor: grabbing; }
 .sched-import-day.is-drop-target {
   outline: 2px dashed #6366f1;

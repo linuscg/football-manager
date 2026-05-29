@@ -106,11 +106,13 @@ export function reconcileSchedule(parsed, existing) {
 
   // Commit lists
   const castToInsert    = []
+  const castToUpdate    = []
   const daysToInsert    = []
   const daysToUpdate    = []
   const scenesToInsert  = []
   const scenesToUpdate  = []
   const extrasToInsert  = []
+  const extrasToUpdate  = []
   const dayIdsToDelete  = []   // default empty — UI opts in
   const sceneIdsToDelete = []  // default empty — UI opts in
 
@@ -131,17 +133,22 @@ export function reconcileSchedule(parsed, existing) {
     const numKey = String(pc.number ?? '').trim()
     if (!numKey) return
     const match = existingCast.find(c => String(c.castNumber ?? '') === numKey)
-    if (match) {
-      // Found — we don't auto-rename cast; just keep the existing mapping.
-      castNumberToId[numKey] = match.id
-      return
-    }
-    // New cast member. Split a trailing parenthetical note off the name,
+    // Split a trailing parenthetical note off the parsed character name,
     // e.g. "SAM (Knock 2nd Cast / Hungarian)" → name "SAM", notes "Knock 2nd Cast / Hungarian".
     const rawName = (pc.character ?? '').trim()
     const m = rawName.match(/^(.*?)\s*\(([^)]*)\)\s*$/)
     const name  = m ? m[1].trim() : rawName
     const notes = m ? m[2].trim() : ''
+    if (match) {
+      // Found — keep the existing mapping. Detect a name/notes change so the
+      // user can rename on re-import (role and sortOrder are never touched).
+      castNumberToId[numKey] = match.id
+      if (name !== (match.name ?? '') || notes !== (match.notes ?? '')) {
+        castToUpdate.push({ id: match.id, name, notes, castNumber: numKey })
+      }
+      return
+    }
+    // New cast member.
     const id = crypto.randomUUID()
     castToInsert.push({
       id,
@@ -188,23 +195,46 @@ export function reconcileSchedule(parsed, existing) {
     return null
   }
 
-  // Push a Supporting-Artist extras row for a NEW scene that has an SA count.
-  function pushSaRow(dayId, ps) {
+  // Reconcile the importer-managed Supporting-Artist (SA) row for a scene.
+  // The importer only owns the row with a BLANK saName for a given scene/day;
+  // user-added named SA groups (non-blank saName) are never touched.
+  //   • existingDay: the matched store day, or null for a brand-new day.
+  //   • new SA  → push to extrasToInsert (blank saName, totalNumber = saCount)
+  //   • changed → push to extrasToUpdate when the blank-name row's total differs
+  //   • equal   → nothing
+  // Dedup: if a blank-name row already exists for this scene we never insert a
+  // second one, so repeat imports don't pile up rows.
+  function reconcileSaRow(dayId, ps, existingDay) {
     const saNum = parseInt(ps.saCount, 10)
-    if (!isNaN(saNum) && saNum > 0) {
-      extrasToInsert.push({
-        id: crypto.randomUUID(),
-        dayId,
-        scene: ps.sceneNumber ?? '',
-        saName: '',
-        totalNumber: saNum,
-        sortOrder: extrasToInsert.filter(x => x.dayId === dayId).length,
-      })
+    if (isNaN(saNum) || saNum <= 0) return
+    const sceneStr = String(ps.sceneNumber ?? '')
+
+    const existingExtras = existingDay?.extras?.extras ?? []
+    const managedRow = existingExtras.find(
+      e => String(e.scene ?? '') === sceneStr && !String(e.saName ?? '').trim()
+    )
+
+    if (managedRow) {
+      if (managedRow.totalNumber !== saNum) {
+        extrasToUpdate.push({ id: managedRow.id, totalNumber: saNum })
+        summaryChangedSAs++
+      }
+      return
     }
+    extrasToInsert.push({
+      id: crypto.randomUUID(),
+      dayId,
+      scene: ps.sceneNumber ?? '',
+      saName: '',
+      totalNumber: saNum,
+      sortOrder: extrasToInsert.filter(x => x.dayId === dayId).length,
+    })
+    summaryNewSAs++
   }
 
   // ── Day + scene reconciliation ───────────────────────────────────────────────
   let summaryNewDays = 0, summaryChangedDays = 0, summaryNewScenes = 0, summaryChangedScenes = 0
+  let summaryNewSAs = 0, summaryChangedSAs = 0
 
   for (const pDay of (parsed.days ?? [])) {
     // Skip weekend rest days — only midweek rest days are meaningful.
@@ -272,6 +302,8 @@ export function reconcileSchedule(parsed, existing) {
             })
             summaryChangedScenes++
           }
+          // Reconcile the importer SA row for this matched scene.
+          reconcileSaRow(matched.id, ps, matched)
           previewScenes.push({
             status: changes.length ? 'changed' : 'unchanged',
             sceneNumber: numKey, intExt: ps.intExt ?? 'INT', setName: ps.setName ?? '',
@@ -302,7 +334,7 @@ export function reconcileSchedule(parsed, existing) {
             castMemberIds: resolvedCast,
             sortOrder:     idx,
           })
-          pushSaRow(matched.id, ps)
+          reconcileSaRow(matched.id, ps, matched)
           summaryNewScenes++
           previewScenes.push({
             status: 'new',
@@ -383,7 +415,7 @@ export function reconcileSchedule(parsed, existing) {
           castMemberIds: resolvedCast,
           sortOrder:     idx,
         })
-        pushSaRow(dayId, ps)
+        reconcileSaRow(dayId, ps, null)
         summaryNewScenes++
         previewScenes.push({
           status: 'new',
@@ -421,10 +453,34 @@ export function reconcileSchedule(parsed, existing) {
     }
   }
 
+  // Build a preview-friendly cast list (new + changed), sorted by cast number.
+  const castById = new Map(existingCast.map(c => [c.id, c]))
+  const castPreview = [
+    ...castToInsert.map(c => ({
+      status: 'new',
+      castNumber: c.castNumber,
+      name: c.name,
+      notes: c.notes,
+    })),
+    ...castToUpdate.map(c => {
+      const old = castById.get(c.id)
+      return {
+        status: 'changed',
+        castNumber: c.castNumber,
+        name: c.name,
+        notes: c.notes,
+        oldName: old?.name ?? '',
+        oldNotes: old?.notes ?? '',
+      }
+    }),
+  ].sort((a, b) =>
+    (parseInt(a.castNumber, 10) || 999) - (parseInt(b.castNumber, 10) || 999)
+  )
+
   return {
     // commit lists
-    castToInsert, daysToInsert, daysToUpdate, scenesToInsert, scenesToUpdate,
-    extrasToInsert,
+    castToInsert, castToUpdate, daysToInsert, daysToUpdate, scenesToInsert, scenesToUpdate,
+    extrasToInsert, extrasToUpdate,
     dayIdsToDelete, sceneIdsToDelete,
     // preview
     summary: {
@@ -433,7 +489,11 @@ export function reconcileSchedule(parsed, existing) {
       newScenes:     summaryNewScenes,
       changedScenes: summaryChangedScenes,
       newCast:       castToInsert.length,
+      changedCast:   castToUpdate.length,
+      newSAs:        summaryNewSAs,
+      changedSAs:    summaryChangedSAs,
     },
+    castPreview,
     daysUnmatched, scenesUnmatched, preview,
   }
 }

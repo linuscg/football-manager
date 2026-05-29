@@ -413,27 +413,36 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
                 <span><strong>{s.newScenes}</strong> new scenes</span>
                 <span><strong>{s.changedScenes}</strong> changed scenes</span>
                 <span><strong>{s.newCast}</strong> new cast</span>
+                {s.changedCast > 0 && <span><strong>{s.changedCast}</strong> changed cast</span>}
+                {s.newSAs > 0 && <span><strong>{s.newSAs}</strong> new SAs</span>}
+                {s.changedSAs > 0 && <span><strong>{s.changedSAs}</strong> changed SAs</span>}
               </div>
 
               <div className="sched-import-tip">
                 Tip: drag a scene onto another day to move it, or onto another scene to reorder it within a day.
               </div>
 
-              {plan.castToInsert?.length > 0 && (
+              {(plan.castPreview?.length ?? 0) > 0 && (
                 <div className="sched-import-cast">
                   <div className="sched-import-cast-title">
-                    New cast to be created ({plan.castToInsert.length})
+                    Cast changes ({plan.castPreview.length})
                   </div>
                   <div className="sched-import-cast-list">
-                    {plan.castToInsert
-                      .slice()
-                      .sort((a, b) => (parseInt(a.castNumber, 10) || 999) - (parseInt(b.castNumber, 10) || 999))
-                      .map(c => (
-                        <span key={c.id} className="sched-import-cast-chip">
-                          {c.castNumber && <strong>{c.castNumber}</strong>} {c.name}
-                          {c.notes && <em> ({c.notes})</em>}
-                        </span>
-                      ))}
+                    {plan.castPreview.map((c, i) => (
+                      <span
+                        key={`${c.castNumber}-${i}`}
+                        className={`sched-import-cast-chip sched-import-cast-chip--${c.status}`}
+                      >
+                        {c.castNumber && <strong>{c.castNumber}</strong>} {c.name}
+                        {c.notes && <em> ({c.notes})</em>}
+                        {c.status === 'changed' && (c.oldName !== c.name) && (
+                          <span className="sched-import-cast-was">was "{c.oldName}"</span>
+                        )}
+                        {c.status === 'changed' && (c.oldName === c.name) && (c.oldNotes !== c.notes) && (
+                          <span className="sched-import-cast-was">was "{c.oldNotes || '—'}"</span>
+                        )}
+                      </span>
+                    ))}
                   </div>
                 </div>
               )}

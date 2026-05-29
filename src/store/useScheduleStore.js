@@ -910,6 +910,10 @@ export function useScheduleStore() {
           notes: c.notes ?? '', cast_number: c.castNumber, sort_order: c.sortOrder,
         })))
       }
+      // 1b. Update changed cast members (name/notes only — never role/sortOrder)
+      for (const c of (plan.castToUpdate ?? [])) {
+        await supabase.from('cast_members').update({ name: c.name, notes: c.notes ?? '' }).eq('id', c.id)
+      }
       // 2. Delete removed scenes
       if (plan.sceneIdsToDelete?.length) {
         await supabase.from('scenes').delete().in('id', plan.sceneIdsToDelete)
@@ -959,6 +963,10 @@ export function useScheduleStore() {
           scene: e.scene ?? '', sa_name: e.saName ?? '', total_number: e.totalNumber ?? null,
           description: '', sort_order: e.sortOrder ?? 0,
         })))
+      }
+      // 8b. Update changed Supporting-Artist extras rows (blank-name rows only)
+      for (const e of (plan.extrasToUpdate ?? [])) {
+        await supabase.from('day_extras').update({ total_number: e.totalNumber }).eq('id', e.id)
       }
       await loadAll()
       return { ok: true }
