@@ -43,6 +43,7 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
   const [plan, setPlan]     = useState(null)
   const [preview, setPreview] = useState(null)   // editable copy of plan.preview (drag-drop)
   const [dropTargetKey, setDropTargetKey] = useState(null)
+  const [dropSceneKey, setDropSceneKey] = useState(null)  // scene row being targeted for insertion
   const dragRef = useRef(null)                    // { sceneKey, sourceDayKey }
   const [fileName, setFileName] = useState('')
   const [dragOver, setDragOver] = useState(false)
@@ -219,16 +220,15 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
   function onDayDragLeave(dayKey) {
     setDropTargetKey(k => (k === dayKey ? null : k))
   }
-  function onDayDrop(e, targetDayKey) {
-    e.preventDefault()
-    setDropTargetKey(null)
-    const drag = dragRef.current
-    dragRef.current = null
-    if (!drag || drag.sourceDayKey === targetDayKey) return
+  // Move the dragged scene into `targetDayKey`. If `targetIndex` is null the
+  // scene is appended to the end of that day; otherwise it is inserted at that
+  // index. Works both within a day (reorder) and across days (move + position).
+  function moveScene(drag, targetDayKey, targetIndex) {
+    if (!drag) return
     setPreview(prev => {
       if (!prev) return prev
       let moved = null
-      const next = prev.map(d => {
+      const stripped = prev.map(d => {
         if (d.dayKey !== drag.sourceDayKey) return d
         const keep = []
         for (const sc of d.scenes) {
@@ -238,9 +238,67 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
         return { ...d, scenes: keep }
       })
       if (!moved) return prev
-      return next.map(d =>
-        d.dayKey === targetDayKey ? { ...d, scenes: [...d.scenes, moved] } : d
-      )
+      return stripped.map(d => {
+        if (d.dayKey !== targetDayKey) return d
+        if (targetIndex == null) return { ...d, scenes: [...d.scenes, moved] }
+        const scenes = [...d.scenes]
+        const idx = Math.min(Math.max(targetIndex, 0), scenes.length)
+        scenes.splice(idx, 0, moved)
+        return { ...d, scenes }
+      })
+    })
+  }
+
+  function onDayDrop(e, targetDayKey) {
+    e.preventDefault()
+    setDropTargetKey(null)
+    setDropSceneKey(null)
+    const drag = dragRef.current
+    dragRef.current = null
+    if (!drag || drag.sourceDayKey === targetDayKey) return
+    moveScene(drag, targetDayKey, null)
+  }
+
+  // Dropping onto another scene row inserts the dragged scene at that scene's
+  // index within its day. stopPropagation keeps the day-card drop from firing.
+  function onSceneDragOver(e, sceneKey) {
+    if (!dragRef.current) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'move'
+    if (dropSceneKey !== sceneKey) setDropSceneKey(sceneKey)
+  }
+  function onSceneDrop(e, targetDayKey, targetSceneKey) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDropTargetKey(null)
+    setDropSceneKey(null)
+    const drag = dragRef.current
+    dragRef.current = null
+    if (!drag || drag.sceneKey === targetSceneKey) return
+    setPreview(prev => {
+      if (!prev) return prev
+      let moved = null
+      const stripped = prev.map(d => {
+        if (d.dayKey !== drag.sourceDayKey) return d
+        const keep = []
+        for (const sc of d.scenes) {
+          if (sc.sceneKey === drag.sceneKey) moved = sc
+          else keep.push(sc)
+        }
+        return { ...d, scenes: keep }
+      })
+      if (!moved) return prev
+      return stripped.map(d => {
+        if (d.dayKey !== targetDayKey) return d
+        const scenes = [...d.scenes]
+        // Re-find target index after removal (target scene is still present);
+        // insert the dragged scene at the target scene's position.
+        let idx = scenes.findIndex(sc => sc.sceneKey === targetSceneKey)
+        if (idx < 0) idx = scenes.length
+        scenes.splice(idx, 0, moved)
+        return { ...d, scenes }
+      })
     })
   }
 
@@ -358,7 +416,7 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
               </div>
 
               <div className="sched-import-tip">
-                Tip: drag a scene onto another day to move it (useful if a day was split across pages).
+                Tip: drag a scene onto another day to move it, or onto another scene to reorder it within a day.
               </div>
 
               <div className="sched-import-days">
@@ -377,15 +435,27 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
                       </span>
                       {d.date && <span className="sched-import-day-meta">{d.date}</span>}
                       {d.location && <span className="sched-import-day-meta">{d.location}</span>}
+                      {d.dayCategory && d.dayCategory !== 'main' && (
+                        <span className="sched-import-day-cat">{d.dayCategory}</span>
+                      )}
                     </div>
+                    {d.notes && d.notes.trim() && (
+                      <div className="sched-import-day-notes">
+                        <span className="sched-import-day-notes-label">Notes</span>
+                        {d.notes}
+                      </div>
+                    )}
                     {d.scenes.length > 0 && (
                       <div className="sched-import-scenes">
                         {d.scenes.map((sc, j) => (
                           <div
                             key={sc.sceneKey ?? j}
-                            className={`sched-import-scene sched-import-scene--${sc.status}`}
+                            className={`sched-import-scene sched-import-scene--${sc.status}${dropSceneKey === sc.sceneKey ? ' is-scene-drop-target' : ''}`}
                             draggable
                             onDragStart={e => onSceneDragStart(e, sc.sceneKey, d.dayKey)}
+                            onDragOver={e => onSceneDragOver(e, sc.sceneKey)}
+                            onDragLeave={() => setDropSceneKey(k => (k === sc.sceneKey ? null : k))}
+                            onDrop={e => onSceneDrop(e, d.dayKey, sc.sceneKey)}
                           >
                             <StatusBadge status={sc.status} />
                             <span className="sched-import-scene-num">{sc.sceneNumber || '—'}</span>

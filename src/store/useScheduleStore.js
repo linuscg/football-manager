@@ -934,6 +934,7 @@ export function useScheduleStore() {
           scene_number: s.sceneNumber, int_ext: s.intExt, location: s.location,
           day_night: s.dayNight, description: s.description, pages: s.pages,
           story_day: s.storyDay ?? '', cast_member_ids: s.castMemberIds,
+          ...(s.sortOrder != null ? { sort_order: s.sortOrder } : {}),
         }).eq('id', s.id)
       }
       await loadAll()
