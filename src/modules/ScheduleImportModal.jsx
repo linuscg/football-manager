@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { reconcileSchedule } from '../lib/reconcileSchedule'
 
@@ -6,6 +6,34 @@ import { reconcileSchedule } from '../lib/reconcileSchedule'
 function StatusBadge({ status }) {
   const label = status === 'new' ? 'NEW' : status === 'changed' ? 'CHANGED' : 'UNCHANGED'
   return <span className={`sched-import-badge sched-import-badge--${status}`}>{label}</span>
+}
+
+// Labeled stages for the parsing flow (drives the stepper + progress bar).
+const PARSE_STAGES = ['Reading file', 'Analysing with AI', 'Matching to schedule']
+
+// Staged progress bar: a stepper of labels + a fill bar.
+function StagedProgress({ stages, stageIdx, progress, caption }) {
+  return (
+    <div className="sched-import-progress">
+      <div className="sched-import-stages">
+        {stages.map((label, i) => (
+          <div
+            key={label}
+            className={`sched-import-stage${
+              i < stageIdx ? ' is-done' : i === stageIdx ? ' is-active' : ''
+            }`}
+          >
+            <span className="sched-import-stage-dot">{i < stageIdx ? '✓' : i + 1}</span>
+            <span className="sched-import-stage-label">{label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="sched-import-progress-track">
+        <div className="sched-import-progress-fill" style={{ width: `${progress}%` }} />
+      </div>
+      {caption && <div className="sched-import-dz-sub">{caption}</div>}
+    </div>
+  )
 }
 
 export default function ScheduleImportModal({ existing, onClose, onApply }) {
@@ -20,6 +48,27 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
   const [delScenes, setDelScenes] = useState(() => new Set())  // scene ids opted in for deletion
   const fileRef = useRef(null)
 
+  // ── Progress bar state ───────────────────────────────────────────────────────
+  const [progress, setProgress] = useState(0)
+  const [stageIdx, setStageIdx] = useState(0)
+  const creepRef = useRef(null)
+
+  function stopCreep() {
+    if (creepRef.current) { clearInterval(creepRef.current); creepRef.current = null }
+  }
+
+  // Ease the bar toward `cap` (never reaching it) so the wait feels alive
+  // even though the AI call gives us no real progress signal.
+  function startCreep(cap) {
+    stopCreep()
+    creepRef.current = setInterval(() => {
+      setProgress(p => (p < cap ? p + Math.max(0.4, (cap - p) * 0.06) : p))
+    }, 220)
+  }
+
+  // Clean up the interval if the modal unmounts mid-flight.
+  useEffect(() => stopCreep, [])
+
   // ── File → base64 → edge function → reconcile ──────────────────────────────
   function handleFile(file) {
     if (!file) return
@@ -31,14 +80,24 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
     setFileName(file.name)
     setPhase('parsing')
     setError(null)
+    // Stage 1 — reading the file.
+    setStageIdx(0)
+    setProgress(5)
+    startCreep(18)
 
     const reader = new FileReader()
     reader.onload = async () => {
       try {
         const b64 = reader.result.split(',')[1]
+        // Stage 2 — AI analysis (the long one; creep toward 75%).
+        stopCreep()
+        setStageIdx(1)
+        setProgress(22)
+        startCreep(75)
         const { data, error: fnErr } = await supabase.functions.invoke('parse-schedule-pdf', {
           body: { pdfBase64: b64 },
         })
+        stopCreep()
         if (fnErr || data?.error) {
           // supabase.functions.invoke gives a generic "non-2xx" message —
           // the real error body lives on fnErr.context (the Response).
@@ -59,15 +118,21 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
           setPhase('error')
           return
         }
+        // Stage 3 — matching against the existing schedule.
+        setStageIdx(2)
+        setProgress(85)
         const p = reconcileSchedule(result, existing)
         setPlan(p)
+        setProgress(100)
         setPhase('preview')
       } catch (err) {
+        stopCreep()
         setError(err.message ?? 'Unexpected error parsing the PDF.')
         setPhase('error')
       }
     }
     reader.onerror = () => {
+      stopCreep()
       setError('Could not read the file.')
       setPhase('error')
     }
@@ -84,13 +149,17 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
   async function handleApply() {
     setPhase('applying')
     setError(null)
+    setProgress(8)
+    startCreep(90)
     const finalPlan = {
       ...plan,
       dayIdsToDelete:   [...delDays],
       sceneIdsToDelete: [...delScenes],
     }
     const res = await onApply(finalPlan)
+    stopCreep()
     if (res?.ok) {
+      setProgress(100)
       setPhase('done')
       setTimeout(() => onClose(), 1100)
     } else {
@@ -141,19 +210,22 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
 
           {/* ── Parsing ── */}
           {phase === 'parsing' && (
-            <div className="sched-import-status">
-              <div className="sched-import-spinner" />
-              <div>Analysing schedule with AI&hellip;</div>
-              {fileName && <div className="sched-import-dz-sub">{fileName}</div>}
-            </div>
+            <StagedProgress
+              stages={PARSE_STAGES}
+              stageIdx={stageIdx}
+              progress={progress}
+              caption={fileName}
+            />
           )}
 
           {/* ── Applying ── */}
           {phase === 'applying' && (
-            <div className="sched-import-status">
-              <div className="sched-import-spinner" />
-              <div>Applying&hellip;</div>
-            </div>
+            <StagedProgress
+              stages={['Saving changes']}
+              stageIdx={0}
+              progress={progress}
+              caption="Writing days, scenes and cast to your schedule…"
+            />
           )}
 
           {/* ── Done ── */}

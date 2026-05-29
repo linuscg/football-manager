@@ -9163,6 +9163,66 @@ select.pm-input { cursor: pointer; }
   animation: sched-import-spin .8s linear infinite;
 }
 @keyframes sched-import-spin { to { transform: rotate(360deg); } }
+
+/* ── Staged progress bar ────────────────────────────────────────────────── */
+.sched-import-progress {
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sched-import-stages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sched-import-stage {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: #9ca3af;
+  transition: color .2s;
+}
+.sched-import-stage:not(:last-child)::after {
+  content: "";
+  width: 22px;
+  height: 1px;
+  background: #e2e8f0;
+  margin-left: 8px;
+}
+.sched-import-stage-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: background .2s, color .2s;
+}
+.sched-import-stage.is-active { color: #4338ca; font-weight: 600; }
+.sched-import-stage.is-active .sched-import-stage-dot { background: #6366f1; color: #fff; }
+.sched-import-stage.is-done { color: #16a34a; }
+.sched-import-stage.is-done .sched-import-stage-dot { background: #16a34a; color: #fff; }
+.sched-import-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  overflow: hidden;
+}
+.sched-import-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  transition: width .25s ease;
+}
 .sched-import-done {
   width: 40px; height: 40px; border-radius: 50%;
   background: #dcfce7; color: #16a34a;
