@@ -34,8 +34,7 @@ const responseSchema = {
           dayNumber: { type: 'integer', description: 'Shoot day number for main days, else null/0.', nullable: true },
           date:      { type: 'string', description: 'ISO date YYYY-MM-DD if known, else empty string.' },
           location:  { type: 'string', description: 'Location/venue header that applies to this day, e.g. "TRING PARK SCHOOL". Empty if unknown.' },
-          weekLabel: { type: 'string', description: 'Week banner this day falls under, e.g. "WEEK 1". Empty if none.' },
-          notes:     { type: 'string', description: 'Any day-level banner text or notes (e.g. "ALLOW TIME FOR VFX", sunrise/sunset, free-text notes). Empty if none.' },
+          notes:     { type: 'string', description: 'Any day-level banner text or notes (e.g. "ALLOW TIME FOR VFX", free-text notes). Empty if none.' },
           scenes: {
             type: 'array',
             items: {
@@ -72,7 +71,7 @@ Rules:
 - CRITICAL: A single shoot day often spans a page break. A page break, a repeated column header, or the page footer/header does NOT start a new day. Keep accumulating scenes into the SAME day until you reach the next "End of Day" banner. Never split one day into two just because its scenes continue on the next page.
 - Scenes listed under an "Unscheduled" / "Scenes Not Scheduled" section (usually at the very end of the document, with no day number or date) go into a single day with type "unscheduled" and no dayNumber/date.
 - Location/venue headers (e.g. "TRING PARK SCHOOL - Shoot 22 days", "THEATRE : Shoot 2 Days") apply to the days that follow until the next location header. Put the venue name in each day's "location".
-- "WEEK 1"/"WEEK 2" banners set weekLabel for following days.
+- Ignore "WEEK 1"/"WEEK 2" banners and sunrise/sunset lines — they are not needed.
 - "PRE-SHOOT DURING PREP WEEKS" scenes are type "prep". "REST DAY" entries are type "rest" days (no scenes). Splinter unit work is "splinter".
 - Capture any free-text banners/notes for a day into that day's "notes".
 - If a value is missing, use an empty string (or empty array for castNumbers). Do not invent data.

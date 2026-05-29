@@ -9,7 +9,7 @@ function StatusBadge({ status }) {
 }
 
 // Labeled stages for the parsing flow (drives the stepper + progress bar).
-const PARSE_STAGES = ['Reading file', 'Analysing with AI', 'Matching to schedule']
+const PARSE_STAGES = ['Reading file', 'Parsing schedule', 'Matching to schedule']
 
 // Staged progress bar: a stepper of labels + a fill bar.
 function StagedProgress({ stages, stageIdx, progress, caption }) {
@@ -117,7 +117,7 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
         }
         const result = data?.result
         if (!result) {
-          setError('The AI returned no schedule data.')
+          setError('No schedule data could be read from this PDF.')
           setPhase('error')
           return
         }
@@ -294,7 +294,7 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
             >
               <div className="sched-import-dz-icon">↑</div>
               <div className="sched-import-dz-text">Drop a schedule PDF here, or click to choose</div>
-              <div className="sched-import-dz-sub">We&rsquo;ll analyse it with AI and show you a preview before anything changes.</div>
+              <div className="sched-import-dz-sub">We&rsquo;ll parse it and show you a preview before anything changes.</div>
               <input
                 ref={fileRef}
                 type="file"
@@ -374,7 +374,6 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
                       </span>
                       {d.date && <span className="sched-import-day-meta">{d.date}</span>}
                       {d.location && <span className="sched-import-day-meta">{d.location}</span>}
-                      {d.weekLabel && <span className="sched-import-day-meta">{d.weekLabel}</span>}
                     </div>
                     {d.scenes.length > 0 && (
                       <div className="sched-import-scenes">
