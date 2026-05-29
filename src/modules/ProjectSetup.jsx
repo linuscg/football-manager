@@ -63,13 +63,15 @@ const SYMBOL_TO_CODE = {
 // ─── CastMemberRow — local state to avoid focus loss ─────────────────────────
 
 function CastMemberRow({ member, onUpdate, onDelete, onDragStart, onDragOver, onDrop, isDragOver }) {
-  const [lNum,  setLNum]  = useState(member.castNumber ?? '')
-  const [lName, setLName] = useState(member.name)
-  const [lRole, setLRole] = useState(member.role)
+  const [lNum,   setLNum]   = useState(member.castNumber ?? '')
+  const [lName,  setLName]  = useState(member.name)
+  const [lRole,  setLRole]  = useState(member.role)
+  const [lNotes, setLNotes] = useState(member.notes ?? '')
 
   useEffect(() => setLNum(member.castNumber ?? ''),  [member.castNumber])
   useEffect(() => setLName(member.name),             [member.name])
   useEffect(() => setLRole(member.role),             [member.role])
+  useEffect(() => setLNotes(member.notes ?? ''),     [member.notes])
 
   return (
     <div
@@ -109,6 +111,14 @@ function CastMemberRow({ member, onUpdate, onDelete, onDragStart, onDragOver, on
         placeholder="Role / Character"
         onChange={e => setLRole(e.target.value)}
         onBlur={() => { if (lRole !== member.role) onUpdate(member.id, 'role', lRole) }}
+        style={{ flex: 2 }}
+      />
+      <input
+        className="pm-input"
+        value={lNotes}
+        placeholder="Notes"
+        onChange={e => setLNotes(e.target.value)}
+        onBlur={() => { if (lNotes !== (member.notes ?? '')) onUpdate(member.id, 'notes', lNotes) }}
         style={{ flex: 2 }}
       />
       <button className="pm-icon-btn danger" onClick={() => onDelete(member.id)} title="Remove cast member">✕</button>

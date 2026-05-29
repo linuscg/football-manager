@@ -93,6 +93,7 @@ function mapCastMember(row) {
     id:          row.id,
     name:        row.name        ?? '',
     role:        row.role        ?? '',
+    notes:       row.notes       ?? '',
     sortOrder:   row.sort_order  ?? 0,
     castNumber:  row.cast_number ?? null,
   }
@@ -690,7 +691,7 @@ export function useScheduleStore() {
     // Auto-assign the next available cast number
     const maxNum = store.castMembers.reduce((m, c) => Math.max(m, c.castNumber ?? 0), 0)
     const castNumber = maxNum + 1
-    const newMember = { id: newId, name: '', role: '', sortOrder, castNumber }
+    const newMember = { id: newId, name: '', role: '', notes: '', sortOrder, castNumber }
     optimistic(s => ({ ...s, castMembers: [...s.castMembers, newMember] }))
     dbWrite(supabase.from('cast_members').insert({
       id: newId, production_id: prodId, name: '', role: '', sort_order: sortOrder,
@@ -735,11 +736,12 @@ export function useScheduleStore() {
       production_id: prodId,
       name:          m.name,
       role:          m.role,
+      notes:         m.notes ?? '',
       cast_number:   m.castNumber ?? null,
       sort_order:    maxSort + i,
     }))
     const mapped = rows.map(r => ({
-      id: r.id, name: r.name, role: r.role,
+      id: r.id, name: r.name, role: r.role, notes: r.notes,
       castNumber: r.cast_number, sortOrder: r.sort_order,
     }))
     optimistic(s => ({ ...s, castMembers: [...s.castMembers, ...mapped] }))
@@ -888,7 +890,7 @@ export function useScheduleStore() {
       if (plan.castToInsert?.length) {
         await supabase.from('cast_members').insert(plan.castToInsert.map(c => ({
           id: c.id, production_id: prodId, name: c.name, role: c.role ?? '',
-          cast_number: c.castNumber, sort_order: c.sortOrder,
+          notes: c.notes ?? '', cast_number: c.castNumber, sort_order: c.sortOrder,
         })))
       }
       // 2. Delete removed scenes

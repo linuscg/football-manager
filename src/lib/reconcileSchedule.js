@@ -94,12 +94,18 @@ export function reconcileSchedule(parsed, existing) {
       castNumberToId[numKey] = match.id
       return
     }
-    // New cast member.
+    // New cast member. Split a trailing parenthetical note off the name,
+    // e.g. "SAM (Knock 2nd Cast / Hungarian)" → name "SAM", notes "Knock 2nd Cast / Hungarian".
+    const rawName = (pc.character ?? '').trim()
+    const m = rawName.match(/^(.*?)\s*\(([^)]*)\)\s*$/)
+    const name  = m ? m[1].trim() : rawName
+    const notes = m ? m[2].trim() : ''
     const id = crypto.randomUUID()
     castToInsert.push({
       id,
-      name:       pc.character ?? '',
+      name,
       role:       '',
+      notes,
       castNumber: numKey,
       sortOrder:  existingCast.length + newCastCount,
     })
