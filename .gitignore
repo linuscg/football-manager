@@ -27,3 +27,6 @@ dist-ssr
 *.sw?
 .vercel
 LINUS_Project Notes.rtf
+
+# Supabase CLI local state
+supabase/.temp/
