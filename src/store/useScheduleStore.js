@@ -13,7 +13,14 @@ function groupExtrasByCategory(extras) {
   const out = {}
   for (const e of extras ?? []) {
     if (!out[e.category]) out[e.category] = []
-    out[e.category].push({ id: e.id, description: e.description, sortOrder: e.sort_order })
+    out[e.category].push({
+      id: e.id,
+      description: e.description,
+      sortOrder: e.sort_order,
+      scene: e.scene ?? '',
+      saName: e.sa_name ?? '',
+      totalNumber: e.total_number ?? null,
+    })
   }
   return out
 }
@@ -642,7 +649,7 @@ export function useScheduleStore() {
           ...d,
           extras: {
             ...d.extras,
-            [category]: [...prev, { id: newId, description: '', sortOrder }],
+            [category]: [...prev, { id: newId, description: '', sortOrder, scene: '', saName: '', totalNumber: null }],
           },
         }
       }),
@@ -669,19 +676,27 @@ export function useScheduleStore() {
     dbWrite(supabase.from('day_extras').delete().eq('id', extraId))
   }
 
-  function updateDayExtra(dayId, extraId, description) {
+  const EXTRA_FIELD_MAP = {
+    description: 'description',
+    scene:       'scene',
+    saName:      'sa_name',
+    totalNumber: 'total_number',
+  }
+
+  function updateDayExtra(dayId, extraId, field, value) {
     optimistic(s => ({
       ...s,
       shootDays: s.shootDays.map(d => {
         if (d.id !== dayId) return d
         const newExtras = {}
         for (const [cat, items] of Object.entries(d.extras ?? {})) {
-          newExtras[cat] = items.map(e => e.id === extraId ? { ...e, description } : e)
+          newExtras[cat] = items.map(e => e.id === extraId ? { ...e, [field]: value } : e)
         }
         return { ...d, extras: newExtras }
       }),
     }))
-    dbWrite(supabase.from('day_extras').update({ description }).eq('id', extraId))
+    const col = EXTRA_FIELD_MAP[field] ?? field
+    dbWrite(supabase.from('day_extras').update({ [col]: value }).eq('id', extraId))
   }
 
   // ── Cast members ───────────────────────────────────────────────────────────
@@ -936,6 +951,14 @@ export function useScheduleStore() {
           story_day: s.storyDay ?? '', cast_member_ids: s.castMemberIds,
           ...(s.sortOrder != null ? { sort_order: s.sortOrder } : {}),
         }).eq('id', s.id)
+      }
+      // 8. Insert Supporting-Artist extras rows derived from scene SA counts
+      if (plan.extrasToInsert?.length) {
+        await supabase.from('day_extras').insert(plan.extrasToInsert.map(e => ({
+          id: e.id, day_id: e.dayId, category: 'extras',
+          scene: e.scene ?? '', sa_name: e.saName ?? '', total_number: e.totalNumber ?? null,
+          description: '', sort_order: e.sortOrder ?? 0,
+        })))
       }
       await loadAll()
       return { ok: true }

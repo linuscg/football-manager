@@ -110,6 +110,7 @@ export function reconcileSchedule(parsed, existing) {
   const daysToUpdate    = []
   const scenesToInsert  = []
   const scenesToUpdate  = []
+  const extrasToInsert  = []
   const dayIdsToDelete  = []   // default empty — UI opts in
   const sceneIdsToDelete = []  // default empty — UI opts in
 
@@ -185,6 +186,21 @@ export function reconcileSchedule(parsed, existing) {
       if (byDate) return byDate
     }
     return null
+  }
+
+  // Push a Supporting-Artist extras row for a NEW scene that has an SA count.
+  function pushSaRow(dayId, ps) {
+    const saNum = parseInt(ps.saCount, 10)
+    if (!isNaN(saNum) && saNum > 0) {
+      extrasToInsert.push({
+        id: crypto.randomUUID(),
+        dayId,
+        scene: ps.sceneNumber ?? '',
+        saName: '',
+        totalNumber: saNum,
+        sortOrder: extrasToInsert.filter(x => x.dayId === dayId).length,
+      })
+    }
   }
 
   // ── Day + scene reconciliation ───────────────────────────────────────────────
@@ -286,6 +302,7 @@ export function reconcileSchedule(parsed, existing) {
             castMemberIds: resolvedCast,
             sortOrder:     idx,
           })
+          pushSaRow(matched.id, ps)
           summaryNewScenes++
           previewScenes.push({
             status: 'new',
@@ -366,6 +383,7 @@ export function reconcileSchedule(parsed, existing) {
           castMemberIds: resolvedCast,
           sortOrder:     idx,
         })
+        pushSaRow(dayId, ps)
         summaryNewScenes++
         previewScenes.push({
           status: 'new',
@@ -406,6 +424,7 @@ export function reconcileSchedule(parsed, existing) {
   return {
     // commit lists
     castToInsert, daysToInsert, daysToUpdate, scenesToInsert, scenesToUpdate,
+    extrasToInsert,
     dayIdsToDelete, sceneIdsToDelete,
     // preview
     summary: {

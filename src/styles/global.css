@@ -9416,3 +9416,38 @@ select.pm-input { cursor: pointer; }
   color: #7c3aed; background: #f3e8ff;
   padding: 2px 6px; border-radius: 4px;
 }
+
+/* ── Supporting-Artists table (extras category) ──────────────── */
+
+.sa-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.sa-row {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 80px 28px;
+  align-items: center;
+  gap: 6px;
+}
+
+.sa-row .pm-input {
+  height: 28px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.sa-row-head {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  padding: 0 2px;
+}
+
+.sa-row-head > span {
+  padding-left: 2px;
+}

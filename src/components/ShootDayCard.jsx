@@ -12,7 +12,7 @@ const EXTRAS_CATEGORIES = [
   { key: 'risk',     label: 'Risk Assessments' },
   { key: 'stunts',   label: 'Stunts' },
   { key: 'vfx',      label: 'VFX' },
-  { key: 'extras',   label: 'Extras' },
+  { key: 'extras',   label: 'Supporting Artists' },
   { key: 'other',    label: 'Other' },
   { key: 'visitors', label: 'Visitors' },
 ]
@@ -55,13 +55,64 @@ function ExtraSubRow({ dayId, extra, onUpdate, onDelete }) {
         placeholder="Description…"
         onChange={e => setLDesc(e.target.value)}
         onBlur={() => {
-          if (lDesc !== extra.description) onUpdate(dayId, extra.id, lDesc)
+          if (lDesc !== extra.description) onUpdate(dayId, extra.id, 'description', lDesc)
         }}
         style={{ flex: 1 }}
       />
       <button
         className="pm-icon-btn danger"
         onClick={() => onDelete(dayId, extra.id)}
+        title="Remove"
+      >✕</button>
+    </div>
+  )
+}
+
+// ─── SaRow — a Supporting-Artists table row (Scene · SA Name · Total) ────────
+
+function SaRow({ dayId, item, onUpdate, onDelete }) {
+  const [lScene, setLScene]   = useState(item.scene ?? '')
+  const [lName,  setLName]    = useState(item.saName ?? '')
+  const [lTotal, setLTotal]   = useState(item.totalNumber ?? '')
+
+  return (
+    <div className="sa-row">
+      <input
+        className="pm-input"
+        type="text"
+        value={lScene}
+        placeholder="Sc."
+        onChange={e => setLScene(e.target.value)}
+        onBlur={() => {
+          if (lScene !== (item.scene ?? '')) onUpdate(dayId, item.id, 'scene', lScene)
+        }}
+      />
+      <input
+        className="pm-input"
+        type="text"
+        value={lName}
+        placeholder="SA name…"
+        onChange={e => setLName(e.target.value)}
+        onBlur={() => {
+          if (lName !== (item.saName ?? '')) onUpdate(dayId, item.id, 'saName', lName)
+        }}
+      />
+      <input
+        className="pm-input"
+        type="number"
+        min="0"
+        value={lTotal}
+        placeholder="0"
+        onChange={e => setLTotal(e.target.value)}
+        onBlur={() => {
+          const parsed = lTotal === '' ? null : parseInt(lTotal, 10)
+          const next = (parsed != null && !isNaN(parsed)) ? parsed : null
+          if (next !== (item.totalNumber ?? null)) onUpdate(dayId, item.id, 'totalNumber', next)
+        }}
+      />
+      <button
+        className="pm-icon-btn danger"
+        onClick={() => onDelete(dayId, item.id)}
         title="Remove"
       >✕</button>
     </div>
@@ -114,7 +165,41 @@ function ExtrasSection({ day, onAddDayExtra, onDeleteDayExtra, onUpdateDayExtra 
                   <span className={`pm-chev${isOpen ? ' open' : ''}`} style={{ fontSize: 9 }}>▶</span>
                 </div>
 
-                {isOpen && (
+                {isOpen && key === 'extras' && (
+                  <div style={{ padding: '4px 0 4px 8px' }}>
+                    {items.length > 0 && (
+                      <div className="sa-table">
+                        <div className="sa-row sa-row-head">
+                          <span>Scene</span>
+                          <span>SA Name</span>
+                          <span>Total</span>
+                          <span />
+                        </div>
+                        {items.map(item => (
+                          <SaRow
+                            key={item.id}
+                            dayId={day.id}
+                            item={item}
+                            onUpdate={onUpdateDayExtra}
+                            onDelete={onDeleteDayExtra}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      className="pm-btn pm-btn--ghost pm-btn--sm"
+                      style={{ marginTop: 4 }}
+                      onClick={() => {
+                        onAddDayExtra(day.id, key)
+                        setOpenCats(prev => ({ ...prev, [key]: true }))
+                      }}
+                    >
+                      + Add
+                    </button>
+                  </div>
+                )}
+
+                {isOpen && key !== 'extras' && (
                   <div style={{ padding: '4px 0 4px 8px' }}>
                     {items.map(extra => (
                       <ExtraSubRow
