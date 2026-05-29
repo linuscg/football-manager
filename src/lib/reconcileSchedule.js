@@ -15,6 +15,7 @@ function dayTypeToCategory(type) {
     case 'prep':     return { dayCategory: 'prep',     isNonShootDay: true,  dayLabel: '' }
     case 'splinter': return { dayCategory: 'splinter', isNonShootDay: false, dayLabel: '' }
     case 'rest':     return { dayCategory: 'main',     isNonShootDay: true,  dayLabel: 'REST' }
+    case 'unscheduled': return { dayCategory: 'unscheduled', isNonShootDay: true, dayLabel: 'UNSCHEDULED' }
     case 'main':
     default:         return { dayCategory: 'main',     isNonShootDay: false, dayLabel: '' }
   }
@@ -43,12 +44,14 @@ function diffScene(parsed, existing, resolvedCastIds) {
   const pDN     = parsed.dayNight ?? 'DAY'
   const pDesc   = buildSceneDescription(parsed)
   const pPages  = parsed.pages ?? ''
+  const pStory  = parsed.storyDay ?? ''
 
   if (pIntExt !== (existing.intExt ?? 'INT'))       changes.push('intExt')
   if (pLoc !== (existing.location ?? ''))           changes.push('location')
   if (pDN !== (existing.dayNight ?? 'DAY'))         changes.push('dayNight')
   if (pDesc !== (existing.description ?? ''))       changes.push('description')
   if (pPages !== (existing.pages ?? ''))            changes.push('pages')
+  if (pStory !== (existing.storyDay ?? ''))         changes.push('storyDay')
 
   const existingCast = [...(existing.castMemberIds ?? [])].sort()
   const newCast      = [...resolvedCastIds].sort()
@@ -205,6 +208,7 @@ export function reconcileSchedule(parsed, existing) {
               dayNight:      ps.dayNight ?? 'DAY',
               description:   buildSceneDescription(ps),
               pages:         ps.pages ?? '',
+              storyDay:      ps.storyDay ?? '',
               castMemberIds: resolvedCast,
             })
             summaryChangedScenes++
@@ -213,13 +217,21 @@ export function reconcileSchedule(parsed, existing) {
             status: changes.length ? 'changed' : 'unchanged',
             sceneNumber: numKey, intExt: ps.intExt ?? 'INT', setName: ps.setName ?? '',
             dayNight: ps.dayNight ?? 'DAY', pages: ps.pages ?? '',
+            storyDay: ps.storyDay ?? '',
             description: ps.description ?? '', danceSequence: ps.danceSequence ?? '',
             castNumbers: ps.castNumbers ?? [], changes,
+            // commit metadata for drag-drop rebuild
+            sceneKey: crypto.randomUUID(),
+            commitKind: 'update', existingId: existScene.id,
+            location: ps.setName ?? '',
+            commitDescription: buildSceneDescription(ps),
+            castMemberIds: resolvedCast,
           })
         } else {
           // New scene on an existing day.
+          const newSceneId = crypto.randomUUID()
           scenesToInsert.push({
-            id:            crypto.randomUUID(),
+            id:            newSceneId,
             dayId:         matched.id,
             sceneNumber:   numKey,
             intExt:        ps.intExt ?? 'INT',
@@ -227,6 +239,7 @@ export function reconcileSchedule(parsed, existing) {
             dayNight:      ps.dayNight ?? 'DAY',
             description:   buildSceneDescription(ps),
             pages:         ps.pages ?? '',
+            storyDay:      ps.storyDay ?? '',
             castMemberIds: resolvedCast,
             sortOrder:     idx,
           })
@@ -235,8 +248,14 @@ export function reconcileSchedule(parsed, existing) {
             status: 'new',
             sceneNumber: numKey, intExt: ps.intExt ?? 'INT', setName: ps.setName ?? '',
             dayNight: ps.dayNight ?? 'DAY', pages: ps.pages ?? '',
+            storyDay: ps.storyDay ?? '',
             description: ps.description ?? '', danceSequence: ps.danceSequence ?? '',
             castNumbers: ps.castNumbers ?? [], changes: [],
+            sceneKey: crypto.randomUUID(),
+            commitKind: 'insert', existingId: newSceneId,
+            location: ps.setName ?? '',
+            commitDescription: buildSceneDescription(ps),
+            castMemberIds: resolvedCast,
           })
         }
       })
@@ -257,6 +276,7 @@ export function reconcileSchedule(parsed, existing) {
 
       preview.push({
         status: dayStatus,
+        dayKey: matched.id, dayIsNew: false,
         dayNumber: newDayNumber, date: pDay.date || matched.date,
         location: pLocation || matched.location || '',
         dayCategory, weekLabel: pDay.weekLabel ?? '', notes: pDay.notes ?? '',
@@ -288,31 +308,41 @@ export function reconcileSchedule(parsed, existing) {
       const previewScenes = []
       ;(pDay.scenes ?? []).forEach((ps, idx) => {
         const resolvedCast = resolveCastIds(ps.castNumbers, castNumberToId)
+        const newSceneId = crypto.randomUUID()
+        const numKey = String(ps.sceneNumber ?? '').trim()
         scenesToInsert.push({
-          id:            crypto.randomUUID(),
+          id:            newSceneId,
           dayId,
-          sceneNumber:   String(ps.sceneNumber ?? '').trim(),
+          sceneNumber:   numKey,
           intExt:        ps.intExt ?? 'INT',
           location:      ps.setName ?? '',
           dayNight:      ps.dayNight ?? 'DAY',
           description:   buildSceneDescription(ps),
           pages:         ps.pages ?? '',
+          storyDay:      ps.storyDay ?? '',
           castMemberIds: resolvedCast,
           sortOrder:     idx,
         })
         summaryNewScenes++
         previewScenes.push({
           status: 'new',
-          sceneNumber: String(ps.sceneNumber ?? '').trim(),
+          sceneNumber: numKey,
           intExt: ps.intExt ?? 'INT', setName: ps.setName ?? '',
           dayNight: ps.dayNight ?? 'DAY', pages: ps.pages ?? '',
+          storyDay: ps.storyDay ?? '',
           description: ps.description ?? '', danceSequence: ps.danceSequence ?? '',
           castNumbers: ps.castNumbers ?? [], changes: [],
+          sceneKey: crypto.randomUUID(),
+          commitKind: 'insert', existingId: newSceneId,
+          location: ps.setName ?? '',
+          commitDescription: buildSceneDescription(ps),
+          castMemberIds: resolvedCast,
         })
       })
 
       preview.push({
         status: 'new',
+        dayKey: dayId, dayIsNew: true,
         dayNumber, date: pDay.date ?? '', location: pLocation,
         dayCategory, weekLabel: pDay.weekLabel ?? '', notes: pDay.notes ?? '',
         scenes: previewScenes,

@@ -56,6 +56,7 @@ function mapScene(row) {
     dayNight:      row.day_night      ?? 'DAY',
     description:   row.description    ?? '',
     pages:         row.pages          ?? '',
+    storyDay:      row.story_day      ?? '',
     sortOrder:     row.sort_order     ?? 0,
     castMemberIds: row.cast_member_ids ?? [],
     episodeNumber: row.episode_number  ?? null,
@@ -120,6 +121,7 @@ const SCENE_FIELD_MAP = {
   dayNight:      'day_night',
   description:   'description',
   pages:         'pages',
+  storyDay:      'story_day',
   castMemberIds: 'cast_member_ids',
   episodeNumber: 'episode_number',
 }
@@ -492,7 +494,7 @@ export function useScheduleStore() {
             : { ...d, isNonShootDay: false, dayNumber: newDayNumber }
         }
         if (field === 'dayCategory') {
-          const isNonShoot = value === 'prep' || value === 'other' || value === 'rehearsal'
+          const isNonShoot = value === 'prep' || value === 'other' || value === 'rehearsal' || value === 'unscheduled'
           return {
             ...d,
             dayCategory:   value,
@@ -514,7 +516,7 @@ export function useScheduleStore() {
         ? { is_non_shoot_day: true,  day_number: null }
         : { is_non_shoot_day: false, day_number: newDayNumber }
     } else if (field === 'dayCategory') {
-      const isNonShoot = value === 'prep' || value === 'other' || value === 'rehearsal'
+      const isNonShoot = value === 'prep' || value === 'other' || value === 'rehearsal' || value === 'unscheduled'
       patch = {
         day_category:    value,
         is_non_shoot_day: isNonShoot,
@@ -574,7 +576,7 @@ export function useScheduleStore() {
     const newId = crypto.randomUUID()
     const newScene = {
       id: newId, sceneNumber: '', intExt: 'INT', location: '',
-      dayNight: 'DAY', description: '', pages: '', sortOrder,
+      dayNight: 'DAY', description: '', pages: '', storyDay: '', sortOrder,
       castMemberIds: [],
     }
     optimistic(s => ({
@@ -922,15 +924,16 @@ export function useScheduleStore() {
         await supabase.from('scenes').insert(plan.scenesToInsert.map(s => ({
           id: s.id, day_id: s.dayId, scene_number: s.sceneNumber, int_ext: s.intExt,
           location: s.location, day_night: s.dayNight, description: s.description,
-          pages: s.pages, cast_member_ids: s.castMemberIds, sort_order: s.sortOrder,
+          pages: s.pages, story_day: s.storyDay ?? '', cast_member_ids: s.castMemberIds, sort_order: s.sortOrder,
         })))
       }
       // 7. Update changed scenes
       for (const s of (plan.scenesToUpdate ?? [])) {
         await supabase.from('scenes').update({
+          ...(s.dayId ? { day_id: s.dayId } : {}),
           scene_number: s.sceneNumber, int_ext: s.intExt, location: s.location,
           day_night: s.dayNight, description: s.description, pages: s.pages,
-          cast_member_ids: s.castMemberIds,
+          story_day: s.storyDay ?? '', cast_member_ids: s.castMemberIds,
         }).eq('id', s.id)
       }
       await loadAll()

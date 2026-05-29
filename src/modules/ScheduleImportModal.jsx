@@ -41,6 +41,9 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
   const [phase, setPhase]   = useState('upload')
   const [error, setError]   = useState(null)
   const [plan, setPlan]     = useState(null)
+  const [preview, setPreview] = useState(null)   // editable copy of plan.preview (drag-drop)
+  const [dropTargetKey, setDropTargetKey] = useState(null)
+  const dragRef = useRef(null)                    // { sceneKey, sourceDayKey }
   const [fileName, setFileName] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [showUnmatched, setShowUnmatched] = useState(false)
@@ -123,6 +126,8 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
         setProgress(85)
         const p = reconcileSchedule(result, existing)
         setPlan(p)
+        // Deep-ish clone of preview so drag-drop edits don't mutate the base plan.
+        setPreview(p.preview.map(d => ({ ...d, scenes: d.scenes.map(sc => ({ ...sc })) })))
         setProgress(100)
         setPhase('preview')
       } catch (err) {
@@ -145,14 +150,106 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
     handleFile(e.dataTransfer.files?.[0])
   }
 
+  // ── Rebuild commit lists from the (possibly drag-edited) preview ─────────────
+  // The preview is the source of truth for scene→day assignment. We derive fresh
+  // scenesToInsert / scenesToUpdate from it, and prune NEW days left empty by a move.
+  function buildPlanFromPreview(editedPreview, basePlan) {
+    const scenesToInsert = []
+    const scenesToUpdate = []
+
+    for (const day of editedPreview) {
+      day.scenes.forEach((sc, idx) => {
+        const fields = {
+          dayId:         day.dayKey,
+          sceneNumber:   sc.sceneNumber ?? '',
+          intExt:        sc.intExt ?? 'INT',
+          location:      sc.location ?? sc.setName ?? '',
+          dayNight:      sc.dayNight ?? 'DAY',
+          description:   sc.commitDescription ?? sc.description ?? '',
+          pages:         sc.pages ?? '',
+          storyDay:      sc.storyDay ?? '',
+          castMemberIds: sc.castMemberIds ?? [],
+          sortOrder:     idx,
+        }
+        if (sc.commitKind === 'update') {
+          scenesToUpdate.push({ id: sc.existingId, ...fields })
+        } else {
+          scenesToInsert.push({ id: sc.existingId ?? crypto.randomUUID(), ...fields })
+        }
+      })
+    }
+
+    // Drop NEW days that *originally* carried scenes but were emptied by a drag
+    // (a phantom page-break split whose scenes were all moved onto the real day).
+    // Keep new days that legitimately have no scenes (e.g. an imported prep day).
+    const origSceneCountByKey = {}
+    for (const p of (basePlan.preview ?? [])) {
+      origSceneCountByKey[p.dayKey] = (p.scenes ?? []).length
+    }
+    const daysToInsert = (basePlan.daysToInsert ?? []).filter(d => {
+      const nowScenes = editedPreview.find(p => p.dayKey === d.id)?.scenes.length ?? 0
+      const hadScenes = origSceneCountByKey[d.id] ?? 0
+      // prune only if it had scenes before and has none now
+      return !(hadScenes > 0 && nowScenes === 0)
+    })
+
+    return {
+      ...basePlan,
+      daysToInsert,
+      scenesToInsert,
+      scenesToUpdate,
+    }
+  }
+
+  // ── Drag-and-drop in the preview ─────────────────────────────────────────────
+  function onSceneDragStart(e, sceneKey, sourceDayKey) {
+    dragRef.current = { sceneKey, sourceDayKey }
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', sceneKey)
+  }
+  function onDayDragOver(e, dayKey) {
+    if (!dragRef.current) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (dropTargetKey !== dayKey) setDropTargetKey(dayKey)
+  }
+  function onDayDragLeave(dayKey) {
+    setDropTargetKey(k => (k === dayKey ? null : k))
+  }
+  function onDayDrop(e, targetDayKey) {
+    e.preventDefault()
+    setDropTargetKey(null)
+    const drag = dragRef.current
+    dragRef.current = null
+    if (!drag || drag.sourceDayKey === targetDayKey) return
+    setPreview(prev => {
+      if (!prev) return prev
+      let moved = null
+      const next = prev.map(d => {
+        if (d.dayKey !== drag.sourceDayKey) return d
+        const keep = []
+        for (const sc of d.scenes) {
+          if (sc.sceneKey === drag.sceneKey) moved = sc
+          else keep.push(sc)
+        }
+        return { ...d, scenes: keep }
+      })
+      if (!moved) return prev
+      return next.map(d =>
+        d.dayKey === targetDayKey ? { ...d, scenes: [...d.scenes, moved] } : d
+      )
+    })
+  }
+
   // ── Apply ───────────────────────────────────────────────────────────────────
   async function handleApply() {
     setPhase('applying')
     setError(null)
     setProgress(8)
     startCreep(90)
+    const rebuilt = preview ? buildPlanFromPreview(preview, plan) : plan
     const finalPlan = {
-      ...plan,
+      ...rebuilt,
       dayIdsToDelete:   [...delDays],
       sceneIdsToDelete: [...delScenes],
     }
@@ -257,9 +354,19 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
                 <span><strong>{s.newCast}</strong> new cast</span>
               </div>
 
+              <div className="sched-import-tip">
+                Tip: drag a scene onto another day to move it (useful if a day was split across pages).
+              </div>
+
               <div className="sched-import-days">
-                {plan.preview.map((d, i) => (
-                  <div key={i} className={`sched-import-day sched-import-day--${d.status}`}>
+                {(preview ?? plan.preview).map((d, i) => (
+                  <div
+                    key={d.dayKey ?? i}
+                    className={`sched-import-day sched-import-day--${d.status}${dropTargetKey === d.dayKey ? ' is-drop-target' : ''}`}
+                    onDragOver={e => onDayDragOver(e, d.dayKey)}
+                    onDragLeave={() => onDayDragLeave(d.dayKey)}
+                    onDrop={e => onDayDrop(e, d.dayKey)}
+                  >
                     <div className="sched-import-day-head">
                       <StatusBadge status={d.status} />
                       <span className="sched-import-day-title">
@@ -272,12 +379,18 @@ export default function ScheduleImportModal({ existing, onClose, onApply }) {
                     {d.scenes.length > 0 && (
                       <div className="sched-import-scenes">
                         {d.scenes.map((sc, j) => (
-                          <div key={j} className={`sched-import-scene sched-import-scene--${sc.status}`}>
+                          <div
+                            key={sc.sceneKey ?? j}
+                            className={`sched-import-scene sched-import-scene--${sc.status}`}
+                            draggable
+                            onDragStart={e => onSceneDragStart(e, sc.sceneKey, d.dayKey)}
+                          >
                             <StatusBadge status={sc.status} />
                             <span className="sched-import-scene-num">{sc.sceneNumber || '—'}</span>
                             <span className="sched-import-scene-tag">{sc.intExt}</span>
                             <span className="sched-import-scene-set">{sc.setName}</span>
                             <span className="sched-import-scene-tag">{sc.dayNight}</span>
+                            {sc.storyDay && <span className="sched-import-scene-meta">SD {sc.storyDay}</span>}
                             {sc.pages && <span className="sched-import-scene-meta">{sc.pages} pg</span>}
                             {sc.castNumbers?.length > 0 && (
                               <span className="sched-import-scene-meta">cast {sc.castNumbers.join(', ')}</span>

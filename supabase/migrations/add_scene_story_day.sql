@@ -1,0 +1,1 @@
+ALTER TABLE scenes ADD COLUMN IF NOT EXISTS story_day text NOT NULL DEFAULT '';

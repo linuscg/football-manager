@@ -10,6 +10,7 @@ const CATEGORY_STYLE = {
   prep:      { bg: '#7c3aed', text: '#fff' },
   splinter:  { bg: '#0891b2', text: '#fff' },
   rehearsal: { bg: '#059669', text: '#fff' },
+  unscheduled: { bg: '#b45309', text: '#fff' },
   other:     { bg: '#6b7280', text: '#fff' },
 }
 
@@ -25,6 +26,7 @@ function dayLabel(day) {
     case 'prep':      return `Prep${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
     case 'splinter':  return `Splinter${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
     case 'rehearsal': return `Rehearsal${day.dayLabel ? ' ' + day.dayLabel : ''}${locStr}`
+    case 'unscheduled': return `Unscheduled${locStr}`
     default:          return `${day.dayLabel ? day.dayLabel : 'Other'}${locStr}`
   }
 }
@@ -156,7 +158,7 @@ function DayStrip({
         if (e.metaKey || e.ctrlKey || e.shiftKey) { e.stopPropagation(); onSelect(day.id) }
         else onClick(day.id)
       }}
-      title={`${dayLabel(day)}${day.date ? ' — ' + day.date : ''}\nCmd/Ctrl+click to select`}
+      title={`${dayLabel(day)}${day.date ? ' — ' + day.date : ''}${day._virtualDate ? '\n(Unscheduled — shown here at wrap+1; not actually dated)' : ''}\nCmd/Ctrl+click to select`}
     >
       <span
         className="cal-strip-check"
@@ -259,9 +261,27 @@ export default function CalendarView({
   const [dragOverDrawer, setDragOverDrawer] = useState(false)
 
   // ── Build date → days map ──────────────────────────────────────────────────
+  // Unscheduled days (scenes not yet assigned to a shoot day) have no real date.
+  // We place them virtually on the calendar at wrap+1 (the day after the last
+  // dated main shoot day) so they're visible — without writing that date to the DB.
+  const wrapDate = shootDays
+    .filter(d => d.dayCategory === 'main' && d.date)
+    .reduce((max, d) => (max == null || d.date > max ? d.date : max), null)
+  const unschedDate = wrapDate ? addDaysToDate(wrapDate, 1) : null
+
   const byDate = {}
   const undated = []
   for (const day of shootDays) {
+    // Unscheduled days with no date → virtual placement at wrap+1 (if we know it).
+    if (day.dayCategory === 'unscheduled' && !day.date) {
+      if (unschedDate) {
+        if (!byDate[unschedDate]) byDate[unschedDate] = []
+        byDate[unschedDate].push({ ...day, date: unschedDate, _virtualDate: true })
+      } else {
+        undated.push(day) // no wrap date known — fall back to scratchpad so it's not lost
+      }
+      continue
+    }
     if (!day.date) { undated.push(day); continue }
     if (!byDate[day.date]) byDate[day.date] = []
     byDate[day.date].push(day)

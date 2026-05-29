@@ -190,6 +190,7 @@ export default function ShootDayCard({
   const isPrep       = category === 'prep'
   const isSplinter   = category === 'splinter'
   const isRehearsal  = category === 'rehearsal'
+  const isUnscheduled = category === 'unscheduled'
   const isOther      = category === 'other'
 
   const categoryClass = isPrep ? ' pm-day--prep' : isSplinter ? ' pm-day--splinter' : isRehearsal ? ' pm-day--rehearsal' : isOther ? ' pm-day--other' : ''
@@ -282,6 +283,12 @@ export default function ShootDayCard({
           <div className="pm-day-tab">
             <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
             <span className="pm-day-tab-label">REHR</span>
+            {day.dayLabel && <span className="pm-day-tab-num" style={{ fontSize: 13 }}>{day.dayLabel}</span>}
+          </div>
+        ) : isUnscheduled ? (
+          <div className="pm-day-tab">
+            <span className="pm-day-tab-drag" onMouseDown={onHandleMouseDown} onClick={e => e.stopPropagation()} title="Drag to reorder">⠿</span>
+            <span className="pm-day-tab-label">UNSCH</span>
             {day.dayLabel && <span className="pm-day-tab-num" style={{ fontSize: 13 }}>{day.dayLabel}</span>}
           </div>
         ) : (
@@ -642,6 +649,7 @@ export default function ShootDayCard({
           { value: 'splinter',  label: 'Splinter' },
           { value: 'prep',      label: 'Prep Day' },
           { value: 'rehearsal', label: 'Rehearsal' },
+          { value: 'unscheduled', label: 'Unscheduled' },
           { value: 'other',     label: 'Other' },
         ].map(opt => (
           <button

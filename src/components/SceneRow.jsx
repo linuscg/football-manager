@@ -79,6 +79,16 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
         {scene.dayNight}
       </button>
 
+      {/* Story Day */}
+      <input
+        className="scene-input"
+        type="text"
+        value={scene.storyDay ?? ''}
+        placeholder="Story"
+        style={{ width: 60, flexShrink: 0, textAlign: 'center' }}
+        onChange={e => onUpdate(dayId, scene.id, 'storyDay', e.target.value)}
+      />
+
       {/* Brief description */}
       <input
         className="scene-input"
