@@ -4,11 +4,16 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
   const [castOpen, setCastOpen] = useState(false)
   const dropdownRef = useRef(null)
 
+  const DAY_NIGHT_CYCLE = ['MORNING', 'DAY', 'DUSK', 'EVENING', 'NIGHT']
+
   function cycle(field) {
     if (field === 'intExt') {
       onUpdate(dayId, scene.id, 'intExt', scene.intExt === 'INT' ? 'EXT' : 'INT')
     } else {
-      onUpdate(dayId, scene.id, 'dayNight', scene.dayNight === 'DAY' ? 'NIGHT' : 'DAY')
+      const cur = (scene.dayNight || 'DAY').toUpperCase()
+      const idx = DAY_NIGHT_CYCLE.indexOf(cur)
+      const next = DAY_NIGHT_CYCLE[(idx + 1) % DAY_NIGHT_CYCLE.length]
+      onUpdate(dayId, scene.id, 'dayNight', next)
     }
   }
 

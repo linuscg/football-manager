@@ -878,6 +878,68 @@ export function useScheduleStore() {
     )
   }
 
+  // ── AI Schedule import ──────────────────────────────────────────────────────
+  // Commits a reconciliation plan (see src/lib/reconcileSchedule.js) to the DB
+  // in batched writes, then reloads everything.
+  async function applyScheduleImport(plan) {
+    const prodId = getCurrentProductionId()
+    try {
+      // 1. New cast members
+      if (plan.castToInsert?.length) {
+        await supabase.from('cast_members').insert(plan.castToInsert.map(c => ({
+          id: c.id, production_id: prodId, name: c.name, role: c.role ?? '',
+          cast_number: c.castNumber, sort_order: c.sortOrder,
+        })))
+      }
+      // 2. Delete removed scenes
+      if (plan.sceneIdsToDelete?.length) {
+        await supabase.from('scenes').delete().in('id', plan.sceneIdsToDelete)
+      }
+      // 3. Delete removed days
+      if (plan.dayIdsToDelete?.length) {
+        await supabase.from('shoot_days').delete().in('id', plan.dayIdsToDelete)
+      }
+      // 4. Insert new days
+      if (plan.daysToInsert?.length) {
+        await supabase.from('shoot_days').insert(plan.daysToInsert.map(d => ({
+          id: d.id, production_id: prodId, day_number: d.dayNumber, date: d.date || null,
+          locations: d.location ? [d.location] : [], location: null,
+          unit_base: d.unitBase ?? '', is_non_shoot_day: d.isNonShootDay, notes: d.notes ?? '',
+          sort_order: d.sortOrder, day_category: d.dayCategory, day_label: d.dayLabel ?? '',
+        })))
+      }
+      // 5. Update changed days (date/location/notes moves)
+      for (const d of (plan.daysToUpdate ?? [])) {
+        await supabase.from('shoot_days').update({
+          day_number: d.dayNumber, date: d.date || null,
+          locations: d.location ? [d.location] : [], notes: d.notes ?? '',
+        }).eq('id', d.id)
+      }
+      // 6. Insert new scenes
+      if (plan.scenesToInsert?.length) {
+        await supabase.from('scenes').insert(plan.scenesToInsert.map(s => ({
+          id: s.id, day_id: s.dayId, scene_number: s.sceneNumber, int_ext: s.intExt,
+          location: s.location, day_night: s.dayNight, description: s.description,
+          pages: s.pages, cast_member_ids: s.castMemberIds, sort_order: s.sortOrder,
+        })))
+      }
+      // 7. Update changed scenes
+      for (const s of (plan.scenesToUpdate ?? [])) {
+        await supabase.from('scenes').update({
+          scene_number: s.sceneNumber, int_ext: s.intExt, location: s.location,
+          day_night: s.dayNight, description: s.description, pages: s.pages,
+          cast_member_ids: s.castMemberIds,
+        }).eq('id', s.id)
+      }
+      await loadAll()
+      return { ok: true }
+    } catch (err) {
+      console.error('[applyScheduleImport]', err)
+      await loadAll()
+      return { ok: false, error: err.message }
+    }
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
@@ -894,5 +956,6 @@ export function useScheduleStore() {
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
+    applyScheduleImport,
   }
 }

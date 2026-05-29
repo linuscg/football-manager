@@ -3831,6 +3831,13 @@ html, body {
 .pm-sc-tag--ext-day   { background: #fef6e7; color: #92400e; border-color: #fde2a4; }
 .pm-sc-tag--ext-night { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
 
+/* Day/Night scene tag — extended set (morning/day/dusk/evening/night) */
+.pm-sc-tag--morning { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
+.pm-sc-tag--day     { background: #fef6e7; color: #92400e; border-color: #fde2a4; }
+.pm-sc-tag--dusk    { background: #fae8ff; color: #86198f; border-color: #f5d0fe; }
+.pm-sc-tag--evening { background: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+.pm-sc-tag--night   { background: #0e1726; color: #cdd2dc; border-color: #0e1726; }
+
 /* Day-tab — dark "spine" with crisp number; coloured rail to indicate state */
 .pm-day { overflow: hidden; }
 .pm-day-tab {
@@ -9064,4 +9071,190 @@ select.pm-input { cursor: pointer; }
 }
 .wrap-rep-panel-empty {
   color: #9ca3af; font-size: 13px; padding: 16px 0;
+}
+
+/* ─── AI Schedule PDF import ─────────────────────────────────────────────────── */
+.sched-import-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.sched-import-modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  width: 760px;
+  max-width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.sched-import-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+.sched-import-title { font-size: 16px; font-weight: 700; color: #1e293b; margin: 0; }
+.sched-import-close {
+  border: none; background: none; cursor: pointer;
+  font-size: 24px; line-height: 1; color: #94a3b8; padding: 0 4px;
+}
+.sched-import-close:hover { color: #475569; }
+.sched-import-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sched-import-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+/* Drop zone */
+.sched-import-dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 44px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.sched-import-dropzone:hover,
+.sched-import-dropzone.is-over {
+  border-color: #6366f1;
+  background: #f5f5ff;
+}
+.sched-import-dz-icon {
+  font-size: 30px; color: #6366f1; margin-bottom: 8px;
+}
+.sched-import-dz-text { font-size: 14px; font-weight: 600; color: #334155; }
+.sched-import-dz-sub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+
+/* Status / spinner */
+.sched-import-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 36px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: #475569;
+}
+.sched-import-spinner {
+  width: 28px; height: 28px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: sched-import-spin .8s linear infinite;
+}
+@keyframes sched-import-spin { to { transform: rotate(360deg); } }
+.sched-import-done {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: #dcfce7; color: #16a34a;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 700;
+}
+.sched-import-error {
+  color: #dc2626; font-size: 13px; max-width: 460px;
+}
+
+/* Summary bar */
+.sched-import-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #475569;
+}
+.sched-import-summary strong { color: #1e293b; font-size: 14px; }
+
+/* Day cards */
+.sched-import-days { display: flex; flex-direction: column; gap: 10px; }
+.sched-import-day {
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.sched-import-day--new       { border-left-color: #22c55e; }
+.sched-import-day--changed   { border-left-color: #f59e0b; }
+.sched-import-day--unchanged { border-left-color: #cbd5e1; }
+.sched-import-day-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.sched-import-day-title { font-weight: 700; font-size: 13px; color: #1e293b; }
+.sched-import-day-meta { font-size: 12px; color: #64748b; }
+
+/* Scene rows */
+.sched-import-scenes {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sched-import-scene {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+.sched-import-scene--new     { background: #f0fdf4; }
+.sched-import-scene--changed { background: #fffbeb; }
+.sched-import-scene-num { font-weight: 700; color: #334155; min-width: 28px; }
+.sched-import-scene-tag {
+  font-size: 10px; font-weight: 700; letter-spacing: .03em;
+  color: #6366f1; background: #eef2ff; padding: 1px 5px; border-radius: 4px;
+}
+.sched-import-scene-set { color: #334155; }
+.sched-import-scene-meta { color: #94a3b8; }
+.sched-import-scene-changes { color: #d97706; font-weight: 600; margin-left: auto; }
+
+/* Status badges */
+.sched-import-badge {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+  padding: 2px 6px; border-radius: 4px; text-transform: uppercase;
+}
+.sched-import-badge--new       { background: #dcfce7; color: #16a34a; }
+.sched-import-badge--changed   { background: #fef3c7; color: #b45309; }
+.sched-import-badge--unchanged { background: #f1f5f9; color: #94a3b8; }
+
+/* Not-in-PDF section */
+.sched-import-unmatched {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+.sched-import-unmatched-toggle {
+  width: 100%; text-align: left;
+  border: none; background: none; cursor: pointer;
+  padding: 10px 12px; font-size: 12px; font-weight: 600; color: #475569;
+}
+.sched-import-unmatched-body {
+  padding: 4px 12px 12px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.sched-import-unmatched-note { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+.sched-import-unmatched-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: #475569; cursor: pointer;
 }

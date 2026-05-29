@@ -4,6 +4,7 @@ import CalendarView from '../components/CalendarView'
 import { useCrewStore } from '../store/useCrewStore'
 import { useAccommodationStore } from '../store/useAccommodationStore'
 import { exportScheduleListPDF, exportScheduleCalendarPDF } from '../lib/exportSchedulePDF'
+import ScheduleImportModal from './ScheduleImportModal'
 
 function todayStr() {
   const t = new Date()
@@ -46,6 +47,9 @@ export default function Schedule({ store, actions }) {
     setViewMode(v)
     localStorage.setItem('fm_schedule_view', v)
   }
+
+  // ── AI PDF import ─────────────────────────────────────────────────────────────
+  const [importOpen, setImportOpen] = useState(false)
 
   // ── Selection ───────────────────────────────────────────────────────────────
   const [selectedDayIds, setSelectedDayIds] = useState(new Set())
@@ -286,6 +290,7 @@ export default function Schedule({ store, actions }) {
               }
             }}
           >↓ Export PDF</button>
+          <button className="pm-btn pm-btn--ghost" onClick={() => setImportOpen(true)}>↑ Import PDF</button>
           <button className="pm-btn pm-btn--primary" onClick={handleAddDay}>+ Add shoot day</button>
         </div>
       </div>
@@ -400,6 +405,14 @@ export default function Schedule({ store, actions }) {
             Deselect all
           </button>
         </div>
+      )}
+
+      {importOpen && (
+        <ScheduleImportModal
+          existing={{ shootDays: store.shootDays, castMembers: store.castMembers ?? [] }}
+          onClose={() => setImportOpen(false)}
+          onApply={async (plan) => { return await actions.applyScheduleImport(plan) }}
+        />
       )}
     </div>
   )

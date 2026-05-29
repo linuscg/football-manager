@@ -317,6 +317,7 @@ function AppShell({ session, signOut }) {
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
+    applyScheduleImport,
   } = useScheduleStore()
 
   const { profile, memberRole, updateProfile } = useProfileStore(
@@ -339,6 +340,7 @@ function AppShell({ session, signOut }) {
     addScene, deleteScene, updateScene,
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra,
+    applyScheduleImport,
   }
 
   useEffect(() => {
