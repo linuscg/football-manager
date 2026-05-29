@@ -112,17 +112,45 @@ serve(async (req) => {
       },
     }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    // Call Gemini with automatic retry/backoff on 429 (free-tier rate limits)
+    // and 503 (transient overload).
+    let res
+    let data
+    const MAX_ATTEMPTS = 4
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      data = await res.json()
 
-    const data = await res.json()
+      if (res.ok) break
 
-    if (!res.ok) {
-      return new Response(JSON.stringify({ error: data?.error?.message ?? 'Gemini request failed.', detail: data }), {
-        status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      const retryable = res.status === 429 || res.status === 503
+      if (retryable && attempt < MAX_ATTEMPTS) {
+        // Respect Gemini's RetryInfo if present, else exponential backoff.
+        let waitMs = 0
+        const details = data?.error?.details ?? []
+        const retryInfo = details.find((d: { '@type'?: string; retryDelay?: string }) =>
+          d['@type']?.includes('RetryInfo'))
+        if (retryInfo?.retryDelay) {
+          waitMs = (parseFloat(String(retryInfo.retryDelay).replace('s', '')) || 0) * 1000
+        }
+        if (!waitMs) waitMs = 1500 * Math.pow(2, attempt - 1) // 1.5s, 3s, 6s
+        await new Promise(r => setTimeout(r, waitMs))
+        continue
+      }
+      break
+    }
+
+    if (!res!.ok) {
+      const msg = data?.error?.message ?? 'Gemini request failed.'
+      const friendly = res!.status === 429
+        ? `Gemini rate limit / quota reached. ${msg} — wait a minute and try again, or check your free-tier quota at aistudio.google.com.`
+        : msg
+      return new Response(JSON.stringify({ error: friendly, status: res!.status, detail: data }), {
+        status: res!.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
