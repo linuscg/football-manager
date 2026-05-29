@@ -135,8 +135,13 @@ serve(async (req) => {
         responseSchema,
         temperature: 0,
         maxOutputTokens: 65536,
+        // Disable "thinking" — 2.5 models think by default, which burns far more
+        // time/compute (and can blow the edge-function resource limit). For
+        // structured extraction we don't need it.
+        thinkingConfig: { thinkingBudget: 0 },
       },
     }
+    const bodyStr = JSON.stringify(body)   // stringify once, reuse across attempts
 
     // Try each model in order. Within a model, retry/backoff on 429 (rate limit)
     // and 503 (overload). If a model stays unavailable after its retries, fall
@@ -155,7 +160,7 @@ serve(async (req) => {
         res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: bodyStr,
         })
         data = await res.json()
 
