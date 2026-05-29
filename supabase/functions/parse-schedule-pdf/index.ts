@@ -64,44 +64,73 @@ const responseSchema = {
   required: ['cast', 'days'],
 }
 
-const PROMPT = `You are parsing a film/TV "one-line" shooting schedule PDF into structured JSON.
+const PROMPT = `You are parsing a film/TV "one-line" shooting schedule PDF into structured JSON. Work slowly and exactly. Accuracy of which scene belongs to which day matters most.
+
+WHAT THE DOCUMENT LOOKS LIKE:
+- It is a bordered TABLE. Each row is a full-width horizontal "strip".
+- There are three kinds of strip:
+  (A) SCENE strip — has the column layout below.
+  (B) END-OF-DAY banner — a full-width row reading like "End of Day # 1 -- Monday, 20 July 2026 -- Total Pgs: 5 3/8". This is the ONLY thing that ends a day.
+  (C) TEXT strip — anything else (headers, instructions, totals, location names). Never a scene, never a day delimiter.
+
+A SCENE strip has these columns, left → right:
+  1) Scene number (bold, far left). May be blank.
+  2) INT or EXT.
+  3) Bold SET name, with a description line under it. (May have a small dance-sequence tag like KNOCK/ANI/DANCE under the scene number — put it in danceSequence.)
+  4) Time-of-day WORD (Morning/Day/Dusk/Evening/Night) with a NUMBER directly beneath it. THAT NUMBER IS THE STORY DAY → put it in "storyDay".
+  5) Page count, e.g. "4/8" then "Pgs".
+  6) CAST column, prefixed "C:" e.g. "C: 1, 3, 4" → put each number in "castNumbers" (["1","3","4"]).
+  7) "SA's:" count (supporting artists/extras) → put in "saCount".
+
+⚠ CRITICAL — TWO DIFFERENT "DAY" NUMBERS, DO NOT CONFUSE THEM:
+- The number under the time-of-day word (column 4) is the STORY DAY. It is fiction's internal day. Put it in "storyDay". It has NOTHING to do with which shoot day the scene is on. A scene with "Evening / 20" is NOT shoot day 20.
+- The SHOOT DAY number comes ONLY from the "End of Day # N" banner. That N is the dayNumber for the day that just ended.
+- Never use a scene's story-day number, page count, or cast number as a shoot-day number.
+
+HOW TO ASSIGN SCENES TO DAYS — a strict top-to-bottom state machine:
+1. Start an empty "current day" (scenes: [], notes: "").
+2. Read strips ONE AT A TIME, in exact printed order (page 1 top→bottom, then page 2, …). Never look ahead, never reorder.
+3. SCENE strip → append to the CURRENT day's scenes (the one open right now).
+4. TEXT strip → append its text to the CURRENT day's notes (one line each).
+5. END-OF-DAY banner "End of Day # N -- <date> ..." → close the current day: set its dayNumber = N and date = that banner's date as YYYY-MM-DD. Then open a fresh empty current day.
+6. At the very end, output the still-open day even if no banner follows it.
+The scenes of one day are a single CONTIGUOUS block ending at that day's banner — scenes from different days are never mixed. The number of "main" days you output MUST equal the number of "End of Day" banners.
+
+WORKED EXAMPLE (input strips top-to-bottom → output):
+Strips:
+  "TRING PARK SCHOOL - Shoot 22 days"        (text)
+  "ALL SCENES TO RUN TOGETHER"               (text)
+  53 | INT | EMI'S HOME - LIVING ROOM / Emi finds her parents dancing. | Day 11 | 2 Pgs | C: 1, 3, 4 | SA's: 0   (scene)
+  35 | INT | TRAIN - LAVATORY / Emi hides.   | Day 8  | 5/8 Pgs | C: 1 | SA's: 0   (scene)
+  "Day 1 Total Pages 2 5/8"                  (text)
+  "End of Day # 1 -- Monday, 20 July 2026 -- Total Pgs: 2 5/8"   (banner)
+  81 | INT | THEATRE - AUDITORIUM / Leo rehearses. | Morning 14 | 7/8 Pgs | C: 1, 2 | SA's: 12   (scene)
+  "End of Day # 2 -- Tuesday, 21 July 2026"  (banner)
+Output:
+{"cast":[...],"days":[
+  {"type":"main","dayNumber":1,"date":"2026-07-20","location":"TRING PARK SCHOOL","notes":"ALL SCENES TO RUN TOGETHER\\nDay 1 Total Pages 2 5/8","scenes":[
+     {"sceneNumber":"53","intExt":"INT","setName":"EMI'S HOME - LIVING ROOM","description":"Emi finds her parents dancing.","dayNight":"DAY","storyDay":"11","pages":"2","castNumbers":["1","3","4"],"saCount":"0","danceSequence":""},
+     {"sceneNumber":"35","intExt":"INT","setName":"TRAIN - LAVATORY","description":"Emi hides.","dayNight":"DAY","storyDay":"8","pages":"5/8","castNumbers":["1"],"saCount":"0","danceSequence":""}
+  ]},
+  {"type":"main","dayNumber":2,"date":"2026-07-21","location":"TRING PARK SCHOOL","notes":"","scenes":[
+     {"sceneNumber":"81","intExt":"INT","setName":"THEATRE - AUDITORIUM","description":"Leo rehearses.","dayNight":"MORNING","storyDay":"14","pages":"7/8","castNumbers":["1","2"],"saCount":"12","danceSequence":""}
+  ]}
+]}
+Note how the story-day numbers (11, 8, 14) went to storyDay, the shoot-day numbers (1, 2) came only from the banners, and text strips became notes.
 
 CAST LEGEND:
-- The first page is usually a CAST MEMBERS legend: a numbered list mapping a cast number to a character name. Extract every entry into "cast".
-
-BE METHODICAL — this is the most important thing:
-- Process the document in strict physical reading order: page 1 top-to-bottom, then page 2 top-to-bottom, and so on. Never jump around or reorder.
-- Process ONE strip at a time, exactly in the order they are printed. Do not skip strips and do not look ahead.
-- A scene ALWAYS belongs to the day whose "End of Day" banner is the very next "End of Day" banner physically below that scene. Equivalently: a scene belongs to the day that is currently open when you reach it. Never move a scene to a different day than the one it physically sits in.
-- Preserve the exact printed order of scenes within each day. Do not sort or rearrange them.
-- A strip is a SCENE only if it has the scene-row shape (an INT/EXT marker AND a bold SET name, usually with a time-of-day and a "Pgs" count). If a strip lacks INT/EXT and a set name, it is NOT a scene — it is either an "End of Day" banner (a delimiter) or free text (a note). When unsure, do not guess it into the wrong day.
-
-COLUMNS IN EACH SCENE ROW (left → right): scene number | INT/EXT | set name + description | time-of-day + story day | pages ("Pgs") | CAST | SA's. The SECOND-TO-LAST column is the CAST column, prefixed "C:" — e.g. "C: 1, 3, 4". Read EVERY number in it into "castNumbers" as an array of strings (["1","3","4"]). Almost every scene has a cast list — do not leave castNumbers empty unless the C: column is genuinely blank. The LAST column "SA's:" is a DIFFERENT thing (supporting artists / extras count) — put that number in "saCount", never in castNumbers. Do not confuse the two columns.
-
-HOW TO BUILD THE DAYS — follow this state machine EXACTLY:
-1. Keep a "current day" with an empty scene list and empty notes. Start one at the top of the schedule body.
-2. When you read a SCENE strip, append it to the CURRENT day's scenes (the day that is open right now — never a previous or later day). A scene strip has: a scene number (bold, left), an optional dance-sequence label beneath it (e.g. KNOCK, ANI, DANCE, BALLET — capture as danceSequence), INT/EXT, a bold SET name, a description line, a time-of-day word (Morning/Day/Dusk/Evening/Night) with a story-day number beneath it, a page count ("Pgs"), a cast list after "C:", and an "SA's:" count.
-3. When you read an "End of Day #N -- <date> -- Total Pgs ..." banner: this CLOSES the current day. Set that day's dayNumber = N and date = the banner's date (ISO YYYY-MM-DD). Then START A NEW empty current day for whatever follows.
-4. Repeat to the end of the document. Every "End of Day" banner therefore produces exactly one day in the output, in order.
-5. AT THE END OF THE DOCUMENT: output the current still-open day even if there is NO closing "End of Day" banner after it. A day is never dropped just because the document ends (or an unscheduled section begins) without an "End of Day" banner.
-6. CONTIGUITY: The scenes belonging to one day are printed CONTIGUOUSLY on the page — one unbroken block running down to that day's "End of Day" banner. Scenes from two different days are NEVER interleaved. So when you hit an "End of Day" banner, every scene strip since the previous banner — in the exact printed order — belongs to THIS day. Do not pull a scene up into an earlier day or push it down into a later one.
-7. SELF-CHECK before returning: for each day, every scene you listed must physically sit in that day's contiguous block (between its opening point and its "End of Day" banner). If a scene ended up under the wrong day, fix it. The scene numbers within a day must match exactly the scenes printed in that day's block on the page — no more, no fewer.
-
-ABSOLUTELY CRITICAL RULES FOR DAY BANNERS:
-- An "End of Day #N" banner is a DELIMITER. It is NEVER a scene and NEVER a note. Never put "End of Day" text into a day's notes. Never skip one. The number of days you output MUST equal the number of "End of Day" banners in the document (plus any prep/unscheduled days).
-- A page break, repeated column header, or page footer/header does NOT close a day. Only "End of Day" banners close a day. Keep accumulating scenes across page breaks.
-
-OTHER (non-scene, non-banner) STRIPS:
-- Strips that are neither a scene nor an "End of Day" banner — e.g. "ALL SCENES SCHEDULED TODAY TO RUN TOGETHER", "ALLOW TIME FOR VFX", "Miss Edwards (#5) NA in the PM", general instructions — are appended to the CURRENT (still-open) day's "notes" field, one per line. (These never close a day.)
+- Page 1 is usually a CAST MEMBERS legend (numbered list: number → character name). Extract every entry into "cast".
 
 OTHER RULES:
-- UNSCHEDULED: When you reach an "Unscheduled" / "Scenes Not Scheduled" header (usually near the end), close the current day and start ONE new day with type "unscheduled" (no dayNumber, no date). ALL scenes after that header go into this unscheduled day, even though there is NO "End of Day" banner after them. Make sure these scenes are captured — do not drop them.
-- SCENE NUMBERS: Use the scene number exactly as printed. If a scene strip has NO scene number, leave "sceneNumber" as an empty string — never invent or guess a number.
-- Location/venue headers (e.g. "TRING PARK SCHOOL - Shoot 22 days", "THEATRE : Shoot 2 Days") apply to the days that follow until the next location header. Put the venue name in each day's "location".
-- Ignore "WEEK 1"/"WEEK 2" banners and sunrise/sunset lines.
-- "PRE-SHOOT DURING PREP WEEKS" scenes are type "prep". Splinter unit work is "splinter". Normal numbered days are type "main".
-- "REST DAY" entries are type "rest" (no scenes), BUT only include a rest day if it falls on a WEEKDAY (Monday–Friday). SKIP and do NOT output any rest day labelled or dated as a Saturday or Sunday (e.g. "Saturday - REST DAY", "Sunday - REST DAY") — weekend rest days are not needed.
-- If a value is missing, use an empty string (or empty array for castNumbers). Do not invent data.
+- An "End of Day" banner is NEVER a scene and NEVER a note — never put its text in notes, never skip one.
+- A page break / repeated column header / page footer does NOT end a day. Only "End of Day" banners do. Keep going across page breaks.
+- UNSCHEDULED: at an "Unscheduled"/"Scenes Not Scheduled" header, close the current day and open ONE day with type "unscheduled" (no dayNumber, no date). ALL scenes after that header go there even with no End-of-Day banner. Do not drop them.
+- Scene number exactly as printed; if none, leave "sceneNumber" empty — never invent one.
+- Location headers (e.g. "TRING PARK SCHOOL - Shoot 22 days") apply to following days until the next location header → put the venue in each day's "location".
+- Ignore "WEEK 1/2" banners and sunrise/sunset lines.
+- "PRE-SHOOT DURING PREP WEEKS" → type "prep". Splinter unit → "splinter". Normal numbered days → "main".
+- "REST DAY" → type "rest" (no scenes), but ONLY if it is a WEEKDAY (Mon–Fri). Skip Saturday/Sunday rest days entirely.
+- Missing value → empty string (or empty array for castNumbers). Never invent data.
 - Return ONLY the structured JSON matching the schema.`
 
 serve(async (req) => {
