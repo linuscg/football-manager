@@ -95,6 +95,18 @@ function DayContent({ day, castById, additionals, onClick }) {
         </div>
       )}
 
+      {day.dayCategory === 'rehearsal' && (day.castMemberIds?.length ?? 0) > 0 && (
+        <div className="week-day-rehcast">
+          <span className="week-day-rehcast-label">Rehearsal cast:</span>{' '}
+          {(day.castMemberIds ?? [])
+            .map(id => castById[id])
+            .filter(Boolean)
+            .sort((a, b) => (a.castNumber ?? 999) - (b.castNumber ?? 999))
+            .map(c => c.name || (c.castNumber != null ? `#${c.castNumber}` : '?'))
+            .join(', ')}
+        </div>
+      )}
+
       {scenes.length > 0 && (
         <div className="week-scenes">
           {scenes.map((s, i) => {

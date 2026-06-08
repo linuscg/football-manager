@@ -9784,6 +9784,17 @@ select.pm-input { cursor: pointer; }
 }
 .week-day-adds-label { font-weight: 600; color: #6b7280; }
 
+.week-day-rehcast {
+  font-size: 10.5px;
+  color: #047857;
+  background: #ecfdf5;
+  border-radius: 5px;
+  padding: 4px 6px;
+  margin: 0 7px;
+  line-height: 1.35;
+}
+.week-day-rehcast-label { font-weight: 700; }
+
 /* ── Cast list PDF import preview ──────────────────────────────────────────── */
 .cast-import-table {
   display: flex;
