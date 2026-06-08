@@ -979,6 +979,31 @@ export function useScheduleStore() {
     }
   }
 
+  // ── AI Cast-list import ──────────────────────────────────────────────────────
+  // Commits a cast-list reconciliation plan (see src/lib/reconcileCastList.js)
+  // to the DB, then reloads everything. `cast_number` is an integer column, so
+  // the plan carries an already-parsed integer (or null) in `castNumber`.
+  async function applyCastListImport(plan) {
+    const prodId = getCurrentProductionId()
+    try {
+      if (plan.castToInsert?.length) {
+        await supabase.from('cast_members').insert(plan.castToInsert.map(c => ({
+          id: c.id, production_id: prodId, name: c.name, role: c.role ?? '',
+          notes: c.notes ?? '', cast_number: c.castNumber, sort_order: c.sortOrder,
+        })))
+      }
+      for (const c of (plan.castToUpdate ?? [])) {
+        await supabase.from('cast_members').update({ name: c.name, role: c.role }).eq('id', c.id)
+      }
+      await loadAll()
+      return { ok: true }
+    } catch (err) {
+      console.error('[applyCastListImport]', err)
+      await loadAll()
+      return { ok: false, error: err.message }
+    }
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
@@ -995,6 +1020,6 @@ export function useScheduleStore() {
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
-    applyScheduleImport,
+    applyScheduleImport, applyCastListImport,
   }
 }

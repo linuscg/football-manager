@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useHodsStore } from '../store/useHodsStore'
+import CastListImportModal from './CastListImportModal'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -205,6 +206,7 @@ export default function ProjectSetup({
   onUpdateCastMember,
   onReorderCastMembers,
   onImportCastMembers,
+  onApplyCastListImport,
 }) {
   const [genStatus,    setGenStatus]    = useState(null)  // null | 'loading' | { count }
   const [genError,     setGenError]     = useState(null)
@@ -214,6 +216,7 @@ export default function ProjectSetup({
   const [castImportMsg, setCastImportMsg] = useState(null)
   const [castDragIdx,   setCastDragIdx]   = useState(null)
   const [castDragOver,  setCastDragOver]  = useState(null)
+  const [castPdfOpen,   setCastPdfOpen]   = useState(false)
   const castImportRef = useRef(null)
 
   const { hods, addHod, deleteHod, updateHod } = useHodsStore()
@@ -641,11 +644,22 @@ export default function ProjectSetup({
           <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => castImportRef.current?.click()} title="Import from CSV">
             ↑ Import CSV
           </button>
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => setCastPdfOpen(true)} title="Import cast list from PDF">
+            ↑ Import PDF
+          </button>
           <input ref={castImportRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleImportCastFile} />
           {castImportMsg != null && (
             <span style={{ fontSize: 12, color: '#16a34a' }}>✓ Imported {castImportMsg} cast member{castImportMsg !== 1 ? 's' : ''}</span>
           )}
         </div>
+
+        {castPdfOpen && (
+          <CastListImportModal
+            existingCast={castMembers}
+            onClose={() => setCastPdfOpen(false)}
+            onApply={onApplyCastListImport}
+          />
+        )}
       </div>
 
       {/* ── Format ───────────────────────────────────────────────────────────── */}

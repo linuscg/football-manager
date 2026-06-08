@@ -317,7 +317,7 @@ function AppShell({ session, signOut }) {
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
-    applyScheduleImport,
+    applyScheduleImport, applyCastListImport,
   } = useScheduleStore()
 
   const { profile, memberRole, updateProfile } = useProfileStore(
@@ -636,6 +636,7 @@ function AppShell({ session, signOut }) {
                 onUpdateCastMember={updateCastMember}
                 onReorderCastMembers={reorderCastMembers}
                 onImportCastMembers={importCastMembers}
+                onApplyCastListImport={applyCastListImport}
               />
             )}
             {topTab === 'setup' && setupModule === 'setup-account' && (
