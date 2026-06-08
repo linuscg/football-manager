@@ -432,22 +432,6 @@ export default function ShootDayCard({
           onClick={e => e.stopPropagation()}
         >
           <button
-            className="pm-icon-btn"
-            onClick={() => onMoveUp(day.id)}
-            disabled={index === 0}
-            title="Move up"
-          >
-            ↑
-          </button>
-          <button
-            className="pm-icon-btn"
-            onClick={() => onMoveDown(day.id)}
-            disabled={index === totalDays - 1}
-            title="Move down"
-          >
-            ↓
-          </button>
-          <button
             className="pm-icon-btn danger"
             onClick={handleDelete}
             title="Delete day"

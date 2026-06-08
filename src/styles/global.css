@@ -8675,6 +8675,10 @@ select.pm-input { cursor: pointer; }
   min-width: 0;      /* prevent grid blowout */
   overflow: hidden;  /* contain strip widths to the cell */
 }
+/* When the add-day menu is open, let the cell (and grid) overflow so the
+   dropdown isn't clipped by the cell's strip-containment overflow. */
+.cal-cell:has(.cal-add-menu) { overflow: visible; z-index: 60; }
+.cal-grid:has(.cal-add-menu)  { overflow: visible; }
 .cal-cell--empty    { background: #fafafa; }
 .cal-cell--weekend  { background: #fafafa; }
 .cal-cell--today    { background: #eff6ff; }
