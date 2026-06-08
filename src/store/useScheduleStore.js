@@ -42,6 +42,7 @@ function mapDay(row, scenes = [], extras = []) {
     locations:     locArr.length ? locArr : [''],  // always ≥ 1 slot for the UI
     unitBase:      row.unit_base       ?? '',
     generalCall:   row.general_call    ?? '',
+    wrapTime:      row.wrap_time        ?? '',
     dayType:       row.day_type        ?? '',
     isNonShootDay: row.is_non_shoot_day ?? false,
     description:   row.description     ?? '',
@@ -114,6 +115,7 @@ const DAY_FIELD_MAP = {
   location:    'location',
   unitBase:    'unit_base',
   generalCall: 'general_call',
+  wrapTime:    'wrap_time',
   dayType:     'day_type',
   description: 'description',
   notes:       'notes',

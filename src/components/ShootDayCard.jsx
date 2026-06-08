@@ -411,10 +411,10 @@ export default function ShootDayCard({
               <span className="pm-day-meta-val">{day.generalCall.slice(0, 5)}</span>
             </div>
           )}
-          {wrapTime && (
+          {(isMain ? wrapTime : (day.wrapTime ? day.wrapTime.slice(0, 5) : null)) && (
             <div className="pm-day-meta-item">
               <span className="pm-day-meta-label">WRAP</span>
-              <span className="pm-day-meta-val">{wrapTime}</span>
+              <span className="pm-day-meta-val">{isMain ? wrapTime : day.wrapTime.slice(0, 5)}</span>
             </div>
           )}
           <div className="pm-day-meta-item">
@@ -528,15 +528,27 @@ export default function ShootDayCard({
               </select>
             </div>
 
-            {wrapTime && (
-              <div className="pm-field-group">
-                <label className="pm-field-label">Est. Wrap</label>
-                <div className="field-wrap-time">
-                  {wrapTime}
-                  <span className="field-wrap-hint">
-                    {production.workHours ?? 10}h + {lunchMinutes}min lunch
-                  </span>
+            {isMain ? (
+              wrapTime && (
+                <div className="pm-field-group">
+                  <label className="pm-field-label">Est. Wrap</label>
+                  <div className="field-wrap-time">
+                    {wrapTime}
+                    <span className="field-wrap-hint">
+                      {production.workHours ?? 10}h + {lunchMinutes}min lunch
+                    </span>
+                  </div>
                 </div>
+              )
+            ) : (
+              <div className="pm-field-group">
+                <label className="pm-field-label">Wrap Time</label>
+                <input
+                  className="pm-input"
+                  type="time"
+                  value={day.wrapTime ?? ''}
+                  onChange={e => onUpdate(day.id, 'wrapTime', e.target.value)}
+                />
               </div>
             )}
 
