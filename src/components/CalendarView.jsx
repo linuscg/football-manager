@@ -5,7 +5,7 @@ import ShootDayCard from './ShootDayCard'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-const CATEGORY_STYLE = {
+export const CATEGORY_STYLE = {
   main:      { bg: '#2563eb', text: '#fff' },
   prep:      { bg: '#7c3aed', text: '#fff' },
   splinter:  { bg: '#0891b2', text: '#fff' },
@@ -14,7 +14,7 @@ const CATEGORY_STYLE = {
   other:     { bg: '#6b7280', text: '#fff' },
 }
 
-function dayLabel(day) {
+export function dayLabel(day) {
   const loc = (day.location || day.locations?.[0] || '').trim()
   const locStr = loc ? ' — ' + loc : ''
   switch (day.dayCategory) {
@@ -36,7 +36,7 @@ function todayStr() {
   return [t.getFullYear(), String(t.getMonth()+1).padStart(2,'0'), String(t.getDate()).padStart(2,'0')].join('-')
 }
 
-function addDaysToDate(dateStr, n) {
+export function addDaysToDate(dateStr, n) {
   const d = new Date(dateStr + 'T00:00:00')
   d.setDate(d.getDate() + n)
   return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-')
@@ -69,7 +69,7 @@ function fmtMonthYear(year, month) {
 
 // ─── DayEditModal — wraps ShootDayCard in an overlay ─────────────────────────
 
-function DayEditModal({
+export function DayEditModal({
   day, shootDays, actions,
   additionalsByDate, additionalsByDayId,
   production, castMembers, allLocations,
