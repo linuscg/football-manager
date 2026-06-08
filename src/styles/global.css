@@ -2417,6 +2417,22 @@ textarea.field-input {
   background: #f3f4f6;
 }
 
+.rehearsal-cast { position: relative; }
+.rehearsal-cast-btn {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #f9fafb;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.1s, background 0.1s;
+}
+.rehearsal-cast-btn:hover { border-color: #d1d5db; background: #f3f4f6; }
+
 .cast-dropdown {
   position: absolute;
   top: calc(100% + 2px);

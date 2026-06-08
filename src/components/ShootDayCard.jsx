@@ -1,5 +1,61 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import SceneRow from './SceneRow'
+
+// ─── RehearsalCast — day-level cast attendance selector ──────────────────────
+function RehearsalCast({ day, castMembers = [], onUpdate }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const selectedIds = day.castMemberIds ?? []
+
+  useEffect(() => {
+    if (!open) return
+    function onClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  function toggle(id) {
+    const cur = day.castMemberIds ?? []
+    const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]
+    onUpdate(day.id, 'castMemberIds', next)
+  }
+
+  const selected = castMembers
+    .filter(c => selectedIds.includes(c.id))
+    .slice()
+    .sort((a, b) => (a.castNumber ?? 999) - (b.castNumber ?? 999))
+
+  return (
+    <div className="pm-scenes">
+      <div className="pm-scenes-head">
+        <span className="pm-section-label">Rehearsal Cast</span>
+      </div>
+      <div className="rehearsal-cast" ref={ref}>
+        <button className="rehearsal-cast-btn" onClick={() => setOpen(o => !o)}>
+          {selected.length > 0
+            ? selected.map(c => [c.castNumber != null ? `${c.castNumber}.` : null, c.name || '—'].filter(Boolean).join(' ')).join(',  ')
+            : <span style={{ color: '#9ca3af' }}>Select cast attending rehearsal…</span>}
+        </button>
+        {open && (
+          <div className="cast-dropdown">
+            {castMembers.length === 0 ? (
+              <div className="cast-dropdown-empty">No cast added yet — add in Project Setup</div>
+            ) : (
+              castMembers.map(c => (
+                <label key={c.id} className="cast-dropdown-item">
+                  <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggle(c.id)} />
+                  {c.castNumber != null && <span className="cast-dropdown-num">{c.castNumber}</span>}
+                  <span className="cast-dropdown-name">{c.name || '(unnamed)'}</span>
+                  {c.role && <span className="cast-dropdown-role">{c.role}</span>}
+                </label>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const DAY_TYPES = [
   { value: 'SWD',  label: 'SWD — Standard' },
@@ -616,6 +672,11 @@ export default function ShootDayCard({
               />
             </div>
           </div>
+
+          {/* ── Rehearsal cast attendance — rehearsal days only ──────────────── */}
+          {isRehearsal && (
+            <RehearsalCast day={day} castMembers={castMembers} onUpdate={onUpdate} />
+          )}
 
           {/* ── Scenes — all day types ───────────────────────────────────────── */}
           <div className="pm-scenes">

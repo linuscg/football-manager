@@ -50,6 +50,7 @@ function mapDay(row, scenes = [], extras = []) {
     sortOrder:     row.sort_order      ?? 0,
     dayCategory:   row.day_category    ?? 'main',
     dayLabel:      row.day_label       ?? '',
+    castMemberIds: row.cast_member_ids ?? [],
     scenes:        scenes.map(mapScene).sort((a, b) => a.sortOrder - b.sortOrder),
     extras:        groupExtrasByCategory(extras),
   }
@@ -121,6 +122,7 @@ const DAY_FIELD_MAP = {
   notes:       'notes',
   dayCategory: 'day_category',
   dayLabel:    'day_label',
+  castMemberIds: 'cast_member_ids',
 }
 
 const SCENE_FIELD_MAP = {
