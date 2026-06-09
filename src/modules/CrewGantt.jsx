@@ -397,18 +397,20 @@ function ResourceRow({
           const cls = [
             'pm-g-cell',
             statusCls,
-            spec.subUnitCategory === 'prep'     ? 'cell-prep'     : '',
-            spec.subUnitCategory === 'splinter' ? 'cell-splinter' : '',
-            spec.subUnitCategory === 'other'    ? 'cell-other'    : '',
+            spec.subUnitCategory === 'prep'      ? 'cell-prep'      : '',
+            spec.subUnitCategory === 'splinter'  ? 'cell-splinter'  : '',
+            spec.subUnitCategory === 'rehearsal' ? 'cell-rehearsal' : '',
+            spec.subUnitCategory === 'other'     ? 'cell-other'     : '',
             spec.shootDay?.isNonShootDay && !isSubUnit ? 'cell-nonshoot' : '',
             spec.isWeekend ? 'cell-weekend'  : '',
             spec.isToday   ? 'cell-today'    : '',
             !isShootDay && !isSubUnit ? 'cell-no-shoot' : '',
           ].filter(Boolean).join(' ')
 
-          const unitLabel = spec.subUnitCategory === 'prep'     ? 'Prep'
-                          : spec.subUnitCategory === 'splinter' ? 'Splinter'
-                          : spec.subUnitCategory === 'other'    ? 'Other'
+          const unitLabel = spec.subUnitCategory === 'prep'      ? 'Prep'
+                          : spec.subUnitCategory === 'splinter'  ? 'Splinter'
+                          : spec.subUnitCategory === 'rehearsal' ? 'Rehearsal'
+                          : spec.subUnitCategory === 'other'     ? 'Other'
                           : null
 
           return (
@@ -658,10 +660,10 @@ export default function CrewGantt({ production, shootDays }) {
     if (sd.date && sd.dayCategory === 'main') dateMap[sd.date] = sd
   }
 
-  // date → [subUnit, ...] map — prep, splinter AND other units get their own columns
+  // date → [subUnit, ...] map — prep, splinter, rehearsal AND other units get their own columns
   const subUnitsByDate = {}
   for (const sd of shootDays) {
-    if ((sd.dayCategory === 'prep' || sd.dayCategory === 'splinter' || sd.dayCategory === 'other') && sd.date) {
+    if ((sd.dayCategory === 'prep' || sd.dayCategory === 'splinter' || sd.dayCategory === 'rehearsal' || sd.dayCategory === 'other') && sd.date) {
       if (!subUnitsByDate[sd.date]) subUnitsByDate[sd.date] = []
       subUnitsByDate[sd.date].push(sd)
     }
@@ -1157,13 +1159,13 @@ export default function CrewGantt({ production, shootDays }) {
 
                   // Sub-unit column (prep / splinter / other) — compact coloured header
                   if (spec.subUnitCategory) {
-                    const isPrep     = spec.subUnitCategory === 'prep'
-                    const isSplinter = spec.subUnitCategory === 'splinter'
-                    const isOther    = spec.subUnitCategory === 'other'
-                    const colClass   = isPrep ? 'gantt-prep-col' : isSplinter ? 'gantt-splinter-col' : 'gantt-other-col'
-                    const badgeClass = isPrep ? 'gantt-badge-p'  : isSplinter ? 'gantt-badge-s'      : 'gantt-badge-o'
-                    const badgeLbl   = isPrep ? 'P'              : isSplinter ? 'S'                  : 'O'
-                    const typeLabel2 = isPrep ? 'Prep'           : isSplinter ? 'Splinter'           : 'Other'
+                    const isPrep      = spec.subUnitCategory === 'prep'
+                    const isSplinter  = spec.subUnitCategory === 'splinter'
+                    const isRehearsal = spec.subUnitCategory === 'rehearsal'
+                    const colClass   = isPrep ? 'gantt-prep-col' : isSplinter ? 'gantt-splinter-col' : isRehearsal ? 'gantt-rehearsal-col' : 'gantt-other-col'
+                    const badgeClass = isPrep ? 'gantt-badge-p'  : isSplinter ? 'gantt-badge-s'      : isRehearsal ? 'gantt-badge-r'       : 'gantt-badge-o'
+                    const badgeLbl   = isPrep ? 'P'              : isSplinter ? 'S'                  : isRehearsal ? 'R'                   : 'O'
+                    const typeLabel2 = isPrep ? 'Prep'           : isSplinter ? 'Splinter'           : isRehearsal ? 'Rehearsal'           : 'Other'
                     const subLabel   = sd?.dayLabel ? ` (${sd.dayLabel})` : ''
                     return (
                       <th key={`sub-${spec.dayId}`}

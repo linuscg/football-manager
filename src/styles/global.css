@@ -2350,6 +2350,17 @@ textarea.field-input {
   color: #7c3aed;
 }
 
+.gantt-badge-r {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 0px 3px;
+  border-radius: 3px;
+  line-height: 1.4;
+  background: #d1fae5;
+  color: #059669;
+}
+
 /* ── Extras section ──────────────────────────────────────── */
 
 .extras-section {
@@ -2602,9 +2613,19 @@ textarea.field-input {
 
 .gantt-prep-col .gantt-badge-p,
 .gantt-splinter-col .gantt-badge-s,
+.gantt-rehearsal-col .gantt-badge-r,
 .gantt-other-col .gantt-badge-o {
   display: block;
   margin: 0 auto 2px;
+}
+
+.gantt-rehearsal-col {
+  min-width: 38px !important;
+  max-width: 38px !important;
+  padding: 4px 2px !important;
+  text-align: center;
+  background: #ecfdf5 !important;
+  border-left: 2px solid #059669 !important;
 }
 
 .gantt-badge-o {
@@ -2640,6 +2661,13 @@ textarea.field-input {
   width: 38px; min-width: 38px;
   background: #faf5ff;
   border-left: 1px solid #ddd6fe;
+}
+
+.pm-g-cell.cell-rehearsal,
+.gantt-cell.cell-rehearsal {
+  width: 38px; min-width: 38px;
+  background: #ecfdf5;
+  border-left: 1px solid #a7f3d0;
 }
 
 .pm-g-cell.cell-other,
