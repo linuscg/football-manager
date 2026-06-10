@@ -10016,3 +10016,31 @@ select.pm-input { cursor: pointer; }
   color: #9ca3af;
   font-style: italic;
 }
+
+/* ─── Budget: per-section copy + Excel export ──────────────────────────────── */
+.budget-section-action {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 12px;
+}
+
+.budget-copy-btn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.budget-copy-btn:hover  { background: #f3f4f6; color: #111827; border-color: #d1d5db; }
+.budget-copy-btn.copied { background: #dcfce7; color: #16a34a; border-color: #bbf7d0; }
+
+.budget-export-btn {
+  margin-left: 12px;
+  white-space: nowrap;
+}

@@ -54,6 +54,44 @@ function rateStr(resource) {
   return `${amt.toLocaleString('en-GB')}/wk (${wk})`
 }
 
+// Build a TSV string (tab-separated) from an array of row arrays
+function toTSV(headers, rows) {
+  return [headers, ...rows].map(r => r.join('\t')).join('\n')
+}
+
+async function copyText(text, setFn) {
+  try {
+    await navigator.clipboard.writeText(text)
+    setFn(true)
+    setTimeout(() => setFn(false), 1800)
+  } catch {
+    const el = document.createElement('textarea')
+    el.value = text
+    document.body.appendChild(el)
+    el.select()
+    document.execCommand('copy')
+    document.body.removeChild(el)
+    setFn(true)
+    setTimeout(() => setFn(false), 1800)
+  }
+}
+
+// Round to 2 decimal places (numeric)
+const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100
+
+function CopyBtn({ getText }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      className={`budget-copy-btn${copied ? ' copied' : ''}`}
+      onClick={e => { e.stopPropagation(); copyText(getText(), setCopied) }}
+      title="Copy to clipboard (paste into Excel)"
+    >
+      {copied ? '✓ Copied' : '⎘ Copy'}
+    </button>
+  )
+}
+
 function calcCost(resource, bookings, status) {
   const amt = parseFloat(resource.costAmount) || 0
   if (!amt) return 0
@@ -159,7 +197,7 @@ function BudgetItemRow({ item, symbol, codes, onUpdate, onDelete }) {
 
 // ─── Section wrapper with collapse ───────────────────────────────────────────
 
-function BudgetSection({ title, total, symbol, defaultOpen = true, children }) {
+function BudgetSection({ title, total, symbol, defaultOpen = true, action, children }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="budget-section">
@@ -167,6 +205,7 @@ function BudgetSection({ title, total, symbol, defaultOpen = true, children }) {
         <span className={`budget-section-chevron${open ? ' open' : ''}`}>▶</span>
         <span className="budget-section-title">{title}</span>
         <span className="budget-section-total">{fmtZero(total, symbol)}</span>
+        {action && <span className="budget-section-action">{action}</span>}
       </div>
       {open && <div className="budget-section-body">{children}</div>}
     </div>
@@ -265,6 +304,160 @@ export default function Budget({ store, onUpdate }) {
   // Converted totals for display
   const cv = n => n * fxRate
 
+  // ── TSV builders for per-section copy (display currency, plain numbers) ──────
+  function crewTSV() {
+    const headers = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
+    const rows = []
+    for (const [dept, members] of crewByDept) {
+      for (const r of members) {
+        rows.push([
+          dept, r.name, r.role || '', r.costCode || '', rateStr(r),
+          r.confirmedDays || 0, r.holdDays || 0,
+          r2(cv(r.confirmedCost)), r2(cv(r.holdCost)),
+        ])
+      }
+    }
+    return toTSV(headers, rows)
+  }
+
+  function equipTSV() {
+    const headers = ['Category', 'Item', 'Vendor', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
+    const rows = []
+    for (const [cat, items] of equipByCat) {
+      for (const r of items) {
+        rows.push([
+          cat, r.name, r.vendor || '', r.costCode || '', rateStr(r),
+          r.confirmedDays || 0, r.holdDays || 0,
+          r2(cv(r.confirmedCost)), r2(cv(r.holdCost)),
+        ])
+      }
+    }
+    return toTSV(headers, rows)
+  }
+
+  function otherTSV() {
+    const headers = ['Category', 'Description', 'Cost Code', 'Amount', 'Notes']
+    const rows = otherItems.map(i => [
+      i.category || '', i.name || '', i.costCode || '',
+      r2(cv(parseFloat(i.amount) || 0)), i.notes || '',
+    ])
+    return toTSV(headers, rows)
+  }
+
+  // ── Topsheet aggregation by cost code (display currency) ─────────────────────
+  function buildTopsheet() {
+    const buckets = {} // costCode -> { confirmed, hold }
+    const bump = (code, conf, hold) => {
+      const key = code || '(no code)'
+      if (!buckets[key]) buckets[key] = { confirmed: 0, hold: 0 }
+      buckets[key].confirmed += conf
+      buckets[key].hold += hold
+    }
+    for (const r of enrichedCrew)  bump(r.costCode, cv(r.confirmedCost), cv(r.holdCost))
+    for (const r of enrichedEquip) bump(r.costCode, cv(r.confirmedCost), cv(r.holdCost))
+    for (const i of otherItems)    bump(i.costCode, cv(parseFloat(i.amount) || 0), 0)
+
+    const codeDesc = {}
+    for (const c of codes) codeDesc[c.code] = c.description || ''
+
+    return Object.entries(buckets)
+      .map(([code, v]) => ({
+        code,
+        description: code === '(no code)' ? '' : (codeDesc[code] || ''),
+        confirmed: r2(v.confirmed),
+        hold: r2(v.hold),
+        total: r2(v.confirmed + v.hold),
+      }))
+      .sort((a, b) => {
+        if (a.code === '(no code)') return 1
+        if (b.code === '(no code)') return -1
+        const na = parseFloat(a.code), nb = parseFloat(b.code)
+        if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb
+        return a.code.localeCompare(b.code)
+      })
+  }
+
+  // ── Excel export ─────────────────────────────────────────────────────────────
+  async function exportExcel() {
+    const XLSX = await import('xlsx-js-style')
+    const wb = XLSX.utils.book_new()
+    const today = new Date().toLocaleDateString('en-GB')
+    const bold = { font: { bold: true } }
+    const sym = displaySymbol
+
+    // 1. Topsheet
+    const ts = buildTopsheet()
+    const tsTotal = ts.reduce((a, r) => ({
+      confirmed: a.confirmed + r.confirmed,
+      hold: a.hold + r.hold,
+      total: a.total + r.total,
+    }), { confirmed: 0, hold: 0, total: 0 })
+    const tsData = [
+      [{ v: `TOPSHEET — ${production.name || 'Production'} (${sym})`, s: bold }],
+      [`Generated ${today}`],
+      [],
+      ['Cost Code', 'Description', 'Confirmed', 'On Hold', 'Total'].map(h => ({ v: h, s: bold })),
+      ...ts.map(r => [r.code, r.description, r.confirmed, r.hold, r.total]),
+      [
+        { v: 'TOTAL', s: bold }, '',
+        { v: r2(tsTotal.confirmed), s: bold },
+        { v: r2(tsTotal.hold), s: bold },
+        { v: r2(tsTotal.total), s: bold },
+      ],
+    ]
+    const tsWs = XLSX.utils.aoa_to_sheet(tsData)
+    tsWs['!cols'] = [{ wch: 14 }, { wch: 34 }, { wch: 14 }, { wch: 14 }, { wch: 14 }]
+    XLSX.utils.book_append_sheet(wb, tsWs, 'Topsheet')
+
+    // 2. Crew
+    const crewHeader = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
+    const crewData = [crewHeader.map(h => ({ v: h, s: bold }))]
+    let cConf = 0, cHold = 0
+    for (const [dept, members] of crewByDept) {
+      for (const r of members) {
+        const conf = r2(cv(r.confirmedCost)), hold = r2(cv(r.holdCost))
+        cConf += conf; cHold += hold
+        crewData.push([dept, r.name, r.role || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0, conf, hold])
+      }
+    }
+    crewData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', { v: r2(cConf), s: bold }, { v: r2(cHold), s: bold }])
+    const crewWs = XLSX.utils.aoa_to_sheet(crewData)
+    crewWs['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }]
+    XLSX.utils.book_append_sheet(wb, crewWs, 'Crew')
+
+    // 3. Equipment
+    const equipHeader = ['Category', 'Item', 'Vendor', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
+    const equipData = [equipHeader.map(h => ({ v: h, s: bold }))]
+    let eConf = 0, eHold = 0
+    for (const [cat, items] of equipByCat) {
+      for (const r of items) {
+        const conf = r2(cv(r.confirmedCost)), hold = r2(cv(r.holdCost))
+        eConf += conf; eHold += hold
+        equipData.push([cat, r.name, r.vendor || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0, conf, hold])
+      }
+    }
+    equipData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', { v: r2(eConf), s: bold }, { v: r2(eHold), s: bold }])
+    const equipWs = XLSX.utils.aoa_to_sheet(equipData)
+    equipWs['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }]
+    XLSX.utils.book_append_sheet(wb, equipWs, 'Equipment')
+
+    // 4. Other Costs
+    const otherHeader = ['Category', 'Description', 'Cost Code', 'Amount', 'Notes']
+    const otherData = [otherHeader.map(h => ({ v: h, s: bold }))]
+    let oTotal = 0
+    for (const i of otherItems) {
+      const amt = r2(cv(parseFloat(i.amount) || 0))
+      oTotal += amt
+      otherData.push([i.category || '', i.name || '', i.costCode || '', amt, i.notes || ''])
+    }
+    otherData.push([{ v: 'TOTAL', s: bold }, '', '', { v: r2(oTotal), s: bold }, ''])
+    const otherWs = XLSX.utils.aoa_to_sheet(otherData)
+    otherWs['!cols'] = [{ wch: 18 }, { wch: 28 }, { wch: 12 }, { wch: 14 }, { wch: 30 }]
+    XLSX.utils.book_append_sheet(wb, otherWs, 'Other Costs')
+
+    XLSX.writeFile(wb, `Cost Tracking - ${production.name || 'Production'} - ${today}.xlsx`)
+  }
+
   // Phase cost breakdown — look at which phase each booked day falls in
   const phaseCosts = useMemo(() => {
     const out = { prep: 0, shoot: 0, wrap: 0, other: 0 }
@@ -313,6 +506,9 @@ export default function Budget({ store, onUpdate }) {
       {/* ── Top bar ──────────────────────────────────────────────────────────── */}
       <div className="budget-topbar">
         <h1 className="budget-title">Budget</h1>
+        <button className="pm-btn pm-btn--ghost pm-btn--sm budget-export-btn" onClick={exportExcel}>
+          ↓ Export Excel
+        </button>
         <div className="budget-currency-row">
           <span className="budget-currency-sym">{baseCurrency}</span>
           <span className="budget-currency-label">Base currency (set in Project Setup)</span>
@@ -387,7 +583,7 @@ export default function Budget({ store, onUpdate }) {
         )}
 
         {/* ── Crew Costs ───────────────────────────────────────────────────────── */}
-        <BudgetSection title="Crew Costs" total={cv(crewConfirmed)} symbol={displaySymbol}>
+        <BudgetSection title="Crew Costs" total={cv(crewConfirmed)} symbol={displaySymbol} action={<CopyBtn getText={crewTSV} />}>
           {crewByDept.length === 0 ? (
             <p className="budget-empty">No crew added yet — add crew in the Crew &amp; Equipment tab.</p>
           ) : (
@@ -481,7 +677,7 @@ export default function Budget({ store, onUpdate }) {
         </BudgetSection>
 
         {/* ── Equipment Costs ──────────────────────────────────────────────────── */}
-        <BudgetSection title="Equipment Costs" total={cv(equipConfirmed)} symbol={displaySymbol}>
+        <BudgetSection title="Equipment Costs" total={cv(equipConfirmed)} symbol={displaySymbol} action={<CopyBtn getText={equipTSV} />}>
           {equipByCat.length === 0 ? (
             <p className="budget-empty">No equipment added yet — add items in the Crew &amp; Equipment tab.</p>
           ) : (
@@ -575,7 +771,7 @@ export default function Budget({ store, onUpdate }) {
         </BudgetSection>
 
         {/* ── Other Costs ──────────────────────────────────────────────────────── */}
-        <BudgetSection title="Other Costs" total={cv(otherTotal)} symbol={displaySymbol}>
+        <BudgetSection title="Other Costs" total={cv(otherTotal)} symbol={displaySymbol} action={<CopyBtn getText={otherTSV} />}>
           <div className="budget-other-wrap">
             <table className="budget-table budget-other-table">
               <thead>
