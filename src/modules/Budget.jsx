@@ -49,6 +49,7 @@ function rateStr(resource) {
   const amt = parseFloat(resource.costAmount)
   if (!amt) return '—'
   if (resource.costType === 'daily') return `${amt.toLocaleString('en-GB')}/day`
+  if (resource.costType === 'halfday') return `${amt.toLocaleString('en-GB')}/½ day`
   const wk = resource.weekType === '3day' ? '3-day wk' : '5-day wk'
   return `${amt.toLocaleString('en-GB')}/wk (${wk})`
 }
@@ -58,7 +59,7 @@ function calcCost(resource, bookings, status) {
   if (!amt) return 0
   const days = bookings.filter(b => b.resourceId === resource.id && b.status === status).length
   if (!days) return 0
-  if (resource.costType === 'daily') return amt * days
+  if (resource.costType === 'daily' || resource.costType === 'halfday') return amt * days
   const daysPerWeek = resource.weekType === '3day' ? 3 : 5
   return amt * (days / daysPerWeek)
 }
@@ -273,7 +274,7 @@ export default function Budget({ store, onUpdate }) {
       if (!resource) continue
       const amt = parseFloat(resource.costAmount) || 0
       if (!amt) continue
-      let dayCost = resource.costType === 'daily'
+      let dayCost = (resource.costType === 'daily' || resource.costType === 'halfday')
         ? amt
         : amt / (resource.weekType === '3day' ? 3 : 5)
       const phase = phaseForDate(b.date, production)

@@ -463,6 +463,7 @@ function ResourceRow({
                   onChange={e => onUpdate(resource.id, 'costType', e.target.value)}
                 >
                   <option value="daily">Day</option>
+                  <option value="halfday">Half Day</option>
                   <option value="weekly">Week</option>
                 </select>
                 {resource.costType === 'weekly' && (
