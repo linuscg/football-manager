@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, Fragment } from 'react'
-import { useCrewStore }   from '../store/useCrewStore'
-import { useBudgetStore } from '../store/useBudgetStore'
+import { useCrewStore }        from '../store/useCrewStore'
+import { useBudgetStore }      from '../store/useBudgetStore'
+import { useBudgetCodesStore } from '../store/useBudgetCodesStore'
+import CostCodeSelect          from '../components/CostCodeSelect'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -76,7 +78,7 @@ function phaseForDate(date, production) {
 
 // ─── BudgetItemRow — local state so inputs don't lose focus ──────────────────
 
-function BudgetItemRow({ item, symbol, onUpdate, onDelete }) {
+function BudgetItemRow({ item, symbol, codes, onUpdate, onDelete }) {
   const [lCat,    setLCat]    = useState(item.category)
   const [lName,   setLName]   = useState(item.name)
   const [lAmount, setLAmount] = useState(String(item.amount))
@@ -136,6 +138,13 @@ function BudgetItemRow({ item, symbol, onUpdate, onDelete }) {
           onBlur={() => commit('notes', lNotes, item.notes, false)}
         />
       </td>
+      <td className="budget-td budget-td-code">
+        <CostCodeSelect
+          value={item.costCode}
+          codes={codes}
+          onChange={code => onUpdate(item.id, 'cost_code', code)}
+        />
+      </td>
       <td className="budget-td budget-td-action">
         <button
           className="pm-icon-btn danger"
@@ -168,8 +177,17 @@ function BudgetSection({ title, total, symbol, defaultOpen = true, children }) {
 export default function Budget({ store, onUpdate }) {
   const { production } = store
   const baseCurrency = production.currency ?? '£'
-  const { resources, bookings } = useCrewStore()
+  const { resources, bookings, updateResource } = useCrewStore()
   const { loading: bLoading, items: otherItems, addItem, deleteItem, updateItem } = useBudgetStore()
+  const { codes, addCode, updateCode, deleteCode } = useBudgetCodesStore()
+
+  // In-page tab: 'tracking' | 'codes' (persisted)
+  const [tab, setTab] = useState(() => {
+    try { return localStorage.getItem('fm_budget_tab') || 'tracking' } catch { return 'tracking' }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('fm_budget_tab', tab) } catch { /* ignore */ }
+  }, [tab])
 
   // viewCurrency: the currency to display amounts in (defaults to base)
   const [viewCurrency, setViewCurrency] = useState(baseCurrency)
@@ -270,6 +288,27 @@ export default function Budget({ store, onUpdate }) {
   return (
     <div className="budget-wrap">
 
+      {/* ── In-page tabs ─────────────────────────────────────────────────────── */}
+      <div className="budget-tabs">
+        <button
+          className={`budget-tab${tab === 'tracking' ? ' is-active' : ''}`}
+          onClick={() => setTab('tracking')}
+        >Cost Tracking</button>
+        <button
+          className={`budget-tab${tab === 'codes' ? ' is-active' : ''}`}
+          onClick={() => setTab('codes')}
+        >Budget Codes</button>
+      </div>
+
+      {tab === 'codes' ? (
+        <BudgetCodesManager
+          codes={codes}
+          addCode={addCode}
+          updateCode={updateCode}
+          deleteCode={deleteCode}
+        />
+      ) : (
+      <>
       {/* ── Top bar ──────────────────────────────────────────────────────────── */}
       <div className="budget-topbar">
         <h1 className="budget-title">Budget</h1>
@@ -368,6 +407,7 @@ export default function Budget({ store, onUpdate }) {
                       <tr>
                         <th className="budget-th">Name</th>
                         <th className="budget-th">Role</th>
+                        <th className="budget-th budget-th-code">Cost Code</th>
                         <th className="budget-th budget-th-rate">Rate</th>
                         <th className="budget-th budget-th-num">Conf. days</th>
                         <th className="budget-th budget-th-num">Hold days</th>
@@ -386,6 +426,13 @@ export default function Budget({ store, onUpdate }) {
                           >
                             <td className="budget-td budget-td-name">{r.name}</td>
                             <td className="budget-td budget-td-role">{r.role || '—'}</td>
+                            <td className="budget-td budget-td-code" onClick={e => e.stopPropagation()}>
+                              <CostCodeSelect
+                                value={r.costCode}
+                                codes={codes}
+                                onChange={code => updateResource(r.id, 'costCode', code)}
+                              />
+                            </td>
                             <td className="budget-td budget-td-rate">{rateStr(r)}</td>
                             <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
                             <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
@@ -394,7 +441,7 @@ export default function Budget({ store, onUpdate }) {
                           </tr>
                           {expandedId === r.id && (
                             <tr className="budget-resource-detail">
-                              <td colSpan={7} className="budget-td-detail">
+                              <td colSpan={8} className="budget-td-detail">
                                 <div className="budget-detail-row">
                                   {r.poNumber && <div className="budget-detail-item"><span className="budget-detail-label">PO</span>{r.poNumber}</div>}
                                   {(r.hireStartDate || r.hireEndDate) && (
@@ -414,7 +461,7 @@ export default function Budget({ store, onUpdate }) {
                     </tbody>
                     <tfoot>
                       <tr className="budget-subtotal-row">
-                        <td colSpan={5} className="budget-td budget-subtotal-label">
+                        <td colSpan={6} className="budget-td budget-subtotal-label">
                           {dept} subtotal
                         </td>
                         <td className="budget-td budget-td-cost budget-subtotal-value">
@@ -454,6 +501,7 @@ export default function Budget({ store, onUpdate }) {
                       <tr>
                         <th className="budget-th">Item</th>
                         <th className="budget-th">Vendor</th>
+                        <th className="budget-th budget-th-code">Cost Code</th>
                         <th className="budget-th budget-th-rate">Rate</th>
                         <th className="budget-th budget-th-num">Conf. days</th>
                         <th className="budget-th budget-th-num">Hold days</th>
@@ -472,6 +520,13 @@ export default function Budget({ store, onUpdate }) {
                           >
                             <td className="budget-td budget-td-name">{r.name}</td>
                             <td className="budget-td budget-td-role">{r.vendor || '—'}</td>
+                            <td className="budget-td budget-td-code" onClick={e => e.stopPropagation()}>
+                              <CostCodeSelect
+                                value={r.costCode}
+                                codes={codes}
+                                onChange={code => updateResource(r.id, 'costCode', code)}
+                              />
+                            </td>
                             <td className="budget-td budget-td-rate">{rateStr(r)}</td>
                             <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
                             <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
@@ -480,7 +535,7 @@ export default function Budget({ store, onUpdate }) {
                           </tr>
                           {expandedId === r.id && (
                             <tr className="budget-resource-detail">
-                              <td colSpan={7} className="budget-td-detail">
+                              <td colSpan={8} className="budget-td-detail">
                                 <div className="budget-detail-row">
                                   {r.poNumber && <div className="budget-detail-item"><span className="budget-detail-label">PO</span>{r.poNumber}</div>}
                                   {(r.hireStartDate || r.hireEndDate) && (
@@ -500,7 +555,7 @@ export default function Budget({ store, onUpdate }) {
                     </tbody>
                     <tfoot>
                       <tr className="budget-subtotal-row">
-                        <td colSpan={5} className="budget-td budget-subtotal-label">
+                        <td colSpan={6} className="budget-td budget-subtotal-label">
                           {cat} subtotal
                         </td>
                         <td className="budget-td budget-td-cost budget-subtotal-value">
@@ -528,13 +583,14 @@ export default function Budget({ store, onUpdate }) {
                   <th className="budget-th">Description</th>
                   <th className="budget-th budget-th-cost">Amount</th>
                   <th className="budget-th">Notes</th>
+                  <th className="budget-th budget-th-code">Cost Code</th>
                   <th className="budget-th budget-th-action" />
                 </tr>
               </thead>
               <tbody>
                 {otherItems.length === 0 && !bLoading && (
                   <tr>
-                    <td colSpan={5} className="budget-td budget-other-empty">
+                    <td colSpan={6} className="budget-td budget-other-empty">
                       No line items yet — click below to add one.
                     </td>
                   </tr>
@@ -544,6 +600,7 @@ export default function Budget({ store, onUpdate }) {
                     key={item.id}
                     item={item}
                     symbol={baseCurrency}
+                    codes={codes}
                     onUpdate={updateItem}
                     onDelete={deleteItem}
                   />
@@ -556,7 +613,7 @@ export default function Budget({ store, onUpdate }) {
                     <td className="budget-td budget-td-cost budget-subtotal-value">
                       {fmtZero(cv(otherTotal), displaySymbol)}
                     </td>
-                    <td colSpan={2} className="budget-td" />
+                    <td colSpan={3} className="budget-td" />
                   </tr>
                 </tfoot>
               )}
@@ -582,6 +639,95 @@ export default function Budget({ store, onUpdate }) {
         </div>
 
       </div>
+      </>
+      )}
     </div>
+  )
+}
+
+// ─── Budget Codes manager (the 'codes' tab) ──────────────────────────────────
+
+function BudgetCodesManager({ codes, addCode, updateCode, deleteCode }) {
+  return (
+    <div className="budget-scroll">
+      <div className="budget-codes-head">
+        <h1 className="budget-title">Budget Codes</h1>
+        <p className="budget-codes-help">Codes you can assign to crew, equipment and other costs.</p>
+      </div>
+
+      <div className="budget-codes-wrap">
+        <table className="budget-table budget-codes-table">
+          <thead>
+            <tr>
+              <th className="budget-th budget-th-code-col">Code</th>
+              <th className="budget-th">Description</th>
+              <th className="budget-th budget-th-action" />
+            </tr>
+          </thead>
+          <tbody>
+            {codes.length === 0 && (
+              <tr>
+                <td colSpan={3} className="budget-td budget-codes-empty">
+                  No budget codes yet — click below to add one.
+                </td>
+              </tr>
+            )}
+            {codes.map(c => (
+              <BudgetCodeRow
+                key={c.id}
+                code={c}
+                onUpdate={updateCode}
+                onDelete={deleteCode}
+              />
+            ))}
+          </tbody>
+        </table>
+        <button className="pm-btn pm-btn--ghost pm-btn--sm budget-add-btn" onClick={addCode}>
+          + Add Code
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function BudgetCodeRow({ code, onUpdate, onDelete }) {
+  const [lCode, setLCode] = useState(code.code)
+  const [lDesc, setLDesc] = useState(code.description)
+
+  useEffect(() => setLCode(code.code),        [code.code])
+  useEffect(() => setLDesc(code.description),  [code.description])
+
+  function commit(field, local, original) {
+    if (local !== original) onUpdate(code.id, field, local)
+  }
+
+  return (
+    <tr className="budget-codes-row">
+      <td className="budget-td budget-td-code-col">
+        <input
+          className="budget-input"
+          value={lCode}
+          placeholder="e.g. 1100"
+          onChange={e => setLCode(e.target.value)}
+          onBlur={() => commit('code', lCode, code.code)}
+        />
+      </td>
+      <td className="budget-td">
+        <input
+          className="budget-input budget-input-wide"
+          value={lDesc}
+          placeholder="Description"
+          onChange={e => setLDesc(e.target.value)}
+          onBlur={() => commit('description', lDesc, code.description)}
+        />
+      </td>
+      <td className="budget-td budget-td-action">
+        <button
+          className="pm-icon-btn danger"
+          onClick={() => onDelete(code.id)}
+          title="Delete code"
+        >✕</button>
+      </td>
+    </tr>
   )
 }

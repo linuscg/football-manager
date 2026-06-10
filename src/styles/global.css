@@ -9857,3 +9857,162 @@ select.pm-input { cursor: pointer; }
   color: #b45309;
   font-style: italic;
 }
+
+/* ── Budget: in-page tabs ─────────────────────────────────── */
+
+.budget-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.budget-tab {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.budget-tab:hover { color: #4338ca; }
+
+.budget-tab.is-active {
+  color: #4338ca;
+  border-bottom-color: #4338ca;
+}
+
+/* ── Budget Codes manager ─────────────────────────────────── */
+
+.budget-codes-head { margin-bottom: 14px; }
+
+.budget-codes-help {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.budget-codes-wrap { max-width: 720px; }
+
+.budget-codes-table { width: 100%; }
+
+.budget-th-code-col,
+.budget-td-code-col { width: 160px; }
+
+.budget-codes-empty {
+  text-align: center;
+  color: #9ca3af;
+  font-style: italic;
+  padding: 16px;
+}
+
+/* ── Cost code searchable select ──────────────────────────── */
+
+.budget-th-code,
+.budget-td-code { width: 130px; }
+
+.cost-code-select {
+  position: relative;
+  display: inline-block;
+}
+
+.cost-code-btn {
+  appearance: none;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  min-width: 64px;
+  text-align: left;
+  transition: border-color 0.12s;
+}
+
+.cost-code-btn:hover { border-color: #a5b4fc; }
+.cost-code-btn.is-empty { color: #9ca3af; font-weight: 500; }
+
+.cost-code-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 100;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  min-width: 220px;
+  max-height: 260px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cost-code-search {
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 8px 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.cost-code-search:focus { background: #f9fafb; }
+
+.cost-code-list {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.cost-code-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.08s;
+}
+
+.cost-code-item:hover { background: #eef2ff; }
+.cost-code-item.is-selected { background: #eef2ff; }
+
+.cost-code-item-code {
+  font-weight: 600;
+  color: #111827;
+  flex-shrink: 0;
+}
+
+.cost-code-item-desc {
+  color: #9ca3af;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cost-code-clear {
+  color: #6b7280;
+  font-weight: 500;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.cost-code-empty {
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: #9ca3af;
+  font-style: italic;
+}

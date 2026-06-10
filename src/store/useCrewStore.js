@@ -25,6 +25,7 @@ function mapResource(row) {
     hireStartDate: row.hire_start_date ?? '',
     hireEndDate:   row.hire_end_date   ?? '',
     personId:      row.person_id       ?? null,
+    costCode:      row.cost_code        ?? '',
   }
 }
 
@@ -147,6 +148,7 @@ export function useCrewStore() {
     hireStartDate: 'hire_start_date',
     hireEndDate:   'hire_end_date',
     personId:      'person_id',
+    costCode:      'cost_code',
   }
 
   function updateResource(id, field, value) {

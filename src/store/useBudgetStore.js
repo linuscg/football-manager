@@ -9,6 +9,7 @@ function mapItem(row) {
     name:      row.name       ?? '',
     amount:    row.amount     ?? 0,
     notes:     row.notes      ?? '',
+    costCode:  row.cost_code  ?? '',
     sortOrder: row.sort_order ?? 0,
   }
 }
@@ -76,7 +77,12 @@ export function useBudgetStore() {
   }
 
   function updateItem(id, field, value) {
-    setItems(is => is.map(i => i.id === id ? { ...i, [field]: value } : i))
+    // field names are snake_case DB columns; map back to the camelCase used in
+    // the mapped object for optimistic local state (e.g. cost_code → costCode).
+    const localField = field === 'cost_code' ? 'costCode'
+      : field === 'sort_order' ? 'sortOrder'
+      : field
+    setItems(is => is.map(i => i.id === id ? { ...i, [localField]: value } : i))
     supabase.from('budget_items').update({ [field]: value }).eq('id', id)
       .then(({ error: err }) => { if (err) loadAll() })
   }
