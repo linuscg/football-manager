@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAccommodationStore } from '../store/useAccommodationStore'
 import { useFullCrewList }       from '../store/useFullCrewList'
-import { useCrewStore }          from '../store/useCrewStore'
+import { useCrewPeopleStore }    from '../store/useCrewPeopleStore'
 import { hotelColor }            from './HotelList'
 
 // ─── Phase definitions ─────────────────────────────────────────────────────────
@@ -38,13 +38,22 @@ function addDays(dateStr, n) {
 
 function todayStr() { return ds(new Date()) }
 
-// Keyboard shortcuts: ` = eraser (-1), 1–9 = 0–8, 0 = 9, - = 10, = = 11
-const KEY_TO_INDEX = {
-  '`': -1,
+function fmtShort(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+}
+
+// Keyboard shortcuts: ` = eraser (clear), T = TBC, 1–9/0/-/= = hotels
+const KEY_TO_SELECTION = {
+  '`': 'clear',
+  't': 'TBC', 'T': 'TBC',
   '1': 0, '2': 1, '3': 2, '4': 3, '5': 4,
   '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
   '-': 10, '=': 11,
 }
+
+const HOTEL_KEYS = ['1','2','3','4','5','6','7','8','9','0','-','=']
 
 // ─── Column spec builder ───────────────────────────────────────────────────────
 
@@ -64,7 +73,6 @@ function buildColSpecs(production, collapsedPhases, collapsePast, today) {
     const visible = collapsePast ? days.filter(d => d >= today) : days
 
     if (visible.length === 0) {
-      // Phase exists but all dates are hidden by collapsePast → compact placeholder
       specs.push({ type: 'collapsed', phaseId: phase.id, label: phase.label, color: phase.color, pastOnly: true })
       continue
     }
@@ -88,7 +96,6 @@ function buildColSpecs(production, collapsedPhases, collapsePast, today) {
   return specs
 }
 
-// Group colSpecs into phase header spans for the top row
 function buildPhaseSpans(colSpecs) {
   const spans = []
   for (const spec of colSpecs) {
@@ -106,120 +113,108 @@ function buildPhaseSpans(colSpecs) {
   return spans
 }
 
+// ─── Derived stay summary from its nights ──────────────────────────────────────
+
+function deriveStay(stay, stayNights) {
+  const valued = stayNights
+    .filter(n => n.hotelId || n.tbc)
+    .map(n => n.date)
+    .sort()
+  if (valued.length === 0) {
+    return { checkIn: '', checkOut: '', totalNights: 0, totalCost: 0 }
+  }
+  const checkIn  = valued[0]
+  const checkOut = addDays(valued[valued.length - 1], 1)
+  const totalNights = valued.length
+  const totalCost   = totalNights * (Number(stay.costPerNight) || 0)
+  return { checkIn, checkOut, totalNights, totalCost }
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
 
-export default function CastCrewHotels({ production, shootDays = [], castMembers = [] }) {
-  const { hotels, assignments, loading: accLoading, setAssignment } = useAccommodationStore()
-  const { members: ftMembers,  loading: ftLoading  } = useFullCrewList()
-  const { resources, bookings, loading: crewLoading } = useCrewStore()
+export default function AccommodationLog({ production, castMembers = [] }) {
+  const {
+    hotels, stays, nights, loading: accLoading,
+    addStay, updateStay, deleteStay, setNight,
+  } = useAccommodationStore()
+  const { members: ftMembers, loading: ftLoading } = useFullCrewList()
+  const { people, loading: peopleLoading, findOrCreatePerson } = useCrewPeopleStore()
 
-  const [selectedIdx, setSelectedIdx] = useState(0)
+  // selection: 'clear' | 'TBC' | hotel index number
+  const [selection, setSelection] = useState('TBC')
   const [collapsedPhases, setCollapsedPhases] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('fm_ch_phases') ?? '{}') } catch { return {} }
+    try { return JSON.parse(localStorage.getItem('fm_accom_phases') ?? '{}') } catch { return {} }
   })
   const [collapsePast, setCollapsePast] = useState(
-    () => localStorage.getItem('fm_ch_past') === 'true'
+    () => localStorage.getItem('fm_accom_past') === 'true'
   )
 
-  const isDraggingRef   = useRef(false)
-  const dragActionRef   = useRef(null)   // hotelId locked in for the whole drag session
-  const paintedInDrag   = useRef(new Set())
-  const scrollRef       = useRef(null)
-  const scrollTimer     = useRef(null)
-  const scrollDone      = useRef(false)
+  const isDraggingRef = useRef(false)
+  const dragActionRef = useRef(null)   // value locked in for the whole drag session
+  const paintedInDrag = useRef(new Set())
+  const scrollRef     = useRef(null)
+  const scrollTimer   = useRef(null)
+  const scrollDone    = useRef(false)
 
-  // Always-fresh refs so callbacks never go stale
-  const selectedIdxRef = useRef(selectedIdx)
-  const hotelsRef      = useRef(hotels)
-  const assignMapRef   = useRef({})           // initialised empty; updated after useMemo below
-  selectedIdxRef.current = selectedIdx
-  hotelsRef.current      = hotels
+  const selectionRef = useRef(selection)
+  const hotelsRef    = useRef(hotels)
+  const nightMapRef  = useRef({})
+  useEffect(() => { selectionRef.current = selection }, [selection])
+  useEffect(() => { hotelsRef.current = hotels },       [hotels])
 
-  const loading = accLoading || ftLoading || crewLoading
+  const loading = accLoading
   const today   = todayStr()
 
-  // Column specs
   const colSpecs   = useMemo(
     () => buildColSpecs(production, collapsedPhases, collapsePast, today),
     [production, collapsedPhases, collapsePast, today]
   )
   const phaseSpans = useMemo(() => buildPhaseSpans(colSpecs), [colSpecs])
 
-  // Assignment lookup: `${crewId}|${crewType}|${date}` → hotelId
-  const assignMap = useMemo(() => {
+  // nights grouped by stay; map `${stayId}|${date}` → night
+  const nightsByStay = useMemo(() => {
     const m = {}
-    for (const a of assignments) m[`${a.crewId}|${a.crewType}|${a.date}`] = a.hotelId
+    for (const n of nights) {
+      if (!m[n.stayId]) m[n.stayId] = []
+      m[n.stayId].push(n)
+    }
     return m
-  }, [assignments])
+  }, [nights])
 
-  // Keep ref in sync (must be after assignMap useMemo)
-  assignMapRef.current = assignMap
-
-  // Additional crew valid dates (booked dates ±1)
-  const additionalValidDates = useMemo(() => {
-    const v = {}
-    for (const bk of bookings) {
-      if (!v[bk.resourceId]) v[bk.resourceId] = new Set()
-      v[bk.resourceId].add(bk.date)
-      v[bk.resourceId].add(addDays(bk.date, -1))
-      v[bk.resourceId].add(addDays(bk.date, 1))
-    }
-    return v
-  }, [bookings])
-
-  // Cast valid dates: dates they appear in scenes ±1
-  const castValidDates = useMemo(() => {
-    const v = {}
-    for (const day of shootDays) {
-      if (!day.date) continue
-      for (const scene of day.scenes) {
-        for (const castId of scene.castMemberIds) {
-          if (!v[castId]) v[castId] = new Set()
-          v[castId].add(day.date)
-          v[castId].add(addDays(day.date, -1))
-          v[castId].add(addDays(day.date, 1))
-        }
-      }
-    }
-    return v
-  }, [shootDays])
-
-  // Group fulltime crew by dept
-  const ftByDept = useMemo(() => {
+  const nightMap = useMemo(() => {
     const m = {}
-    for (const mem of ftMembers) {
-      const d = mem.department || 'Unassigned'
+    for (const n of nights) m[`${n.stayId}|${n.date}`] = n
+    return m
+  }, [nights])
+  useEffect(() => { nightMapRef.current = nightMap }, [nightMap])
+
+  // Group stays by department (Unassigned last)
+  const staysByDept = useMemo(() => {
+    const m = {}
+    for (const s of stays) {
+      const d = (s.department || '').trim() || 'Unassigned'
       if (!m[d]) m[d] = []
-      m[d].push(mem)
+      m[d].push(s)
     }
-    return m
-  }, [ftMembers])
+    return Object.entries(m).sort(([a], [b]) =>
+      a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b)
+    )
+  }, [stays])
 
-  // Group additional crew by dept
-  const addByDept = useMemo(() => {
-    const m = {}
-    for (const r of resources.filter(r => r.type === 'crew')) {
-      const d = r.department || 'Unassigned'
-      if (!m[d]) m[d] = []
-      m[d].push(r)
-    }
-    return m
-  }, [resources])
-
-  // Keyboard shortcuts
+  // Keyboard shortcuts (only when not editing an input)
   useEffect(() => {
     function onKeyDown(e) {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      const idx = KEY_TO_INDEX[e.key]
-      if (idx === undefined) return
+      const sel = KEY_TO_SELECTION[e.key]
+      if (sel === undefined) return
+      if (typeof sel === 'number' && sel >= hotels.length) return
       e.preventDefault()
-      setSelectedIdx(idx)
+      setSelection(sel)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [hotels.length])
 
-  // Stop drag on mouseup anywhere in the window (same pattern as CrewGantt)
   useEffect(() => {
     function stop() {
       if (!isDraggingRef.current) return
@@ -230,10 +225,9 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     return () => window.removeEventListener('mouseup', stop)
   }, [])
 
-  // Restore scroll position once data has loaded and the table is rendered
   useEffect(() => {
     if (loading || scrollDone.current) return
-    const saved = localStorage.getItem('fm_ch_scroll')
+    const saved = localStorage.getItem('fm_accom_scroll')
     if (saved && scrollRef.current) {
       try {
         const [left, top] = JSON.parse(saved)
@@ -248,7 +242,7 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     clearTimeout(scrollTimer.current)
     scrollTimer.current = setTimeout(() => {
       if (scrollRef.current) {
-        localStorage.setItem('fm_ch_scroll', JSON.stringify([
+        localStorage.setItem('fm_accom_scroll', JSON.stringify([
           scrollRef.current.scrollLeft,
           scrollRef.current.scrollTop,
         ]))
@@ -256,46 +250,52 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     }, 150)
   }
 
-  // Drag-paint logic — mirrors CrewGantt pattern exactly:
-  // • mousedown locks in the action (hotelId or null) for the whole drag session
-  // • mouseenter applies that locked action; skips cells already painted this session
-  // • drag stops only on window mouseup — NOT on table mouseleave
+  // Resolve a selection value into the value passed to setNight
+  function selectionToValue(sel) {
+    if (sel === 'clear') return null
+    if (sel === 'TBC')   return 'TBC'
+    return hotelsRef.current[sel]?.id ?? null
+  }
 
-  function onCellMouseDown(crewId, crewType, date) {
+  function onCellMouseDown(stayId, date) {
     isDraggingRef.current = true
     paintedInDrag.current = new Set()
 
-    const idx     = selectedIdxRef.current
-    const hotelId = idx === -1 ? null : (hotelsRef.current[idx]?.id ?? null)
-    const key     = `${crewId}|${crewType}|${date}`
+    const sel   = selectionRef.current
+    const value = selectionToValue(sel)
+    const key   = `${stayId}|${date}`
 
-    // Toggle off if same hotel already painted; otherwise apply
-    const alreadyThis = assignMapRef.current[key] === hotelId && hotelId !== null
-    dragActionRef.current = alreadyThis ? null : hotelId
+    // Toggle off if the same value is already painted
+    const existing = nightMapRef.current[key]
+    let same = false
+    if (value === null)      same = false
+    else if (value === 'TBC') same = existing && existing.tbc
+    else                      same = existing && existing.hotelId === value
 
+    dragActionRef.current = same ? null : value
     paintedInDrag.current.add(key)
-    setAssignment(crewId, crewType, date, dragActionRef.current)
+    setNight(stayId, date, dragActionRef.current)
   }
 
-  function onCellMouseEnter(crewId, crewType, date) {
+  function onCellMouseEnter(stayId, date) {
     if (!isDraggingRef.current) return
-    const key = `${crewId}|${crewType}|${date}`
+    const key = `${stayId}|${date}`
     if (paintedInDrag.current.has(key)) return
     paintedInDrag.current.add(key)
-    setAssignment(crewId, crewType, date, dragActionRef.current)
+    setNight(stayId, date, dragActionRef.current)
   }
 
   function togglePhase(phaseId) {
     setCollapsedPhases(prev => {
       const next = { ...prev, [phaseId]: !prev[phaseId] }
-      localStorage.setItem('fm_ch_phases', JSON.stringify(next))
+      localStorage.setItem('fm_accom_phases', JSON.stringify(next))
       return next
     })
   }
 
   function handleCollapsePast() {
     setCollapsePast(v => {
-      localStorage.setItem('fm_ch_past', String(!v))
+      localStorage.setItem('fm_accom_past', String(!v))
       return !v
     })
   }
@@ -312,36 +312,9 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
     )
   }
 
-  if (hotels.length === 0) {
-    return (
-      <div className="ftc-empty">
-        <div className="ftc-empty-icon">🏨</div>
-        <div className="ftc-empty-title">No hotels yet</div>
-        <div className="ftc-empty-sub">Add hotels in the Hotel List tab first.</div>
-      </div>
-    )
-  }
+  if (loading || ftLoading || peopleLoading) return <div className="ftc-state">Loading…</div>
 
-  if (loading) return <div className="ftc-state">Loading…</div>
-
-  const hasFulltime   = ftMembers.length > 0
-  const hasAdditional = resources.filter(r => r.type === 'crew').length > 0
-  const hasCast       = castMembers.length > 0
-
-  if (!hasFulltime && !hasAdditional && !hasCast) {
-    return (
-      <div className="ftc-empty">
-        <div className="ftc-empty-icon">👥</div>
-        <div className="ftc-empty-title">No crew or cast yet</div>
-        <div className="ftc-empty-sub">Add crew in Fulltime Crew or the Crew Gantt, and cast in the Schedule.</div>
-      </div>
-    )
-  }
-
-  const selectedHotel = selectedIdx === -1 ? null : hotels[selectedIdx]
-  const colCount      = colSpecs.length
-
-  // ── Render ─────────────────────────────────────────────────────────────────────
+  const colCount = colSpecs.length
 
   return (
     <div className="ch-wrap">
@@ -351,29 +324,41 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
 
         {/* Eraser */}
         <button
-          className={`ch-palette-btn ch-palette-btn--clear${selectedIdx === -1 ? ' is-active' : ''}`}
-          title="Clear hotel (` key)"
-          onClick={() => setSelectedIdx(-1)}
+          className={`ch-palette-btn ch-palette-btn--clear${selection === 'clear' ? ' is-active' : ''}`}
+          title="Clear night (` key)"
+          onClick={() => setSelection('clear')}
         >
           <span className="ch-palette-icon">○</span>
           <span className="ch-palette-label">Clear</span>
           <span className="ch-palette-key">`</span>
         </button>
 
+        {/* TBC */}
+        <button
+          className={`ch-palette-btn accom-palette-tbc${selection === 'TBC' ? ' is-active' : ''}`}
+          title="Mark unbooked night (T key)"
+          onClick={() => setSelection('TBC')}
+        >
+          <span className="ch-palette-swatch accom-tbc-swatch" />
+          <span className="ch-palette-label">TBC</span>
+          <span className="ch-palette-key">T</span>
+        </button>
+
         {/* Hotels */}
         {hotels.map((hotel, i) => {
           const color    = hotelColor(i)
-          const KEYS     = ['1','2','3','4','5','6','7','8','9','0','-','=']
-          const keyLabel = KEYS[i] ?? null
+          const keyLabel = HOTEL_KEYS[i] ?? null
           return (
             <button
               key={hotel.id}
-              className={`ch-palette-btn${selectedIdx === i ? ' is-active' : ''}`}
+              className={`ch-palette-btn${selection === i ? ' is-active' : ''}`}
               style={{ '--hotel-color': color }}
-              onClick={() => setSelectedIdx(i)}
+              onClick={() => setSelection(i)}
             >
               <span className="ch-palette-swatch" style={{ background: color }} />
-              <span className="ch-palette-label">{hotel.name || `Hotel ${i + 1}`}</span>
+              <span className="ch-palette-label">
+                {hotel.code ? `${hotel.code} · ` : ''}{hotel.name || `Hotel ${i + 1}`}
+              </span>
               {keyLabel && <span className="ch-palette-key">{keyLabel}</span>}
             </button>
           )
@@ -381,7 +366,6 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
 
         <div className="ch-palette-sep" />
 
-        {/* Collapse-past toggle */}
         <button
           className={`ch-ctrl-btn${collapsePast ? ' is-active' : ''}`}
           onClick={handleCollapsePast}
@@ -391,20 +375,19 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
         </button>
 
         <div className="ch-palette-hint">
-          {selectedIdx === -1
-            ? 'Click or drag to clear'
-            : `Painting: ${selectedHotel?.name || `Hotel ${selectedIdx + 1}`}`}
+          {hotels.length === 0
+            ? 'Add hotels in the Hotel List to paint real bookings'
+            : selection === 'clear' ? 'Click or drag to clear'
+            : selection === 'TBC'   ? 'Painting: TBC (unbooked)'
+            : `Painting: ${hotels[selection]?.name || `Hotel ${selection + 1}`}`}
         </div>
       </div>
 
       {/* ── Gantt table ──────────────────────────────────────────────────────── */}
       <div className="ch-gantt-outer" ref={scrollRef} onScroll={onGanttScroll}>
-        <table
-          className="ch-gantt"
-          draggable="false"
-        >
+        <table className="ch-gantt accom-gantt" draggable="false">
           <colgroup>
-            <col className="ch-col-name" />
+            <col className="accom-col-info" />
             {colSpecs.map((spec, i) => (
               <col
                 key={spec.type === 'day' ? spec.date + i : `${spec.phaseId}-col-${i}`}
@@ -416,7 +399,14 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
           <thead>
             {/* Row 1: Phase group headers */}
             <tr className="ch-phase-row">
-              <th className="ch-th-name ch-th-corner" />
+              <th className="accom-th-info ch-th-corner">
+                <div className="accom-info-head">
+                  <span>TMO #</span><span>Job Title</span><span>Name</span>
+                  <span>Room / Conf.</span><span>£/Night</span>
+                  <span>In</span><span>Out</span><span>Nts</span><span>Total</span>
+                  <span>Cost Code</span><span>PO #</span><span>Note</span><span></span>
+                </div>
+              </th>
               {phaseSpans.map(span => (
                 <th
                   key={span.phaseId}
@@ -438,7 +428,7 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
 
             {/* Row 2: Individual date headers */}
             <tr className="ch-header-row">
-              <th className="ch-th-name" />
+              <th className="accom-th-info" />
               {colSpecs.map((spec, i) => {
                 if (spec.type === 'collapsed') {
                   return (
@@ -471,87 +461,52 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
           </thead>
 
           <tbody>
-
-            {/* ── Fulltime crew ── */}
-            {hasFulltime && (
-              <>
-                <tr className="ch-section-row">
-                  <td colSpan={colCount + 1}><span className="ch-section-label">Fulltime Crew</span></td>
-                </tr>
-                {Object.entries(ftByDept)
-                  .sort(([a], [b]) => a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b))
-                  .map(([dept, members]) =>
-                    members.map((m, mi) => (
-                      <CrewRow
-                        key={m.id}
-                        name={m.name} role={m.role}
-                        dept={mi === 0 ? dept : null}
-                        crewId={m.id} crewType="fulltime"
-                        colSpecs={colSpecs}
-                        validDates={null}
-                        assignMap={assignMap} hotels={hotels}
-                        onMouseDown={onCellMouseDown}
-                        onMouseEnter={onCellMouseEnter}
-                      />
-                    ))
-                  )
-                }
-              </>
+            {stays.length === 0 && (
+              <tr>
+                <td colSpan={colCount + 1} className="accom-empty-cell">
+                  <div className="accom-empty">
+                    No stays yet. Add a stay to start logging accommodation.
+                  </div>
+                </td>
+              </tr>
             )}
 
-            {/* ── Additional crew ── */}
-            {hasAdditional && (
-              <>
-                <tr className="ch-section-row">
-                  <td colSpan={colCount + 1}><span className="ch-section-label">Additional Crew</span></td>
-                </tr>
-                {Object.entries(addByDept)
-                  .sort(([a], [b]) => a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b))
-                  .map(([dept, deptResources]) =>
-                    deptResources.map((r, ri) => (
-                      <CrewRow
-                        key={r.id}
-                        name={r.name} role={r.role}
-                        dept={ri === 0 ? dept : null}
-                        crewId={r.id} crewType="additional"
-                        colSpecs={colSpecs}
-                        validDates={additionalValidDates[r.id] ?? new Set()}
-                        assignMap={assignMap} hotels={hotels}
-                        onMouseDown={onCellMouseDown}
-                        onMouseEnter={onCellMouseEnter}
-                      />
-                    ))
-                  )
-                }
-              </>
-            )}
+            {staysByDept.map(([dept, deptStays]) => (
+              <DepartmentGroup
+                key={dept}
+                dept={dept}
+                deptStays={deptStays}
+                colSpecs={colSpecs}
+                colCount={colCount}
+                hotels={hotels}
+                nightsByStay={nightsByStay}
+                nightMap={nightMap}
+                ftMembers={ftMembers}
+                castMembers={castMembers}
+                people={people}
+                onAddStay={addStay}
+                onUpdateStay={updateStay}
+                onDeleteStay={deleteStay}
+                onCreatePerson={findOrCreatePerson}
+                onCellMouseDown={onCellMouseDown}
+                onCellMouseEnter={onCellMouseEnter}
+              />
+            ))}
 
-            {/* ── Cast ── */}
-            {hasCast && (
-              <>
-                <tr className="ch-section-row">
-                  <td colSpan={colCount + 1}><span className="ch-section-label">Cast</span></td>
-                </tr>
-                {[...castMembers]
-                  .sort((a, b) => (a.castNumber ?? 9999) - (b.castNumber ?? 9999))
-                  .map(c => (
-                    <CrewRow
-                      key={c.id}
-                      name={c.name} role={c.role}
-                      dept={null}
-                      castNum={c.castNumber}
-                      crewId={c.id} crewType="cast"
-                      colSpecs={colSpecs}
-                      validDates={castValidDates[c.id] ?? new Set()}
-                      assignMap={assignMap} hotels={hotels}
-                      onMouseDown={onCellMouseDown}
-                      onMouseEnter={onCellMouseEnter}
-                    />
-                  ))
-                }
-              </>
-            )}
-
+            {/* Global add-stay row */}
+            <tr className="accom-add-row">
+              <td colSpan={colCount + 1}>
+                <AddStayInline
+                  department=""
+                  ftMembers={ftMembers}
+                  castMembers={castMembers}
+                  people={people}
+                  onAddStay={addStay}
+                  onCreatePerson={findOrCreatePerson}
+                  label="+ Add stay"
+                />
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -559,38 +514,129 @@ export default function CastCrewHotels({ production, shootDays = [], castMembers
   )
 }
 
-// ─── CrewRow ───────────────────────────────────────────────────────────────────
+// ─── Department group (header + its stay rows + dept add button) ────────────────
 
-function CrewRow({
-  name, role, dept, castNum, crewId, crewType,
-  colSpecs, validDates, assignMap, hotels, onMouseDown, onMouseEnter,
+function DepartmentGroup({
+  dept, deptStays, colSpecs, colCount, hotels,
+  nightsByStay, nightMap, ftMembers, castMembers, people,
+  onAddStay, onUpdateStay, onDeleteStay, onCreatePerson,
+  onCellMouseDown, onCellMouseEnter,
 }) {
   return (
-    <tr className="ch-crew-row">
-      <td className="ch-td-name">
-        {dept && <div className="ch-dept-label">{dept}</div>}
-        <div className="ch-name-row">
-          {castNum != null && <span className="ch-cast-num">#{castNum}</span>}
-          <span className="ch-crew-name">{name || '—'}</span>
+    <>
+      <tr className="ch-section-row">
+        <td colSpan={colCount + 1}><span className="ch-section-label">{dept}</span></td>
+      </tr>
+      {deptStays.map(stay => (
+        <StayRow
+          key={stay.id}
+          stay={stay}
+          colSpecs={colSpecs}
+          hotels={hotels}
+          stayNights={nightsByStay[stay.id] ?? []}
+          nightMap={nightMap}
+          onUpdate={onUpdateStay}
+          onDelete={onDeleteStay}
+          onCellMouseDown={onCellMouseDown}
+          onCellMouseEnter={onCellMouseEnter}
+        />
+      ))}
+      <tr className="accom-add-row accom-add-row--dept">
+        <td colSpan={colCount + 1}>
+          <AddStayInline
+            department={dept === 'Unassigned' ? '' : dept}
+            ftMembers={ftMembers}
+            castMembers={castMembers}
+            people={people}
+            onAddStay={onAddStay}
+            onCreatePerson={onCreatePerson}
+            label={`+ Add to ${dept}`}
+          />
+        </td>
+      </tr>
+    </>
+  )
+}
+
+// ─── Stay row — frozen info columns + gantt cells ───────────────────────────────
+
+function StayRow({
+  stay, colSpecs, hotels, stayNights, nightMap,
+  onUpdate, onDelete, onCellMouseDown, onCellMouseEnter,
+}) {
+  // Local state for editable fields (commit on blur to avoid focus loss)
+  const [lName,     setLName]     = useState(stay.name)
+  const [lJob,      setLJob]      = useState(stay.jobTitle)
+  const [lRoom,     setLRoom]     = useState(stay.roomType)
+  const [lCost,     setLCost]     = useState(stay.costPerNight ?? '')
+  const [lCostCode, setLCostCode] = useState(stay.costCode)
+  const [lPo,       setLPo]       = useState(stay.poNumber)
+  const [lTmo,      setLTmo]      = useState(stay.tmoNumber)
+  const [lNote,     setLNote]     = useState(stay.note)
+
+  useEffect(() => setLName(stay.name),               [stay.name])
+  useEffect(() => setLJob(stay.jobTitle),            [stay.jobTitle])
+  useEffect(() => setLRoom(stay.roomType),           [stay.roomType])
+  useEffect(() => setLCost(stay.costPerNight ?? ''), [stay.costPerNight])
+  useEffect(() => setLCostCode(stay.costCode),       [stay.costCode])
+  useEffect(() => setLPo(stay.poNumber),             [stay.poNumber])
+  useEffect(() => setLTmo(stay.tmoNumber),           [stay.tmoNumber])
+  useEffect(() => setLNote(stay.note),               [stay.note])
+
+  const derived = useMemo(() => deriveStay(stay, stayNights), [stay, stayNights])
+
+  function commit(field, local, original) {
+    if (local !== original) onUpdate(stay.id, field, local)
+  }
+  function commitCost() {
+    const v = lCost === '' ? null : Number(lCost)
+    if (v !== stay.costPerNight) onUpdate(stay.id, 'costPerNight', v)
+  }
+
+  return (
+    <tr className="ch-crew-row accom-stay-row">
+      <td className="accom-td-info">
+        <div className="accom-info-grid">
+          <input className="accom-inp accom-inp--tmo" value={lTmo} placeholder="TMO#"
+            onChange={e => setLTmo(e.target.value)} onBlur={() => commit('tmoNumber', lTmo, stay.tmoNumber)} />
+          <input className="accom-inp accom-inp--job" value={lJob} placeholder="Job title"
+            onChange={e => setLJob(e.target.value)} onBlur={() => commit('jobTitle', lJob, stay.jobTitle)} />
+          <input className="accom-inp accom-inp--name" value={lName} placeholder="Name"
+            onChange={e => setLName(e.target.value)} onBlur={() => commit('name', lName, stay.name)} />
+          <input className="accom-inp accom-inp--room" value={lRoom} placeholder="Room / conf."
+            onChange={e => setLRoom(e.target.value)} onBlur={() => commit('roomType', lRoom, stay.roomType)} />
+          <input className="accom-inp accom-inp--cost" type="number" min="0" step="0.01" value={lCost} placeholder="0"
+            onChange={e => setLCost(e.target.value)} onBlur={commitCost} />
+          <span className="accom-derived" title="Check in">{fmtShort(derived.checkIn) || '—'}</span>
+          <span className="accom-derived" title="Check out">{fmtShort(derived.checkOut) || '—'}</span>
+          <span className="accom-derived accom-derived--num" title="Total nights">{derived.totalNights}</span>
+          <span className="accom-derived accom-derived--num" title="Total cost">
+            {derived.totalCost ? derived.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}
+          </span>
+          <input className="accom-inp accom-inp--code" value={lCostCode} placeholder="Code"
+            onChange={e => setLCostCode(e.target.value)} onBlur={() => commit('costCode', lCostCode, stay.costCode)} />
+          <input className="accom-inp accom-inp--po" value={lPo} placeholder="PO#"
+            onChange={e => setLPo(e.target.value)} onBlur={() => commit('poNumber', lPo, stay.poNumber)} />
+          <input className="accom-inp accom-inp--note" value={lNote} placeholder="Note"
+            onChange={e => setLNote(e.target.value)} onBlur={() => commit('note', lNote, stay.note)} />
+          <button className="accom-del-btn" title="Delete stay"
+            onClick={() => { if (window.confirm(`Delete stay for "${stay.name || 'this person'}"?`)) onDelete(stay.id) }}>✕</button>
         </div>
-        {role && <div className="ch-crew-role">{role}</div>}
       </td>
 
       {colSpecs.map((spec, i) => {
-        // Collapsed phase column — non-interactive dim stripe
         if (spec.type === 'collapsed') {
           return (
-            <td
-              key={`${spec.phaseId}-cell-${i}`}
+            <td key={`${spec.phaseId}-cell-${i}`}
               className="ch-td-cell ch-td-phase-collapsed"
-              style={{ '--phase-color': spec.color }}
-            />
+              style={{ '--phase-color': spec.color }} />
           )
         }
 
         const { date, isWeekend, isMonday, isToday } = spec
-        const isValid  = validDates === null || validDates.has(date)
-        const hotelId  = assignMap[`${crewId}|${crewType}|${date}`]
+        const night    = nightMap[`${stay.id}|${date}`]
+        const isTbc    = night?.tbc
+        const hotelId  = night?.hotelId
         const hotel    = hotelId ? hotels.find(h => h.id === hotelId) : null
         const hotelIdx = hotel ? hotels.indexOf(hotel) : -1
         const color    = hotel ? hotelColor(hotelIdx) : null
@@ -599,25 +645,132 @@ function CrewRow({
           <td
             key={date + i}
             className={[
-              'ch-td-cell',
-              isValid   ? 'ch-td-cell--valid'   : 'ch-td-cell--disabled',
-              hotel     ? 'ch-td-cell--filled'  : '',
+              'ch-td-cell', 'ch-td-cell--valid',
+              hotel   ? 'ch-td-cell--filled' : '',
+              isTbc   ? 'accom-cell--tbc'    : '',
               isWeekend ? 'ch-td-cell--weekend' : '',
               isToday   ? 'ch-td-cell--today'   : '',
               isMonday  ? 'ch-td-cell--monday'  : '',
             ].filter(Boolean).join(' ')}
             style={color ? { background: color + '33', borderColor: color } : {}}
-            onMouseDown={isValid ? e => { e.preventDefault(); onMouseDown(crewId, crewType, date) } : undefined}
-            onMouseEnter={isValid ? () => onMouseEnter(crewId, crewType, date) : undefined}
+            onMouseDown={e => { e.preventDefault(); onCellMouseDown(stay.id, date) }}
+            onMouseEnter={() => onCellMouseEnter(stay.id, date)}
           >
             {hotel && (
               <div className="ch-cell-label" style={{ color }}>
-                {hotel.name ? hotel.name.slice(0, 4) : `H${hotelIdx + 1}`}
+                {hotel.code || (hotel.name ? hotel.name.slice(0, 3).toUpperCase() : `H${hotelIdx + 1}`)}
               </div>
             )}
+            {isTbc && <div className="ch-cell-label accom-cell-label--tbc">TBC</div>}
           </td>
         )
       })}
     </tr>
+  )
+}
+
+// ─── Inline add-stay row with searchable person dropdown ────────────────────────
+
+function AddStayInline({
+  department, ftMembers, castMembers, people,
+  onAddStay, onCreatePerson, label,
+}) {
+  const [open, setOpen]   = useState(false)
+  const [query, setQuery] = useState('')
+
+  // Build combined searchable options
+  const options = useMemo(() => {
+    const opts = []
+    for (const c of castMembers) {
+      opts.push({
+        key: `cast-${c.id}`, source: 'cast', personId: c.id, personType: 'cast',
+        name: c.name || '', jobTitle: c.role || '', department: '',
+      })
+    }
+    for (const p of people) {
+      // crew dept/role best-effort from fulltime list
+      const ft = ftMembers.find(m => m.name && p.name && m.name.toLowerCase() === p.name.toLowerCase())
+      opts.push({
+        key: `crew-${p.id}`, source: 'crew', personId: p.id, personType: 'crew',
+        name: p.name || '', jobTitle: ft?.role || '', department: ft?.department || '',
+      })
+    }
+    return opts
+  }, [castMembers, people, ftMembers])
+
+  const filtered = query.trim()
+    ? options.filter(o => o.name.toLowerCase().includes(query.toLowerCase()))
+    : options
+  const exactMatch = options.some(o => o.name.toLowerCase() === query.trim().toLowerCase())
+
+  function reset() { setQuery(''); setOpen(false) }
+
+  async function pick(opt) {
+    await onAddStay({
+      personId:   opt.personId,
+      personType: opt.personType,
+      name:       opt.name,
+      jobTitle:   opt.jobTitle,
+      department: department || opt.department || '',
+    })
+    reset()
+  }
+
+  async function createNew() {
+    const name = query.trim()
+    if (!name) return
+    const personId = await onCreatePerson({ name })
+    await onAddStay({
+      personId, personType: 'crew',
+      name, jobTitle: '', department: department || '',
+    })
+    reset()
+  }
+
+  if (!open) {
+    return (
+      <button className="accom-addstay-trigger" onClick={() => setOpen(true)}>{label}</button>
+    )
+  }
+
+  return (
+    <div className="accom-addstay">
+      <div className="accom-addstay-search">
+        <input
+          className="accom-inp accom-addstay-input"
+          value={query}
+          autoFocus
+          placeholder="Search cast or crew, or type a new name…"
+          onChange={e => setQuery(e.target.value)}
+          onBlur={() => setTimeout(reset, 150)}
+        />
+        <div className="cast-dropdown accom-person-dropdown">
+          {filtered.slice(0, 12).map(opt => (
+            <div
+              key={opt.key}
+              className="cast-dropdown-item accom-person-item"
+              onMouseDown={e => { e.preventDefault(); pick(opt) }}
+            >
+              <span className={`accom-person-tag accom-person-tag--${opt.source}`}>
+                {opt.source === 'cast' ? 'Cast' : 'Crew'}
+              </span>
+              <span className="cast-dropdown-name">{opt.name || '(unnamed)'}</span>
+              {opt.jobTitle && <span className="cast-dropdown-role">{opt.jobTitle}</span>}
+            </div>
+          ))}
+          {query.trim() && !exactMatch && (
+            <div
+              className="cast-dropdown-item accom-person-item accom-person-create"
+              onMouseDown={e => { e.preventDefault(); createNew() }}
+            >
+              + Add &ldquo;{query.trim()}&rdquo; to crew database
+            </div>
+          )}
+          {filtered.length === 0 && !query.trim() && (
+            <div className="cast-dropdown-empty">No cast or crew yet — type a name to add one.</div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }

@@ -83,14 +83,14 @@ const FM_MODULE_SUB = {
 
 const ACCOMM_NAV = [
   { id: 'accomm-hotels',  num: '01', label: 'Hotel List'          },
-  { id: 'accomm-crew',    num: '02', label: 'Cast & Crew Hotels'  },
+  { id: 'accomm-crew',    num: '02', label: 'Accommodation Log'    },
   { id: 'accomm-tmo',     num: '03', label: 'Weekly TMO'          },
   { id: 'accomm-travel',  num: '04', label: 'Travel Times'        },
 ]
 
 const ACCOMM_MODULE_SUB = {
   'accomm-hotels': 'Hotel list',
-  'accomm-crew':   'Cast & crew hotel gantt',
+  'accomm-crew':   'Accommodation log — stays & nights',
   'accomm-tmo':    'Weekly TMO',
   'accomm-travel': 'Hotel → location travel times',
 }

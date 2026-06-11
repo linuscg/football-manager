@@ -10044,3 +10044,180 @@ select.pm-input { cursor: pointer; }
   margin-left: 12px;
   white-space: nowrap;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Accommodation Log (accom_stays / accom_nights) — Phase 1
+   Reuses .ch-* gantt/palette styles; adds a wide frozen info section.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* TBC palette swatch (neutral grey, hatched) */
+.accom-tbc-swatch {
+  background:
+    repeating-linear-gradient(45deg, #9ca3af, #9ca3af 2px, #e5e7eb 2px, #e5e7eb 4px);
+}
+
+/* ── Frozen info column ────────────────────────────────────────────────────── */
+.accom-col-info { width: 760px; }
+
+.accom-th-info,
+.accom-td-info {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: #fff;
+  border-right: 2px solid #d1d5db;
+  padding: 0;
+  vertical-align: middle;
+  text-align: left;
+  width: 760px;
+  min-width: 760px;
+  max-width: 760px;
+}
+.ch-crew-row:hover .accom-td-info { background: #fafafa; }
+
+/* 13-column grid: TMO, Job, Name, Room, £/N, In, Out, Nts, Total, Code, PO, Note, ✕ */
+.accom-info-grid,
+.accom-info-head {
+  display: grid;
+  grid-template-columns:
+    56px 96px 110px 96px 54px 52px 52px 34px 56px 60px 56px 1fr 24px;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  width: 100%;
+}
+
+.accom-info-head {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #9ca3af;
+  padding: 6px 4px;
+}
+.accom-info-head > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.accom-inp {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 3px 5px;
+  font-size: 11px;
+  font-family: inherit;
+  color: #111827;
+  background: transparent;
+  box-sizing: border-box;
+}
+.accom-inp::placeholder { color: #cbd0d6; }
+.accom-inp:hover  { border-color: #e5e7eb; }
+.accom-inp:focus  { border-color: #2563eb; background: #fff; outline: none; }
+.accom-inp--name  { font-weight: 600; }
+.accom-inp--cost  { text-align: right; }
+.accom-inp--note  { font-style: italic; }
+
+.accom-derived {
+  font-size: 10.5px;
+  color: #6b7280;
+  text-align: center;
+  padding: 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.accom-derived--num { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.accom-del-btn {
+  border: none;
+  background: transparent;
+  color: #cbd0d6;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px;
+  border-radius: 4px;
+}
+.accom-del-btn:hover { color: #ef4444; background: #fef2f2; }
+
+/* ── TBC cell ──────────────────────────────────────────────────────────────── */
+.accom-cell--tbc {
+  background:
+    repeating-linear-gradient(45deg, rgba(156,163,175,0.35), rgba(156,163,175,0.35) 3px, transparent 3px, transparent 6px) !important;
+  border-color: #9ca3af !important;
+}
+.accom-cell-label--tbc {
+  color: #6b7280 !important;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+/* ── Add-stay row ──────────────────────────────────────────────────────────── */
+.accom-add-row td { background: transparent; padding: 0; }
+.accom-add-row--dept td { padding-bottom: 4px; }
+
+.accom-addstay-trigger {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  margin: 4px 8px;
+  padding: 4px 12px;
+  border: 1px dashed #cbd0d6;
+  border-radius: 6px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  z-index: 4;
+}
+.accom-addstay-trigger:hover { border-color: #2563eb; color: #2563eb; }
+
+.accom-addstay {
+  position: sticky;
+  left: 0;
+  width: 760px;
+  padding: 6px 8px;
+  z-index: 6;
+}
+.accom-addstay-search { position: relative; }
+.accom-addstay-input {
+  width: 360px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: #fff;
+}
+
+/* ── Person search dropdown (reuses .cast-dropdown look) ────────────────────── */
+.accom-person-dropdown { min-width: 360px; }
+.accom-person-item { gap: 8px; }
+.accom-person-tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.accom-person-tag--cast { background: #ede9fe; color: #7c3aed; }
+.accom-person-tag--crew { background: #dbeafe; color: #2563eb; }
+.accom-person-create {
+  color: #2563eb;
+  font-weight: 600;
+  border-top: 1px solid #f0f0f0;
+}
+.accom-person-create:hover { background: #eff6ff; }
+
+/* ── Empty state ───────────────────────────────────────────────────────────── */
+.accom-empty-cell { padding: 0; }
+.accom-empty {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  padding: 16px;
+  color: #9ca3af;
+  font-size: 13px;
+  font-style: italic;
+}
