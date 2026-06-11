@@ -10221,3 +10221,185 @@ select.pm-input { cursor: pointer; }
   font-size: 13px;
   font-style: italic;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   HOTEL LIST — Phase 2 (sections, stats, PO chips, extra fields)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.hotel-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 14px 0 2px;
+}
+.hotel-section-header:first-child {
+  margin-top: 0;
+}
+
+.hotel-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.hotel-section-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.hotel-section-note {
+  font-size: 11px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Code badge next to hotel name */
+.hotel-code-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* ── Stats strip ── */
+.hotel-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 8px 12px;
+  border-top: 1px solid #f3f4f6;
+  background: #fcfcfd;
+}
+
+.hotel-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.hotel-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hotel-stat-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  font-variant-numeric: tabular-nums;
+}
+
+.hotel-stat-value--negative {
+  color: #dc2626;
+}
+
+.hotel-stats-toggle {
+  margin-left: auto;
+  border: none;
+  background: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6366f1;
+  padding: 2px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.hotel-stats-toggle:hover {
+  background: #eef2ff;
+}
+
+/* ── PO numbers chip row ── */
+.hotel-po-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px 8px;
+  background: #fcfcfd;
+}
+
+.hotel-po-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hotel-po-chip {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4338ca;
+  background: #eef2ff;
+  border: 1px solid #e0e7ff;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Per-night usage mini-table ── */
+.hotel-nights-table {
+  padding: 4px 12px 10px;
+  background: #fcfcfd;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 2px 16px;
+}
+
+.hotel-nights-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  padding: 2px 0;
+  border-bottom: 1px dashed #f3f4f6;
+}
+
+.hotel-nights-date {
+  color: #6b7280;
+}
+
+.hotel-nights-count {
+  font-weight: 600;
+  color: #374151;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── New detail inputs (code / times / rooms) ── */
+.hotel-details-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .hotel-details-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.hotel-detail-input--code {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.hotel-detail-input--time,
+.hotel-detail-input--rooms {
+  font-variant-numeric: tabular-nums;
+}
