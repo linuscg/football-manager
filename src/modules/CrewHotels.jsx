@@ -541,19 +541,6 @@ function DepartmentGroup({
           onCellMouseEnter={onCellMouseEnter}
         />
       ))}
-      <tr className="accom-add-row accom-add-row--dept">
-        <td colSpan={colCount + 1}>
-          <AddStayInline
-            department={dept === 'Unassigned' ? '' : dept}
-            ftMembers={ftMembers}
-            castMembers={castMembers}
-            people={people}
-            onAddStay={onAddStay}
-            onCreatePerson={onCreatePerson}
-            label={`+ Add to ${dept}`}
-          />
-        </td>
-      </tr>
     </>
   )
 }
@@ -678,21 +665,43 @@ function AddStayInline({
   const [open, setOpen]   = useState(false)
   const [query, setQuery] = useState('')
 
-  // Build combined searchable options
+  // Build combined searchable options: cast + fulltime crew/HODs + crew database
   const options = useMemo(() => {
     const opts = []
+    const seenNames = new Set()
+
     for (const c of castMembers) {
       opts.push({
         key: `cast-${c.id}`, source: 'cast', personId: c.id, personType: 'cast',
-        name: c.name || '', jobTitle: c.role || '', department: '',
+        name: c.name || '', jobTitle: c.role || '', department: 'CAST',
       })
     }
+
+    // Fulltime crew + HODs — the production's actual crew list, with departments.
+    for (const m of ftMembers) {
+      if (!m.name?.trim()) continue
+      const nameKey = m.name.trim().toLowerCase()
+      if (seenNames.has(nameKey)) continue
+      seenNames.add(nameKey)
+      // Link to the crew database record when one exists with the same name.
+      const person = people.find(p => p.name && p.name.trim().toLowerCase() === nameKey)
+      opts.push({
+        key: `ft-${m.id}`, source: 'crew',
+        personId: person?.id ?? null, personType: 'crew',
+        name: m.name, jobTitle: m.role || '', department: m.department || '',
+        _newName: person ? null : m.name,   // create a crew_people record on pick if missing
+      })
+    }
+
+    // Remaining crew-database people not already covered by the fulltime list.
     for (const p of people) {
-      // crew dept/role best-effort from fulltime list
-      const ft = ftMembers.find(m => m.name && p.name && m.name.toLowerCase() === p.name.toLowerCase())
+      if (!p.name?.trim()) continue
+      const nameKey = p.name.trim().toLowerCase()
+      if (seenNames.has(nameKey)) continue
+      seenNames.add(nameKey)
       opts.push({
         key: `crew-${p.id}`, source: 'crew', personId: p.id, personType: 'crew',
-        name: p.name || '', jobTitle: ft?.role || '', department: ft?.department || '',
+        name: p.name, jobTitle: '', department: '',
       })
     }
     return opts
@@ -706,12 +715,18 @@ function AddStayInline({
   function reset() { setQuery(''); setOpen(false) }
 
   async function pick(opt) {
+    // Fulltime crew not yet in the crew database → create the record so the
+    // stay links back to a real person.
+    let personId = opt.personId
+    if (!personId && opt._newName) {
+      personId = await onCreatePerson({ name: opt._newName })
+    }
     await onAddStay({
-      personId:   opt.personId,
+      personId,
       personType: opt.personType,
       name:       opt.name,
       jobTitle:   opt.jobTitle,
-      department: department || opt.department || '',
+      department: opt.department || department || '',
     })
     reset()
   }
