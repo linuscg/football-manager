@@ -10585,3 +10585,11 @@ select.pm-input { cursor: pointer; }
   font-style: italic;
   margin-left: auto;
 }
+
+/* ── Crew tracker Excel import modal (reuses .sched-import-*) ─────────────── */
+.crew-xlsx-row { cursor: pointer; }
+.crew-xlsx-row input[type="checkbox"] { margin: 0; accent-color: #6366f1; }
+.crew-xlsx-field { font-weight: 600; color: #334155; }
+.crew-xlsx-from { color: #94a3b8; text-decoration: line-through; }
+.crew-xlsx-arrow { color: #b45309; }
+.crew-xlsx-to { color: #b45309; font-weight: 600; }

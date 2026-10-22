@@ -2,6 +2,10 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import { useCrewStore } from '../store/useCrewStore'
 import { useCrewPeopleStore } from '../store/useCrewPeopleStore'
 import { getRateCalc, deriveRates } from '../lib/rateCalc'
+import { parseCrewXlsx, buildCrewImportDiff } from '../lib/crewXlsxImport'
+import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
+import { supabase } from '../lib/supabase'
+import CrewXlsxImportModal from './CrewXlsxImportModal'
 
 // ─── Phase definitions ────────────────────────────────────────────────────────
 
@@ -944,6 +948,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
   const importFileRef = useRef(null)
   const [importMsg, setImportMsg] = useState(null)  // null | { count, type }
+  const [xlsxDiff, setXlsxDiff]   = useState(null)  // null | { newPeople, changed, unchangedCount }
 
   const today = todayStr()
 
@@ -1232,6 +1237,32 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     if (!file) return
     e.target.value = ''
 
+    // Crew tracker Excel template → parse, diff against existing crew, and
+    // open the approval modal instead of the straight CSV import.
+    if (/\.xlsx$/i.test(file.name)) {
+      if (effTab !== 'crew') {
+        alert('Excel import is only available on the Crew Tracker.')
+        return
+      }
+      try {
+        const people = await parseCrewXlsx(file)
+        if (!people.length) {
+          alert('No crew rows found in this Excel file.')
+          return
+        }
+        const crew = resources.filter(r => r.type === 'crew')
+        setXlsxDiff(buildCrewImportDiff(people, crew))
+      } catch (err) {
+        if (err?.code === 'TEMPLATE_MISMATCH') {
+          alert("This Excel doesn't match the crew tracker template.")
+        } else {
+          console.error('[crew xlsx import]', err)
+          alert(`Could not read Excel file: ${err?.message ?? err}`)
+        }
+      }
+      return
+    }
+
     const text = await file.text()
     const rows  = parseCSV(text)
     if (rows.length < 2) return   // header only
@@ -1268,12 +1299,80 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
     if (!mapped.length) return
 
-    const count = await importResources(
+    const inserted = await importResources(
       effTab,
       mapped,
       effTab === 'crew' && classFilter ? { crewClass: classFilter } : {}
     )
-    setImportMsg({ count, type: effTab })
+    setImportMsg({ count: inserted.length, type: effTab })
+    setTimeout(() => setImportMsg(null), 4000)
+  }
+
+  // Apply an approved crew tracker Excel import: insert the checked NEW people
+  // (into the active sub-tab's class) and write the checked CHANGED fields.
+  async function applyXlsxImport(selectedNew, selectedChanged) {
+    setXlsxDiff(null)
+    let applied = 0
+
+    // Changed people: per-field updates. updateResource handles numeric-null
+    // columns and triggers the fulltime booking sync on hire-date changes.
+    for (const entry of selectedChanged) {
+      for (const ch of entry.changes) {
+        updateResource(entry.resource.id, ch.field, ch.to)
+      }
+      // When BOTH hire dates change in one import, the per-field syncs above
+      // each saw a half-stale range — run one final authoritative sync with
+      // the resolved final dates.
+      const dateChanges = entry.changes.filter(c => c.field === 'hireStartDate' || c.field === 'hireEndDate')
+      if (dateChanges.length && (entry.resource.crewClass ?? 'additional') === 'fulltime') {
+        const finalStart = entry.changes.find(c => c.field === 'hireStartDate')?.to ?? entry.resource.hireStartDate
+        const finalEnd   = entry.changes.find(c => c.field === 'hireEndDate')?.to   ?? entry.resource.hireEndDate
+        if (finalStart && finalEnd) {
+          await syncFulltimeBookings(supabase, entry.resource.id, finalStart, finalEnd)
+        }
+      }
+      applied++
+    }
+
+    // New people: bulk insert with the full detail field set.
+    if (selectedNew.length) {
+      const crewClass = classFilter ?? 'additional'
+      const rows = selectedNew.map(p => ({
+        name:            p.name,
+        role:            p.role,
+        department:      p.department,
+        contactEmail:    p.email,
+        contactPhone:    p.phone,
+        agent:           p.agent,
+        taxStatus:       p.taxStatus,
+        boxPw:           p.boxPw ?? '',
+        carAllowance:    p.carAllowance ?? '',
+        otRate:          p.otOverride ?? '',
+        sixthDayRate:    p.sixthOverride ?? '',
+        seventhDayRate:  p.seventhOverride ?? '',
+        dealMemoEmailed: p.dealMemoEmailed,
+        dealMemoDrafted: p.dealMemoDrafted,
+        dealMemoSent:    p.dealMemoSent,
+        costAmount:      p.weeklyRate != null ? String(p.weeklyRate) : '',
+        costType:        p.weeklyRate != null ? 'weekly' : 'daily',
+        hireStartDate:   p.startDate,
+        hireEndDate:     p.endDate,
+        level:           5,
+      }))
+      const inserted = await importResources('crew', rows, { crewClass })
+      applied += inserted.length
+
+      // Fulltime hires with both dates → auto-book their weekdays.
+      if (crewClass === 'fulltime') {
+        for (const r of inserted) {
+          if (r.hireStartDate && r.hireEndDate) {
+            await syncFulltimeBookings(supabase, r.id, r.hireStartDate, r.hireEndDate)
+          }
+        }
+      }
+    }
+
+    setImportMsg({ count: applied, type: 'crew' })
     setTimeout(() => setImportMsg(null), 4000)
   }
 
@@ -1356,13 +1455,13 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
           <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadTemplate} title="Download CSV template">
             ↓ Template
           </button>
-          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => importFileRef.current?.click()} title="Import from CSV">
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => importFileRef.current?.click()} title="Import from CSV (crew tracker Excel also accepted)">
             ↑ Import CSV
           </button>
           <input
             ref={importFileRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             style={{ display: 'none' }}
             onChange={handleImportFile}
           />
@@ -1624,6 +1723,15 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
             </tbody>
           </table>
         </div>
+      )}
+
+      {xlsxDiff && (
+        <CrewXlsxImportModal
+          diff={xlsxDiff}
+          crewClassLabel={crewClassLabel}
+          onCancel={() => setXlsxDiff(null)}
+          onApply={applyXlsxImport}
+        />
       )}
     </div>
   )

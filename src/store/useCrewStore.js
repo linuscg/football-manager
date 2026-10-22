@@ -216,46 +216,73 @@ export function useCrewStore() {
     }
   }
 
-  // ── Bulk import (CSV) ──────────────────────────────────────────────────────
+  // ── Bulk import (CSV / crew tracker Excel) ─────────────────────────────────
   // rows: array of plain objects already mapped to camelCase resource fields.
-  // Returns the number of resources actually created.
+  // Rows may optionally carry the full crew-detail field set (agent, taxStatus,
+  // boxPw, carAllowance, rate overrides, deal memo statuses, hire dates) — those
+  // columns are only written when present on the row, so existing CSV call
+  // sites are unaffected.
+  // Returns the inserted resources (mapped, with their generated ids), or []
+  // on failure.
 
   async function importResources(type, rows, options = {}) {
     const prodId    = getCurrentProductionId()
     const sortStart = resources.filter(r => r.type === type).length
     const crewClass = options.crewClass ?? 'additional'
 
-    const inserts = rows.map((row, i) => ({
-      id:            crypto.randomUUID(),
-      production_id: prodId,
-      type,
-      crew_class:    crewClass,
-      sort_order:    sortStart + i,
-      name:          row.name          || '',
-      role:          row.role          || '',
-      department:    row.department    || '',
-      category:      row.category      || '',
-      contact_email: row.contactEmail  || '',
-      contact_phone: row.contactPhone  || '',
-      is_vendor_crew: Boolean(row.isVendorCrew),
-      vendor:        row.vendor        || '',
-      po_number:     row.poNumber      || '',
-      cost_amount:   row.costAmount    || null,
-      cost_type:     row.costType      || 'daily',
-      week_type:     row.weekType      || '5day',
-      notes:         row.notes         || '',
-    }))
+    // '' / undefined → NULL for numeric columns
+    const numOrNull = v => (v === '' || v === undefined || v === null ? null : v)
+
+    const inserts = rows.map((row, i) => {
+      const rec = {
+        id:            crypto.randomUUID(),
+        production_id: prodId,
+        type,
+        crew_class:    crewClass,
+        sort_order:    sortStart + i,
+        name:          row.name          || '',
+        role:          row.role          || '',
+        department:    row.department    || '',
+        category:      row.category      || '',
+        contact_email: row.contactEmail  || '',
+        contact_phone: row.contactPhone  || '',
+        is_vendor_crew: Boolean(row.isVendorCrew),
+        vendor:        row.vendor        || '',
+        po_number:     row.poNumber      || '',
+        cost_amount:   row.costAmount    || null,
+        cost_type:     row.costType      || 'daily',
+        week_type:     row.weekType      || '5day',
+        notes:         row.notes         || '',
+      }
+      // Extended crew-detail fields — only written when the row provides them
+      if (row.agent           !== undefined) rec.agent             = row.agent || ''
+      if (row.taxStatus       !== undefined) rec.tax_status        = row.taxStatus || ''
+      if (row.boxPw           !== undefined) rec.box_pw            = numOrNull(row.boxPw)
+      if (row.carAllowance    !== undefined) rec.car_allowance     = numOrNull(row.carAllowance)
+      if (row.otRate          !== undefined) rec.ot_rate           = numOrNull(row.otRate)
+      if (row.sixthDayRate    !== undefined) rec.sixth_day_rate    = numOrNull(row.sixthDayRate)
+      if (row.seventhDayRate  !== undefined) rec.seventh_day_rate  = numOrNull(row.seventhDayRate)
+      if (row.dealMemoEmailed !== undefined) rec.deal_memo_emailed = row.dealMemoEmailed || ''
+      if (row.dealMemoDrafted !== undefined) rec.deal_memo_drafted = row.dealMemoDrafted || ''
+      if (row.dealMemoSent    !== undefined) rec.deal_memo_sent    = row.dealMemoSent || ''
+      if (row.hireStartDate   !== undefined) rec.hire_start_date   = row.hireStartDate || null
+      if (row.hireEndDate     !== undefined) rec.hire_end_date     = row.hireEndDate || null
+      if (row.level           !== undefined) rec.level             = row.level ?? 5
+      return rec
+    })
+
+    const mapped = inserts.map(r => mapResource(r))
 
     // Optimistic update
-    optR(rs => [...rs, ...inserts.map(r => mapResource({ ...r, sort_order: r.sort_order }))])
+    optR(rs => [...rs, ...mapped])
 
     const { error: err } = await supabase.from('resources').insert(inserts)
     if (err) {
       console.error('[crew store] importResources:', err)
       loadAll()
-      return 0
+      return []
     }
-    return inserts.length
+    return mapped
   }
 
   // ── Bookings ───────────────────────────────────────────────────────────────
