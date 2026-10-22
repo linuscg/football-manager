@@ -1,11 +1,97 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import {
+  PERMISSION_TABS, FEATURE_FLAGS,
+  normalizePermissions, cleanPermissions,
+} from '../lib/permissionRegistry'
 
 const ROLE_LABELS = { owner: 'Owner', admin: 'Admin', member: 'Member' }
 const ROLE_COLORS = {
   owner:  { bg: '#fef3c7', color: '#92400e' },
   admin:  { bg: '#ede9fe', color: '#5b21b6' },
   member: { bg: '#f0fdf4', color: '#166534' },
+}
+
+// ─── Per-member UI permissions panel ──────────────────────────────────────────
+// Checkboxes mean "can see" — everything checked by default. Unchecking stores a
+// denial on production_members.permissions (deniedTabs / deniedModules /
+// denyCrewRates), so an empty permissions object = full visibility.
+function PermissionsPanel({ perms, onChange }) {
+  const deniedTabs    = new Set(perms.deniedTabs)
+  const deniedModules = new Set(perms.deniedModules)
+
+  function emit(next) {
+    onChange(normalizePermissions(cleanPermissions(next)))
+  }
+
+  function toggleTab(tabId) {
+    const next = new Set(deniedTabs)
+    if (next.has(tabId)) next.delete(tabId)
+    else next.add(tabId)
+    emit({ ...perms, deniedTabs: [...next] })
+  }
+
+  function toggleModule(moduleId) {
+    const next = new Set(deniedModules)
+    if (next.has(moduleId)) next.delete(moduleId)
+    else next.add(moduleId)
+    emit({ ...perms, deniedModules: [...next] })
+  }
+
+  function toggleFlag(flagId) {
+    emit({ ...perms, [flagId]: !perms[flagId] })
+  }
+
+  return (
+    <div className="admin-perms-panel" onClick={e => e.stopPropagation()}>
+      <div className="admin-perms-caption">
+        Visibility — unchecked tabs and modules are hidden from this user.
+      </div>
+      <div className="admin-perms-grid">
+        {PERMISSION_TABS.map(tab => {
+          const tabVisible = !deniedTabs.has(tab.id)
+          return (
+            <div key={tab.id} className="admin-perms-tab">
+              <label className="admin-perms-tab-head">
+                <input
+                  type="checkbox"
+                  checked={tabVisible}
+                  onChange={() => toggleTab(tab.id)}
+                />
+                <span>{tab.label}</span>
+              </label>
+              <div className={`admin-perms-modules${tabVisible ? '' : ' is-disabled'}`}>
+                {tab.modules.map(m => (
+                  <label key={m.id} className="admin-perms-module">
+                    <input
+                      type="checkbox"
+                      checked={!deniedModules.has(m.id)}
+                      disabled={!tabVisible}
+                      onChange={() => toggleModule(m.id)}
+                    />
+                    <span>{m.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div className="admin-perms-flags">
+        {FEATURE_FLAGS.map(f => (
+          <label key={f.id} className="admin-perms-flag" title={f.hint}>
+            <input
+              type="checkbox"
+              checked={!perms[f.id]}
+              onChange={() => toggleFlag(f.id)}
+            />
+            <span>{f.label}</span>
+            <span className="admin-perms-hint">{f.hint}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function AdminPage({ currentProductionId, productionName, session, memberRole }) {
@@ -25,6 +111,10 @@ export default function AdminPage({ currentProductionId, productionName, session
   const [confirmRemove, setConfirmRemove] = useState(null)
   const [removeError,   setRemoveError]   = useState(null)
 
+  // Permissions accordion — userId of the expanded member (one at a time)
+  const [expandedMember, setExpandedMember] = useState(null)
+  const [permsError,     setPermsError]     = useState(null)
+
   // ── Fetch members + pending invites ─────────────────────────────────────────
   const loadData = useCallback(async () => {
     if (!currentProductionId) return
@@ -33,7 +123,7 @@ export default function AdminPage({ currentProductionId, productionName, session
     // Members
     const { data: memberRows } = await supabase
       .from('production_members')
-      .select('user_id, role')
+      .select('user_id, role, permissions')
       .eq('production_id', currentProductionId)
 
     // Profiles for those users
@@ -149,6 +239,24 @@ export default function AdminPage({ currentProductionId, productionName, session
     loadData()
   }
 
+  // ── Save member permissions (optimistic, immediate on toggle) ────────────────
+  async function handleChangePermissions(userId, nextPerms) {
+    setPermsError(null)
+    // Optimistic local update
+    setMembers(ms => ms.map(m =>
+      m.user_id === userId ? { ...m, permissions: cleanPermissions(nextPerms) } : m
+    ))
+    const { error } = await supabase
+      .from('production_members')
+      .update({ permissions: cleanPermissions(nextPerms) })
+      .eq('production_id', currentProductionId)
+      .eq('user_id', userId)
+    if (error) {
+      setPermsError(`Could not save permissions: ${error.message}`)
+      loadData()
+    }
+  }
+
   // ── Change member role ───────────────────────────────────────────────────────
   async function handleChangeRole(userId, currentRole, newRole) {
     if (currentRole === 'owner') return
@@ -234,6 +342,11 @@ export default function AdminPage({ currentProductionId, productionName, session
             {removeError}
           </div>
         )}
+        {permsError && (
+          <div className="admin-send-result admin-send-result--err" style={{ marginBottom: 12 }}>
+            {permsError}
+          </div>
+        )}
 
         {dataLoading ? (
           <p className="admin-loading">Loading…</p>
@@ -248,17 +361,25 @@ export default function AdminPage({ currentProductionId, productionName, session
                 : '—'
               const isSelf = m.user_id === session.user.id
               const isOwner = m.role === 'owner'
+              const isExpanded = expandedMember === m.user_id
               return (
-                <div key={m.user_id} className="admin-member-row">
+                <div key={m.user_id} className="admin-member-block">
+                <div className="admin-member-row">
                   <div className="admin-member-avatar">
                     {m.profile?.first_name?.[0]?.toUpperCase() ?? '?'}
                     {m.profile?.last_name?.[0]?.toUpperCase() ?? ''}
                   </div>
                   <div className="admin-member-info">
-                    <span className="admin-member-name">
+                    <button
+                      type="button"
+                      className="admin-member-name admin-member-name--btn"
+                      onClick={() => setExpandedMember(x => (x === m.user_id ? null : m.user_id))}
+                      title="Click to edit what this user can see"
+                    >
+                      <span className={`admin-member-chev${isExpanded ? ' open' : ''}`}>▸</span>
                       {fullName}
                       {isSelf && <span className="admin-member-you">You</span>}
-                    </span>
+                    </button>
                   </div>
                   <div className="admin-member-role">
                     {isOwner || isSelf ? (
@@ -307,6 +428,21 @@ export default function AdminPage({ currentProductionId, productionName, session
                       </button>
                     )
                   )}
+                </div>
+
+                {/* ── Inline permissions panel (accordion) ──────────────────── */}
+                {isExpanded && (
+                  isOwner ? (
+                    <div className="admin-perms-owner-note">
+                      Owners always see everything.
+                    </div>
+                  ) : (
+                    <PermissionsPanel
+                      perms={normalizePermissions(m.permissions)}
+                      onChange={next => handleChangePermissions(m.user_id, next)}
+                    />
+                  )
+                )}
                 </div>
               )
             })}

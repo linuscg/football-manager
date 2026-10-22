@@ -133,48 +133,56 @@ function buildPhaseSpans(colSpecs) {
 
 // ─── Crew details panel — frozen spreadsheet-style columns ────────────────────
 
-// Grouped header (top row) — spans must add up to DETAIL_COLS.length
-const DETAIL_GROUPS = [
-  { label: 'Deal Memo', span: 3 },
-  { label: 'Contact',   span: 3 },
-  { label: 'Weekly',    span: 3 },
-  { label: 'Daily',     span: 3 },
-  { label: 'Hourly',    span: 3 },
-  { label: 'Day Rates', span: 3 },
-  { label: 'Extras',    span: 3 },
-  { label: 'Dates',     span: 2 },
-  { label: 'Other',     span: 2 },
+// Individual column labels (bottom header row) + widths + group (top header row).
+// Columns flagged `money: true` are hidden for users without the crew-rates
+// permission (canViewRates === false) — contact / dates / deal memo stay visible.
+const DETAIL_COLS_FULL = [
+  { label: 'Emailed',  w: 56,  group: 'Deal Memo' },
+  { label: 'Drafted',  w: 56,  group: 'Deal Memo' },
+  { label: 'Sent',     w: 56,  group: 'Deal Memo' },
+  { label: 'Email',    w: 110, group: 'Contact' },
+  { label: 'Phone',    w: 96,  group: 'Contact' },
+  { label: 'Agent',    w: 90,  group: 'Contact' },
+  { label: 'Rate',     w: 68,  group: 'Weekly',    money: true },
+  { label: 'Net',      w: 68,  group: 'Weekly',    money: true },
+  { label: 'Hol',      w: 68,  group: 'Weekly',    money: true },
+  { label: 'Rate',     w: 68,  group: 'Daily',     money: true },
+  { label: 'Net',      w: 68,  group: 'Daily',     money: true },
+  { label: 'Hol',      w: 68,  group: 'Daily',     money: true },
+  { label: 'Rate',     w: 68,  group: 'Hourly',    money: true },
+  { label: 'Net',      w: 68,  group: 'Hourly',    money: true },
+  { label: 'Hol',      w: 68,  group: 'Hourly',    money: true },
+  { label: '6th Day',  w: 68,  group: 'Day Rates', money: true },
+  { label: '7th Day',  w: 68,  group: 'Day Rates', money: true },
+  { label: 'OT',       w: 68,  group: 'Day Rates', money: true },
+  { label: 'Box (pw)', w: 62,  group: 'Extras',    money: true },
+  { label: 'Car',      w: 62,  group: 'Extras',    money: true },
+  { label: 'Tax',      w: 94,  group: 'Extras' },
+  { label: 'Start',    w: 108, group: 'Dates' },
+  { label: 'End',      w: 108, group: 'Dates' },
+  { label: 'Vendor',   w: 100, group: 'Other' },
+  { label: 'Notes',    w: 170, group: 'Other' },
 ]
+const DETAIL_COLS_NO_RATES = DETAIL_COLS_FULL.filter(c => !c.money)
 
-// Individual column labels (bottom header row) + widths
-const DETAIL_COLS = [
-  { label: 'Emailed',  w: 56 },
-  { label: 'Drafted',  w: 56 },
-  { label: 'Sent',     w: 56 },
-  { label: 'Email',    w: 110 },
-  { label: 'Phone',    w: 96 },
-  { label: 'Agent',    w: 90 },
-  { label: 'Rate',     w: 68 },
-  { label: 'Net',      w: 68 },
-  { label: 'Hol',      w: 68 },
-  { label: 'Rate',     w: 68 },
-  { label: 'Net',      w: 68 },
-  { label: 'Hol',      w: 68 },
-  { label: 'Rate',     w: 68 },
-  { label: 'Net',      w: 68 },
-  { label: 'Hol',      w: 68 },
-  { label: '6th Day',  w: 68 },
-  { label: '7th Day',  w: 68 },
-  { label: 'OT',       w: 68 },
-  { label: 'Box (pw)', w: 62 },
-  { label: 'Car',      w: 62 },
-  { label: 'Tax',      w: 94 },
-  { label: 'Start',    w: 108 },
-  { label: 'End',      w: 108 },
-  { label: 'Vendor',   w: 100 },
-  { label: 'Notes',    w: 170 },
-]
-const DETAIL_COL_COUNT = DETAIL_COLS.length
+// Grouped header (top row) — spans derived from the active column set so they
+// always add up to the active column count.
+function buildDetailGroups(cols) {
+  const groups = []
+  for (const c of cols) {
+    const last = groups[groups.length - 1]
+    if (last && last.label === c.group) last.span++
+    else groups.push({ label: c.group, span: 1 })
+  }
+  return groups
+}
+const DETAIL_GROUPS_FULL     = buildDetailGroups(DETAIL_COLS_FULL)
+const DETAIL_GROUPS_NO_RATES = buildDetailGroups(DETAIL_COLS_NO_RATES)
+
+// Active variants for a given rates permission
+const detailCols      = canViewRates => (canViewRates ? DETAIL_COLS_FULL : DETAIL_COLS_NO_RATES)
+const detailGroups    = canViewRates => (canViewRates ? DETAIL_GROUPS_FULL : DETAIL_GROUPS_NO_RATES)
+const detailColCount  = canViewRates => detailCols(canViewRates).length
 
 const OVERRIDE_TOOLTIP = 'Calculated — type to override / clear to revert'
 
@@ -344,7 +352,7 @@ function EndDateCell({ resource, estEndDate, onUpdate }) {
   )
 }
 
-function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPhone, estEndDate = '' }) {
+function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPhone, estEndDate = '', canViewRates = true }) {
   const u = field => value => onUpdate(resource.id, field, value)
   return (
     <Fragment>
@@ -356,6 +364,7 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
       <DetailTextCell value={resource.contactEmail} onCommit={onCommitEmail} width={110} type="email" placeholder="email" />
       <DetailTextCell value={resource.contactPhone} onCommit={onCommitPhone} width={96} type="tel" placeholder="phone" />
       <DetailTextCell value={resource.agent} onCommit={u('agent')} width={90} placeholder="agent" />
+      {canViewRates && (<>
       {/* Weekly */}
       <RateCell
         isSource={rates.source === 'weekly'}
@@ -395,6 +404,7 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
       {/* Extras */}
       <DetailNumCell value={resource.boxPw}        onCommit={u('boxPw')}        width={62} title="Box rental per week" />
       <DetailNumCell value={resource.carAllowance} onCommit={u('carAllowance')} width={62} title="Car allowance" />
+      </>)}
       <td className="crewd-td" style={{ width: 94, minWidth: 94 }}>
         <select
           className="crewd-select"
@@ -477,6 +487,7 @@ const ResourceRow = memo(function ResourceRow({
   people, onCreatePerson, onUpdatePerson,
   // Crew details panel
   showDetails = false, rateCalcSettings = null, estEndDate = '',
+  canViewRates = true,
   onRowContextMenu = null,
 }) {
   // Build suggestions from all other resources (for role/dept/etc.)
@@ -621,7 +632,7 @@ const ResourceRow = memo(function ResourceRow({
   const detailRates = showDetails && rateCalcSettings
     ? deriveRates(resource, rateCalcSettings)
     : null
-  const totalColSpan = colSpecs.length + 1 + (showDetails ? DETAIL_COL_COUNT : 0)
+  const totalColSpan = colSpecs.length + 1 + (showDetails ? detailColCount(canViewRates) : 0)
 
   return (
     <Fragment>
@@ -745,6 +756,7 @@ const ResourceRow = memo(function ResourceRow({
             onCommitEmail={commitEmailValue}
             onCommitPhone={commitPhoneValue}
             estEndDate={estEndDate}
+            canViewRates={canViewRates}
           />
         )}
 
@@ -934,9 +946,7 @@ const ResourceRow = memo(function ResourceRow({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function CrewGantt({ production, shootDays, mode = 'both', onUpdateProduction }) {
-  const canViewCrewDetails = true  // TODO: wire to the permissions system
-
+export default function CrewGantt({ production, shootDays, mode = 'both', onUpdateProduction, canViewRates = true }) {
   const [activeTab, setActiveTab] = useState(() =>
     localStorage.getItem('fm_gantt_tab') ?? 'crew'
   )
@@ -958,10 +968,11 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                : activeTab
   const classFilter = mode === 'crew' ? crewClassTab : null
 
-  // Crew details panel — only in crew mode, and only for permitted users
-  const showDetails = mode === 'crew' && canViewCrewDetails && detailsOpen
+  // Crew details panel — only in crew mode. The panel itself is open to everyone;
+  // canViewRates only controls whether the money columns / rate settings show.
+  const showDetails = mode === 'crew' && detailsOpen
   const rateCalcSettings = useMemo(() => getRateCalc(production), [production])
-  const extraCols = showDetails ? DETAIL_COL_COUNT : 0
+  const extraCols = showDetails ? detailColCount(canViewRates) : 0
 
   function toggleDetails() {
     setDetailsOpen(open => {
@@ -1627,7 +1638,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
           <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={handleAddResource}>
             + Add {typeLabel}
           </button>
-          {mode === 'crew' && canViewCrewDetails && (
+          {mode === 'crew' && (
             <button
               className={`pm-btn pm-btn--ghost pm-btn--sm${detailsOpen ? ' is-active' : ''}`}
               onClick={toggleDetails}
@@ -1720,7 +1731,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       </div>
 
       {/* ── Global rate-calc settings strip ──────────────────────────────────── */}
-      {showDetails && (
+      {showDetails && canViewRates && (
         <div className="crewd-settings">
           {RATE_SETTINGS.map(s => (
             <RateSettingInput
@@ -1758,7 +1769,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                 <th className="pm-g-corner pm-g-corner--tall" rowSpan={2}>
                   {effTab === 'crew' ? 'Name / Role / Dept' : 'Item / Category'}
                 </th>
-                {showDetails && DETAIL_GROUPS.map((g, i) => (
+                {showDetails && detailGroups(canViewRates).map((g, i) => (
                   <th key={`dgrp-${i}`} className="crewd-group-th" colSpan={g.span}>
                     {g.label}
                   </th>
@@ -1777,7 +1788,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
               {/* ── Date columns row ───────────────────────────────────────────── */}
               <tr>
-                {showDetails && DETAIL_COLS.map((c, i) => (
+                {showDetails && detailCols(canViewRates).map((c, i) => (
                   <th key={`dcol-${i}`} className="crewd-label-th" style={{ width: c.w, minWidth: c.w }}>
                     {c.label}
                   </th>
@@ -1889,6 +1900,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                         onRowContextMenu={handleRowContextMenu}
                         showDetails={showDetails}
                         rateCalcSettings={rateCalcSettings}
+                        canViewRates={canViewRates}
                       />
                     ))}
                   </Fragment>

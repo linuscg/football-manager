@@ -322,10 +322,78 @@ function AppShell({ session, signOut }) {
     applyScheduleImport, applyCastListImport,
   } = useScheduleStore()
 
-  const { profile, memberRole, updateProfile } = useProfileStore(
+  const { profile, memberRole, permissions, updateProfile } = useProfileStore(
     session.user.id,
     currentProductionId,
   )
+
+  // ── Per-user UI permissions (stored as denials; owners bypass) ──────────────
+  const isOwner       = memberRole === 'owner'
+  const deniedTabs    = new Set(isOwner ? [] : permissions.deniedTabs)
+  const deniedModules = new Set(isOwner ? [] : permissions.deniedModules)
+  const canViewRates  = isOwner || !permissions.denyCrewRates
+
+  // Hide admin/requests nav from users without permission (existing role gate)
+  const visibleSetupNav = SETUP_NAV.filter(n => {
+    if (n.id === 'setup-admin')    return memberRole === 'owner' || memberRole === 'admin'
+    if (n.id === 'setup-requests') return memberRole === 'owner'
+    return true
+  })
+
+  const allowedTopTabs   = TOP_TABS.filter(t => !deniedTabs.has(t.id))
+  const allowedSetupNav  = visibleSetupNav.filter(n => !deniedModules.has(n.id))
+  const allowedFmNav     = FM_NAV.filter(n => !deniedModules.has(n.id))
+  const allowedCtNav     = CT_NAV.filter(n => !deniedModules.has(n.id))
+  const allowedCatNav    = CAT_NAV.filter(n => !deniedModules.has(n.id))
+  const allowedAccommNav = ACCOMM_NAV.filter(n => !deniedModules.has(n.id))
+  const allowedDprNav    = DPR_NAV.filter(n => !deniedModules.has(n.id))
+
+  // Never-stuck guarantee: if everything is denied, the Account page stays reachable.
+  const effTopTabs  = allowedTopTabs.length > 0
+    ? allowedTopTabs
+    : [TOP_TABS.find(t => t.id === 'setup')]
+  const effSetupNav = allowedSetupNav.length > 0
+    ? allowedSetupNav
+    : SETUP_NAV.filter(n => n.id === 'setup-account')
+
+  const navByTab = {
+    setup:        effSetupNav,
+    fm:           allowedFmNav,
+    'crew-times': allowedCtNav,
+    catering:     allowedCatNav,
+    accomm:       allowedAccommNav,
+    dpr:          allowedDprNav,
+  }
+  const moduleStateByTab = {
+    setup:        setupModule,
+    fm:           fmModule,
+    'crew-times': ctModule,
+    catering:     catModule,
+    accomm:       accommModule,
+    dpr:          dprModule,
+  }
+
+  // Effective tab/module used for rendering — never points at a denied target,
+  // even on the first render after load / production switch.
+  const effTopTab = effTopTabs.some(t => t.id === topTab) ? topTab : effTopTabs[0].id
+  const effNav    = navByTab[effTopTab] ?? []
+  const effModule = effNav.some(n => n.id === moduleStateByTab[effTopTab])
+    ? moduleStateByTab[effTopTab]
+    : (effNav[0]?.id ?? null)
+
+  // Sync persisted state back to the effective (allowed) values — covers stale
+  // localStorage and permission changes on production switches.
+  useEffect(() => {
+    if (effTopTab !== topTab) navigateTopTab(effTopTab)
+    if (effModule && effModule !== moduleStateByTab[effTopTab]) {
+      if (effTopTab === 'setup')      navigateSetup(effModule)
+      if (effTopTab === 'fm')         navigateFm(effModule)
+      if (effTopTab === 'crew-times') navigateCt(effModule)
+      if (effTopTab === 'catering')   navigateCat(effModule)
+      if (effTopTab === 'accomm')     navigateAccomm(effModule)
+      if (effTopTab === 'dpr')        navigateDpr(effModule)
+    }
+  })
 
   // Initials: prefer name from profile, fall back to email
   const initials = profile?.first_name && profile?.last_name
@@ -373,74 +441,44 @@ function AppShell({ session, signOut }) {
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
-  const isGantt     = (topTab === 'fm' && fmModule === 'crew') ||
-                      (topTab === 'crew-times' && ctModule === 'ct-tracker')
-  const isCallsheet = topTab === 'fm' && fmModule === 'callsheet'
+  const isGantt     = (effTopTab === 'fm' && effModule === 'crew') ||
+                      (effTopTab === 'crew-times' && effModule === 'ct-tracker')
+  const isCallsheet = effTopTab === 'fm' && effModule === 'callsheet'
 
-  // Hide admin/requests nav from users without permission
-  const visibleSetupNav = SETUP_NAV.filter(n => {
-    if (n.id === 'setup-admin')    return memberRole === 'owner' || memberRole === 'admin'
-    if (n.id === 'setup-requests') return memberRole === 'owner'
-    return true
-  })
-
-  const activeNav = topTab === 'setup'
-    ? visibleSetupNav
-    : topTab === 'fm'
-      ? FM_NAV
-      : topTab === 'crew-times'
-        ? CT_NAV
-        : topTab === 'catering'
-          ? CAT_NAV
-          : topTab === 'accomm'
-            ? ACCOMM_NAV
-            : topTab === 'dpr'
-              ? DPR_NAV
-              : []
-
-  const activeModule = topTab === 'setup'
-    ? setupModule
-    : topTab === 'fm'
-      ? fmModule
-      : topTab === 'crew-times'
-        ? ctModule
-        : topTab === 'catering'
-          ? catModule
-          : topTab === 'dpr'
-            ? dprModule
-            : accommModule
+  const activeNav    = effNav
+  const activeModule = effModule
 
   function handleNavClick(id) {
-    if (topTab === 'setup')      navigateSetup(id)
-    if (topTab === 'fm')         navigateFm(id)
-    if (topTab === 'crew-times') navigateCt(id)
-    if (topTab === 'catering')   navigateCat(id)
-    if (topTab === 'dpr')        navigateDpr(id)
-    if (topTab === 'accomm')     navigateAccomm(id)
+    if (effTopTab === 'setup')      navigateSetup(id)
+    if (effTopTab === 'fm')         navigateFm(id)
+    if (effTopTab === 'crew-times') navigateCt(id)
+    if (effTopTab === 'catering')   navigateCat(id)
+    if (effTopTab === 'dpr')        navigateDpr(id)
+    if (effTopTab === 'accomm')     navigateAccomm(id)
   }
 
   const topbarEyebrow = (() => {
-    if (topTab === 'setup')      return SETUP_NAV.find(n => n.id === setupModule)?.label ?? ''
-    if (topTab === 'fm')         return FM_NAV.find(n => n.id === fmModule)?.label ?? ''
-    if (topTab === 'crew-times') return CT_NAV.find(n => n.id === ctModule)?.label ?? ''
-    if (topTab === 'catering')   return CAT_NAV.find(n => n.id === catModule)?.label ?? 'Catering'
-    if (topTab === 'accomm')     return ACCOMM_NAV.find(n => n.id === accommModule)?.label ?? 'Accommodation'
-    if (topTab === 'dpr')        return DPR_NAV.find(n => n.id === dprModule)?.label ?? 'DPR'
+    if (effTopTab === 'setup')      return SETUP_NAV.find(n => n.id === effModule)?.label ?? ''
+    if (effTopTab === 'fm')         return FM_NAV.find(n => n.id === effModule)?.label ?? ''
+    if (effTopTab === 'crew-times') return CT_NAV.find(n => n.id === effModule)?.label ?? ''
+    if (effTopTab === 'catering')   return CAT_NAV.find(n => n.id === effModule)?.label ?? 'Catering'
+    if (effTopTab === 'accomm')     return ACCOMM_NAV.find(n => n.id === effModule)?.label ?? 'Accommodation'
+    if (effTopTab === 'dpr')        return DPR_NAV.find(n => n.id === effModule)?.label ?? 'DPR'
     return ''
   })()
 
   const topbarSub = (() => {
-    if (topTab === 'setup') return SETUP_MODULE_SUB[setupModule] ?? ''
-    if (topTab === 'fm') {
-      const base = FM_MODULE_SUB[fmModule] ?? ''
-      return fmModule === 'schedule' && store.shootDays.length > 0
+    if (effTopTab === 'setup') return SETUP_MODULE_SUB[effModule] ?? ''
+    if (effTopTab === 'fm') {
+      const base = FM_MODULE_SUB[effModule] ?? ''
+      return effModule === 'schedule' && store.shootDays.length > 0
         ? `${base} · ${store.shootDays.length} days`
         : base
     }
-    if (topTab === 'crew-times') return CT_MODULE_SUB[ctModule] ?? ''
-    if (topTab === 'catering')   return CAT_MODULE_SUB[catModule] ?? ''
-    if (topTab === 'accomm')     return ACCOMM_MODULE_SUB[accommModule] ?? ''
-    if (topTab === 'dpr')        return DPR_MODULE_SUB[dprModule] ?? ''
+    if (effTopTab === 'crew-times') return CT_MODULE_SUB[effModule] ?? ''
+    if (effTopTab === 'catering')   return CAT_MODULE_SUB[effModule] ?? ''
+    if (effTopTab === 'accomm')     return ACCOMM_MODULE_SUB[effModule] ?? ''
+    if (effTopTab === 'dpr')        return DPR_MODULE_SUB[effModule] ?? ''
     return ''
   })()
 
@@ -471,10 +509,10 @@ function AppShell({ session, signOut }) {
           <img src="/favicon.svg" alt="FM" className="pm-tab-bar-logo" />
         </div>
         <div className="pm-tab-bar-tabs">
-          {TOP_TABS.map(tab => (
+          {effTopTabs.map(tab => (
             <button
               key={tab.id}
-              className={`pm-tab-btn${topTab === tab.id ? ' is-active' : ''}`}
+              className={`pm-tab-btn${effTopTab === tab.id ? ' is-active' : ''}`}
               onClick={() => navigateTopTab(tab.id)}
             >
               {tab.label}
@@ -615,7 +653,7 @@ function AppShell({ session, signOut }) {
           <div className={`pm-content${isGantt ? ' pm-content--gantt' : ''}${isCallsheet ? ' pm-content--cs' : ''}`}>
 
             {/* ── Project Setup tab ─────────────────────────────────────────── */}
-            {topTab === 'setup' && setupModule === 'setup-list' && (
+            {effTopTab === 'setup' && effModule === 'setup-list' && (
               <ProjectListPage
                 productions={productions}
                 currentProductionId={currentProductionId}
@@ -626,7 +664,7 @@ function AppShell({ session, signOut }) {
                 userId={session.user.id}
               />
             )}
-            {topTab === 'setup' && setupModule === 'setup-main' && (
+            {effTopTab === 'setup' && effModule === 'setup-main' && (
               <ProjectSetup
                 production={store.production}
                 shootDays={store.shootDays}
@@ -642,14 +680,14 @@ function AppShell({ session, signOut }) {
                 onApplyCastListImport={applyCastListImport}
               />
             )}
-            {topTab === 'setup' && setupModule === 'setup-account' && (
+            {effTopTab === 'setup' && effModule === 'setup-account' && (
               <AccountPage
                 session={session}
                 profile={profile}
                 onUpdateProfile={updateProfile}
               />
             )}
-            {topTab === 'setup' && setupModule === 'setup-admin' && (
+            {effTopTab === 'setup' && effModule === 'setup-admin' && (
               <AdminPage
                 currentProductionId={currentProductionId}
                 productionName={store.production.name}
@@ -657,10 +695,10 @@ function AppShell({ session, signOut }) {
                 memberRole={memberRole}
               />
             )}
-            {topTab === 'setup' && setupModule === 'setup-settings' && (
+            {effTopTab === 'setup' && effModule === 'setup-settings' && (
               <UnderConstruction label="Settings" />
             )}
-            {topTab === 'setup' && setupModule === 'setup-requests' && (
+            {effTopTab === 'setup' && effModule === 'setup-requests' && (
               <InviteRequestsPage
                 productions={productions}
                 currentProductionId={currentProductionId}
@@ -669,77 +707,77 @@ function AppShell({ session, signOut }) {
             )}
 
             {/* ── Football Manager tab ──────────────────────────────────────── */}
-            {topTab === 'fm' && fmModule === 'schedule' && (
+            {effTopTab === 'fm' && effModule === 'schedule' && (
               <Schedule store={store} actions={scheduleActions} />
             )}
-            {topTab === 'fm' && fmModule === 'crew' && (
-              <CrewGantt production={store.production} shootDays={store.shootDays} mode="equipment" onUpdateProduction={updateProduction} />
+            {effTopTab === 'fm' && effModule === 'crew' && (
+              <CrewGantt production={store.production} shootDays={store.shootDays} mode="equipment" onUpdateProduction={updateProduction} canViewRates={canViewRates} />
             )}
-            {topTab === 'fm' && fmModule === 'callsheet' && (
+            {effTopTab === 'fm' && effModule === 'callsheet' && (
               <CallSheet store={store} castMembers={store.castMembers} />
             )}
-            {topTab === 'fm' && fmModule === 'budget' && (
+            {effTopTab === 'fm' && effModule === 'budget' && (
               <Budget store={store} onUpdate={updateProduction} />
             )}
-            {topTab === 'fm' && fmModule === 'crew-db' && (
+            {effTopTab === 'fm' && effModule === 'crew-db' && (
               <CrewDatabase />
             )}
 
             {/* ── Crew Times tab ────────────────────────────────────────────── */}
-            {topTab === 'crew-times' && ctModule === 'ct-crew' && (
+            {effTopTab === 'crew-times' && effModule === 'ct-crew' && (
               <FulltimeCrew productionName={store.production.name} />
             )}
-            {topTab === 'crew-times' && ctModule === 'ct-tracker' && (
-              <CrewGantt production={store.production} shootDays={store.shootDays} mode="crew" onUpdateProduction={updateProduction} />
+            {effTopTab === 'crew-times' && effModule === 'ct-tracker' && (
+              <CrewGantt production={store.production} shootDays={store.shootDays} mode="crew" onUpdateProduction={updateProduction} canViewRates={canViewRates} />
             )}
-            {topTab === 'crew-times' && ctModule === 'ct-backpage' && (
+            {effTopTab === 'crew-times' && effModule === 'ct-backpage' && (
               <Backpage store={store} />
             )}
-            {topTab === 'crew-times' && ctModule === 'ct-timesheets' && (
+            {effTopTab === 'crew-times' && effModule === 'ct-timesheets' && (
               <Timesheets store={store} />
             )}
-            {topTab === 'crew-times' && ctModule === 'ct-starters' && (
+            {effTopTab === 'crew-times' && effModule === 'ct-starters' && (
               <NewStarters />
             )}
 
             {/* ── Catering tab ──────────────────────────────────────────────── */}
-            {topTab === 'catering' && catModule === 'cat-list' && (
+            {effTopTab === 'catering' && effModule === 'cat-list' && (
               <Catering store={store} />
             )}
-            {topTab === 'catering' && catModule === 'cat-numbers' && (
+            {effTopTab === 'catering' && effModule === 'cat-numbers' && (
               <CateringNumbers store={store} />
             )}
 
             {/* ── Accommodation tab ─────────────────────────────────────────── */}
-            {topTab === 'accomm' && accommModule === 'accomm-hotels' && (
+            {effTopTab === 'accomm' && effModule === 'accomm-hotels' && (
               <HotelList />
             )}
-            {topTab === 'accomm' && accommModule === 'accomm-crew' && (
+            {effTopTab === 'accomm' && effModule === 'accomm-crew' && (
               <CrewHotels
                 production={store.production}
                 shootDays={store.shootDays}
                 castMembers={store.castMembers}
               />
             )}
-            {topTab === 'accomm' && accommModule === 'accomm-tmo' && (
+            {effTopTab === 'accomm' && effModule === 'accomm-tmo' && (
               <WeeklyTMO
                 production={store.production}
                 castMembers={store.castMembers}
               />
             )}
-            {topTab === 'accomm' && accommModule === 'accomm-travel' && (
+            {effTopTab === 'accomm' && effModule === 'accomm-travel' && (
               <TravelTimes shootDays={store.shootDays} />
             )}
 
             {/* ── DPR tab ───────────────────────────────────────────────────── */}
-            {topTab === 'dpr' && dprModule === 'dpr-main' && (
+            {effTopTab === 'dpr' && effModule === 'dpr-main' && (
               <DPR
                 productionName={store.production.name}
                 shootDays={store.shootDays}
                 castMembers={store.castMembers}
               />
             )}
-            {topTab === 'dpr' && dprModule === 'dpr-wrap' && (
+            {effTopTab === 'dpr' && effModule === 'dpr-wrap' && (
               <WrapReport
                 productionName={store.production.name}
                 shootDays={store.shootDays}

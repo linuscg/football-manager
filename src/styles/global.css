@@ -10644,3 +10644,118 @@ select.pm-input { cursor: pointer; }
   color: #111827;
 }
 .gantt-row-menu-item:hover { background: #f0f7ff; color: #2563eb; }
+
+/* ─── Admin — per-member UI permissions panel ──────────────────────────────── */
+
+.admin-member-block { display: flex; flex-direction: column; }
+
+.admin-member-name--btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.admin-member-name--btn:hover { color: var(--pm-accent, #2563eb); }
+
+.admin-member-chev {
+  font-size: 10px;
+  color: #9ca3af;
+  display: inline-block;
+  transition: transform 0.12s ease;
+}
+.admin-member-chev.open { transform: rotate(90deg); }
+
+.admin-perms-panel {
+  margin: -2px 0 2px;
+  padding: 14px 16px;
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+.admin-perms-caption {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+.admin-perms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px 18px;
+}
+.admin-perms-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.admin-perms-tab-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  cursor: pointer;
+}
+.admin-perms-modules {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 22px;
+}
+.admin-perms-modules.is-disabled { opacity: 0.45; }
+.admin-perms-module {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+}
+.admin-perms-module input:disabled { cursor: not-allowed; }
+.admin-perms-tab-head input,
+.admin-perms-module input,
+.admin-perms-flag input {
+  accent-color: var(--pm-accent, #2563eb);
+  cursor: pointer;
+}
+.admin-perms-flags {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-perms-flag {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+}
+.admin-perms-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: #9ca3af;
+}
+.admin-perms-owner-note {
+  margin: -2px 0 2px;
+  padding: 12px 16px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  font-size: 12px;
+  color: #92400e;
+}
+.admin-member-block:has(.admin-perms-panel) .admin-member-row,
+.admin-member-block:has(.admin-perms-owner-note) .admin-member-row {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}

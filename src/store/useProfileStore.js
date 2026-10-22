@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { EMPTY_PERMISSIONS, normalizePermissions } from '../lib/permissionRegistry'
 
 /**
- * Loads the current user's profile (first/last name, is_owner)
- * and their role in the given production.
+ * Loads the current user's profile (first/last name, is_owner),
+ * their role in the given production, and their UI permissions
+ * (production_members.permissions jsonb — stored as denials).
  */
 export function useProfileStore(userId, productionId) {
   const [profile,     setProfile]     = useState(null)
   const [memberRole,  setMemberRole]  = useState(null)   // 'owner' | 'admin' | 'member' | null
+  const [permissions, setPermissions] = useState(EMPTY_PERMISSIONS)
   const [loading,     setLoading]     = useState(true)
 
   useEffect(() => {
@@ -25,15 +28,22 @@ export function useProfileStore(userId, productionId) {
   }, [userId])
 
   useEffect(() => {
-    if (!userId || !productionId) { setMemberRole(null); return }
+    if (!userId || !productionId) {
+      setMemberRole(null)
+      setPermissions(EMPTY_PERMISSIONS)
+      return
+    }
 
     supabase
       .from('production_members')
-      .select('role')
+      .select('role, permissions')
       .eq('user_id', userId)
       .eq('production_id', productionId)
       .maybeSingle()
-      .then(({ data }) => setMemberRole(data?.role ?? null))
+      .then(({ data }) => {
+        setMemberRole(data?.role ?? null)
+        setPermissions(normalizePermissions(data?.permissions))
+      })
   }, [userId, productionId])
 
   async function updateProfile(updates) {
@@ -46,5 +56,5 @@ export function useProfileStore(userId, productionId) {
     return { error }
   }
 
-  return { profile, memberRole, loading, updateProfile }
+  return { profile, memberRole, permissions, loading, updateProfile }
 }
