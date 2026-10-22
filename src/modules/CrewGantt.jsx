@@ -130,6 +130,7 @@ const DETAIL_GROUPS = [
   { label: 'Day Rates', span: 3 },
   { label: 'Extras',    span: 3 },
   { label: 'Dates',     span: 2 },
+  { label: 'Other',     span: 2 },
 ]
 
 // Individual column labels (bottom header row) + widths
@@ -157,6 +158,8 @@ const DETAIL_COLS = [
   { label: 'Tax',      w: 94 },
   { label: 'Start',    w: 108 },
   { label: 'End',      w: 108 },
+  { label: 'Vendor',   w: 100 },
+  { label: 'Notes',    w: 170 },
 ]
 const DETAIL_COL_COUNT = DETAIL_COLS.length
 
@@ -367,6 +370,9 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
           onChange={e => onUpdate(resource.id, 'hireEndDate', e.target.value)}
         />
       </td>
+      {/* Other */}
+      <DetailTextCell value={resource.vendor} onCommit={u('vendor')} width={100} placeholder="vendor" title="Vendor / company supplying this crew member" />
+      <DetailTextCell value={resource.notes}  onCommit={u('notes')}  width={170} placeholder="notes" title="Notes" />
     </Fragment>
   )
 }
@@ -571,13 +577,15 @@ function ResourceRow({
         {/* ── Sticky name cell ─────────────────────────────────────────────────── */}
         <td className="pm-g-name">
           <div className="gantt-name-cell">
-            <button
-              className={`gantt-row-expand${expanded ? ' open' : ''}`}
-              onClick={() => setExpanded(e => !e)}
-              title={expanded ? 'Hide details' : 'Show cost / contact details'}
-            >
-              {expanded ? '▾' : '▸'}
-            </button>
+            {activeTab === 'equipment' && (
+              <button
+                className={`gantt-row-expand${expanded ? ' open' : ''}`}
+                onClick={() => setExpanded(e => !e)}
+                title={expanded ? 'Hide details' : 'Show cost / hire details'}
+              >
+                {expanded ? '▾' : '▸'}
+              </button>
+            )}
             <div className="gantt-name-fields">
               <div className="gantt-name-input-wrap">
                 <input
@@ -743,8 +751,8 @@ function ResourceRow({
         })}
       </tr>
 
-      {/* ── Details row ─────────────────────────────────────────────────────────── */}
-      {expanded && (
+      {/* ── Details row — equipment only; crew fields live in the detail columns ── */}
+      {activeTab === 'equipment' && expanded && (
         <tr className="gantt-details-row">
           <td colSpan={totalColSpan}>
             <div className="gantt-details-panel">
@@ -784,40 +792,6 @@ function ResourceRow({
                     </select>
                   )}
                 </div>
-              )}
-
-              {/* Crew: vendor crew */}
-              {activeTab === 'crew' && (
-                <>
-                  <div className="details-group">
-                    <label className="details-label details-label-check">
-                      <input
-                        type="checkbox"
-                        className="details-checkbox"
-                        checked={resource.isVendorCrew}
-                        onChange={e => onUpdate(resource.id, 'isVendorCrew', e.target.checked)}
-                      />
-                      Vendor crew
-                    </label>
-                  </div>
-                  {resource.isVendorCrew && (
-                    <div className="details-group">
-                      <label className="details-label">Vendor</label>
-                      <input
-                        className="details-input"
-                        type="text"
-                        value={lVendor}
-                        placeholder="Vendor company"
-                        list={`vendor-${resource.id}`}
-                        onChange={e => setLVendor(e.target.value)}
-                        onBlur={() => commit('vendor', lVendor, resource.vendor)}
-                      />
-                      <datalist id={`vendor-${resource.id}`}>
-                        {vendorSuggestions.map(s => <option key={s} value={s} />)}
-                      </datalist>
-                    </div>
-                  )}
-                </>
               )}
 
               {/* Equipment: supplier + PO# */}
