@@ -54,9 +54,16 @@ function rateStr(resource) {
   return `${amt.toLocaleString('en-GB')}/wk (${wk})`
 }
 
-// Build a TSV string (tab-separated) from an array of row arrays
+// Build a TSV string (tab-separated) from an array of row arrays.
+// Cells are sanitized for spreadsheet paste: embedded tabs/newlines would shift
+// columns, and a leading = + - @ would execute as a formula in Excel.
 function toTSV(headers, rows) {
-  return [headers, ...rows].map(r => r.join('\t')).join('\n')
+  const cell = v => {
+    let s = String(v ?? '').replace(/[\t\r\n]+/g, ' ')
+    if (/^[=+\-@]/.test(s) && isNaN(Number(s))) s = `'${s}`
+    return s
+  }
+  return [headers, ...rows].map(r => r.map(cell).join('\t')).join('\n')
 }
 
 async function copyText(text, setFn) {

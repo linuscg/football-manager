@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { getCurrentProductionId } from '../lib/productionContext'
 
 // API key + from address live in the Edge Function (supabase/functions/send-welcome-email)
 import { useFullCrewList }        from '../store/useFullCrewList'
@@ -423,7 +424,8 @@ export default function NewStarters() {
     const subject = applyPlaceholders(cfg.subject ?? 'Welcome to the team!', person)
 
     const payload = {
-      to:      [person.email],
+      to:           [person.email],
+      productionId: getCurrentProductionId(),
       subject,
       text:    body,
       attachments: (cfg.attachments ?? []).map(att => ({

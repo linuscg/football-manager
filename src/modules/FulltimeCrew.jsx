@@ -367,8 +367,16 @@ export default function FulltimeCrew({ productionName }) {
 
   // ── Export Unit List ───────────────────────────────────────────────────────
 
+  // Crew-entered text goes into a same-origin document.write window — escape it
+  // so a name can't carry markup into the exporting user's session.
+  function esc(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+  }
+
   function handleExportUnitList() {
-    const prodName = productionName || 'Untitled Production'
+    const prodName = esc(productionName || 'Untitled Production')
     const now = new Date()
     const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -376,23 +384,23 @@ export default function FulltimeCrew({ productionName }) {
       const rows = [
         ...deptHods.map(h => `
           <tr>
-            <td>${h.name || ''}</td>
-            <td>${h.title || ''}</td>
-            <td>${h.phone || ''}</td>
-            <td>${h.email || ''}</td>
+            <td>${esc(h.name)}</td>
+            <td>${esc(h.title)}</td>
+            <td>${esc(h.phone)}</td>
+            <td>${esc(h.email)}</td>
           </tr>`),
         ...deptMembers.map(m => `
           <tr>
-            <td>${m.name || ''}</td>
-            <td>${m.role || ''}</td>
-            <td>${m.phone || ''}</td>
-            <td>${m.email || ''}</td>
+            <td>${esc(m.name)}</td>
+            <td>${esc(m.role)}</td>
+            <td>${esc(m.phone)}</td>
+            <td>${esc(m.email)}</td>
           </tr>`),
       ].join('')
 
       return `
         <div class="dept">
-          <div class="dept-name">${deptName}</div>
+          <div class="dept-name">${esc(deptName)}</div>
           <table><tbody>${rows}</tbody></table>
         </div>`
     }).join('')

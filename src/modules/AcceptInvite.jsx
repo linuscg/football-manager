@@ -20,14 +20,9 @@ export default function AcceptInvite({ token, session }) {
   // ── Load invite + check for existing profile ────────────────────────────────
   useEffect(() => {
     async function load() {
-      // 1. Validate the invite token
-      const { data, error } = await supabase
-        .from('invites')
-        .select('*, production(name)')
-        .eq('token', token)
-        .eq('accepted', false)
-        .gte('expires_at', new Date().toISOString())
-        .maybeSingle()
+      // 1. Validate the invite token (server-side RPC — invites are no longer
+      // directly readable by token)
+      const { data, error } = await supabase.rpc('get_invite_by_token', { p_token: token })
 
       if (error || !data) {
         setInviteError('This invite link is invalid or has already been used.')
@@ -42,7 +37,7 @@ export default function AcceptInvite({ token, session }) {
         return
       }
 
-      setInvite(data)
+      setInvite({ ...data, production: { name: data.production_name } })
 
       // 2. Check if this user already has a profile (i.e. existing account)
       const { data: profile } = await supabase
@@ -58,17 +53,12 @@ export default function AcceptInvite({ token, session }) {
   }, [token, session])
 
   // ── Add to production (shared by both paths) ────────────────────────────────
+  // Server-side RPC: validates email/expiry/accepted atomically and inserts the
+  // membership with the invite's stored role — the client can't choose a role.
   async function addToProduction() {
-    const { error: memberError } = await supabase
-      .from('production_members')
-      .insert({
-        production_id: invite.production_id,
-        user_id:       session.user.id,
-        role:          invite.role,
-      })
-    if (memberError) throw new Error(memberError.message)
-
-    await supabase.from('invites').update({ accepted: true }).eq('token', token)
+    const { data, error: rpcError } = await supabase.rpc('accept_invite', { p_token: token })
+    if (rpcError) throw new Error(rpcError.message)
+    if (!data?.ok) throw new Error(data?.error ?? 'Could not accept the invite.')
   }
 
   // ── Existing user: one-click join ────────────────────────────────────────────
@@ -112,7 +102,7 @@ export default function AcceptInvite({ token, session }) {
     // 2. Upsert profile
     const { error: profileError } = await supabase
       .from('profiles')
-      .upsert({ id: session.user.id, first_name: firstName.trim(), last_name: lastName.trim(), is_owner: false }, { onConflict: 'id' })
+      .upsert({ id: session.user.id, first_name: firstName.trim(), last_name: lastName.trim() }, { onConflict: 'id' })
     if (profileError) { setFormError(profileError.message); setSubmitting(false); return }
 
     // 3. Add to production + mark invite accepted

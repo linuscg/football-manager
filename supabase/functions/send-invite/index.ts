@@ -9,6 +9,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// User-controlled values are interpolated into the email HTML — escape them so
+// a production name can't smuggle markup into a DKIM-signed email.
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -41,6 +49,14 @@ serve(async (req) => {
     }
 
     const cleanEmail = email.toLowerCase().trim()
+
+    // Only known roles may be invited — never 'owner' or arbitrary strings.
+    if (!['member', 'admin'].includes(role)) {
+      return new Response(JSON.stringify({ error: 'Invalid role.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     // ── Admin client ────────────────────────────────────────────────────────
     const adminClient = createClient(
@@ -87,7 +103,9 @@ serve(async (req) => {
     }
 
     const productionName = production.name
-    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1)
+    const roleLabel  = role.charAt(0).toUpperCase() + role.slice(1)
+    const safeName   = escapeHtml(productionName)
+    const safeRole   = escapeHtml(roleLabel)
 
     // ── Store invite row ────────────────────────────────────────────────────
     const token = crypto.randomUUID()
@@ -160,8 +178,8 @@ serve(async (req) => {
       <h2 style="font-family:sans-serif;color:#111827;">You've been invited to Football Manager</h2>
 
       <p style="font-family:sans-serif;color:#374151;font-size:15px;line-height:1.6;">
-        You've been invited to join <strong>${productionName}</strong>
-        as <strong>${roleLabel}</strong>. Click below to set up your
+        You've been invited to join <strong>${safeName}</strong>
+        as <strong>${safeRole}</strong>. Click below to set up your
         account and get started.
       </p>
 

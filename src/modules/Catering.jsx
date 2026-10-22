@@ -405,16 +405,22 @@ export default function Catering({ store }) {
     const collectedPersons = persons.filter(p => p.collected).sort(byDeptThenName)
     const notCollected     = persons.filter(p => !p.collected && p.entitled).sort(byDeptThenName)
 
+    // Crew-entered text goes into a same-origin document.write window — escape
+    // it so a name/note can't carry markup into the printing user's session.
+    const esc = s => String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
     // Build rows for collected table
     function personRows(list) {
       return list.map((p, i) => `
         <tr class="${i % 2 === 0 ? 'even' : ''}">
-          <td class="td-name">${p.name}</td>
-          <td class="td-dept">${p.dept || '—'}</td>
-          <td class="td-role">${p.role || '—'}</td>
-          <td class="td-type">${TYPE_LABEL[p.type] ?? p.type}</td>
+          <td class="td-name">${esc(p.name)}</td>
+          <td class="td-dept">${esc(p.dept) || '—'}</td>
+          <td class="td-role">${esc(p.role) || '—'}</td>
+          <td class="td-type">${esc(TYPE_LABEL[p.type] ?? p.type)}</td>
           <td class="td-time">${p.collectedAt ? fmtTime(p.collectedAt) : '—'}</td>
-          <td class="td-note">${p.note || ''}</td>
+          <td class="td-note">${esc(p.note)}</td>
         </tr>
       `).join('')
     }
@@ -473,7 +479,7 @@ export default function Catering({ store }) {
 <div class="header">
   <div class="header-top">
     <div>
-      ${productionName ? `<div class="prod-name">${productionName}</div>` : ''}
+      ${productionName ? `<div class="prod-name">${esc(productionName)}</div>` : ''}
       <div class="page-title">Catering Report</div>
       <div class="date-label">${dateLabel}</div>
     </div>
