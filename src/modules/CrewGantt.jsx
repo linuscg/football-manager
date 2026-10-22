@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, Fragment, memo } from 'react'
 import { useCrewStore } from '../store/useCrewStore'
 import { useCrewPeopleStore } from '../store/useCrewPeopleStore'
 import { getRateCalc, deriveRates } from '../lib/rateCalc'
@@ -455,9 +455,12 @@ const RATE_SETTINGS = [
 // Derive unique sorted values for a given field from a resource list
 function uniq(arr) { return [...new Set(arr.filter(Boolean))].sort() }
 
-function ResourceRow({
-  resource, activeTab, colSpecs, bMap,
-  shootDateSet, paintMode, isDragging,
+// Shared empty booking map — stable identity for rows with no bookings
+const EMPTY_ROW_BOOKINGS = {}
+
+const ResourceRow = memo(function ResourceRow({
+  resource, activeTab, colSpecs, rowBookings = EMPTY_ROW_BOOKINGS,
+  shootDateSet,
   onCellMouseDown, onCellMouseEnter,
   onUpdate, onDelete, onMoveUp, onMoveDown, onPhaseToggle,
   typeResources,
@@ -728,7 +731,7 @@ function ResourceRow({
         )}
 
         {/* ── Day / summary cells ──────────────────────────────────────────────── */}
-        {colSpecs.map(spec => {
+        {colSpecs.map((spec, specIndex) => {
           if (spec.type === 'summary') {
             return (
               <td key={`sum-${spec.phaseId}`}
@@ -740,8 +743,7 @@ function ResourceRow({
             )
           }
 
-          const bKey       = spec.dayId ? `${resource.id}:${spec.dayId}` : `${resource.id}:${spec.date}`
-          const booking    = bMap[bKey]
+          const booking    = rowBookings[spec.dayId ?? spec.date]
           const status     = booking?.status ?? null
           const isShootDay = shootDateSet.has(spec.date)
 
@@ -771,8 +773,8 @@ function ResourceRow({
             <td
               key={spec.dayId ?? spec.date}
               className={cls}
-              onMouseDown={e => { e.preventDefault(); onCellMouseDown(resource.id, spec.date, spec.dayId) }}
-              onMouseEnter={() => onCellMouseEnter(resource.id, spec.date, spec.dayId)}
+              onMouseDown={e => { e.preventDefault(); onCellMouseDown(resource.id, spec.date, spec.dayId, specIndex) }}
+              onMouseEnter={() => onCellMouseEnter(resource.id, spec.date, spec.dayId, specIndex)}
               title={
                 unitLabel
                   ? (status ? `${unitLabel}: ${status}` : `${unitLabel} unit — click to assign`)
@@ -910,7 +912,7 @@ function ResourceRow({
       )}
     </Fragment>
   )
-}
+})
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -940,7 +942,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
   // Crew details panel — only in crew mode, and only for permitted users
   const showDetails = mode === 'crew' && canViewCrewDetails && detailsOpen
-  const rateCalcSettings = getRateCalc(production)
+  const rateCalcSettings = useMemo(() => getRateCalc(production), [production])
   const extraCols = showDetails ? DETAIL_COL_COUNT : 0
 
   function toggleDetails() {
@@ -963,9 +965,15 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const isDraggingRef   = useRef(false)
   const dragActionRef   = useRef(paintMode)   // the status being applied for the current drag
   const paintedInDrag   = useRef(new Set())   // keys painted this drag session
+  const lastPaintedRef  = useRef(null)        // { resourceId, specIndex } of the last MAIN-unit cell painted this drag
   const scrollRef       = useRef(null)        // gantt-scroll container
   const scrollInterval  = useRef(null)
   const dirtyResources  = useRef(new Set())   // resource IDs whose bookings changed via painting
+  const paintModeRef    = useRef(paintMode)   // mirror of paintMode for []-stable callbacks
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref, read only in event handlers
+  paintModeRef.current  = paintMode
+  const prevRowMapsRef  = useRef({})          // per-resource booking-map identity cache
+  const latestRef       = useRef({})          // latest store fns + derived data for []-stable callbacks
 
   const {
     loading, error,
@@ -993,46 +1001,81 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const hasPhases = PHASES.some(p => production[p.startKey] && production[p.endKey])
 
   // date → main shootDay map (for column labels — main unit only)
-  const dateMap = {}
-  for (const sd of shootDays) {
-    if (sd.date && sd.dayCategory === 'main') dateMap[sd.date] = sd
-  }
-
   // date → [subUnit, ...] map — prep, splinter, rehearsal AND other units get their own columns
-  const subUnitsByDate = {}
-  for (const sd of shootDays) {
-    if ((sd.dayCategory === 'prep' || sd.dayCategory === 'splinter' || sd.dayCategory === 'rehearsal' || sd.dayCategory === 'other') && sd.date) {
-      if (!subUnitsByDate[sd.date]) subUnitsByDate[sd.date] = []
-      subUnitsByDate[sd.date].push(sd)
+  const { dateMap, subUnitsByDate, shootDateSet } = useMemo(() => {
+    const dateMap = {}
+    const subUnitsByDate = {}
+    for (const sd of shootDays) {
+      if (!sd.date) continue
+      if (sd.dayCategory === 'main') dateMap[sd.date] = sd
+      if (sd.dayCategory === 'prep' || sd.dayCategory === 'splinter' || sd.dayCategory === 'rehearsal' || sd.dayCategory === 'other') {
+        if (!subUnitsByDate[sd.date]) subUnitsByDate[sd.date] = []
+        subUnitsByDate[sd.date].push(sd)
+      }
     }
-  }
+    // Set of shoot-day dates that are NOT non-shoot (drag-paint skips others)
+    const shootDateSet = new Set(
+      shootDays.filter(sd => !sd.isNonShootDay).map(sd => sd.date)
+    )
+    return { dateMap, subUnitsByDate, shootDateSet }
+  }, [shootDays])
 
-  // Set of shoot-day dates that are NOT non-shoot (drag-paint skips others)
-  const shootDateSet = new Set(
-    shootDays.filter(sd => !sd.isNonShootDay).map(sd => sd.date)
-  )
+  const colSpecs = useMemo(() => {
+    let specs = hasPhases
+      ? buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDate)
+      : []
+    if (hidePastDays) {
+      specs = specs.filter(spec => spec.type === 'summary' || spec.date >= today)
+    }
+    return specs
+  }, [hasPhases, production, expandedPhases, dateMap, today, subUnitsByDate, hidePastDays])
 
-  let colSpecs = hasPhases
-    ? buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDate)
-    : []
-  if (hidePastDays) {
-    colSpecs = colSpecs.filter(spec => spec.type === 'summary' || spec.date >= today)
-  }
-
-  // booking lookup:
-  //   prep bookings  → `${resourceId}:${dayId}`
-  //   main bookings  → `${resourceId}:${dateStr}`
-  const bMap = {}
-  for (const b of bookings) {
-    const key = b.dayId ? `${b.resourceId}:${b.dayId}` : `${b.resourceId}:${b.date}`
-    bMap[key] = b
-  }
+  // Per-resource booking lookup maps, keyed WITHIN each row by `dayId ?? date`
+  // (the global map used `${resourceId}:${dayId ?? date}`). A row's map keeps
+  // its identity when that resource's bookings didn't change — optimistic store
+  // updates preserve object identity for untouched bookings, so an optimistic
+  // paint only produces a new sub-map for the painted resource and memoized
+  // rows elsewhere skip re-rendering.
+  const bookingsByResource = useMemo(() => {
+    /* eslint-disable react-hooks/refs -- identity cache: the ref only memoises
+       the previous result so unchanged rows keep the same object identity */
+    const grouped = {}
+    for (const b of bookings) (grouped[b.resourceId] ??= []).push(b)
+    const out = {}
+    const prev = prevRowMapsRef.current
+    for (const rid in grouped) {
+      const list = grouped[rid]
+      const old = prev[rid]
+      if (old && old.__list.length === list.length && old.__list.every((x, i) => x === list[i])) {
+        out[rid] = old            // unchanged → keep identity
+      } else {
+        const m = { __list: list }
+        for (const b of list) m[b.dayId ?? b.date] = b
+        out[rid] = m
+      }
+    }
+    prevRowMapsRef.current = out
+    return out
+    /* eslint-enable react-hooks/refs */
+  }, [bookings])
 
   // ── Autocomplete suggestions from existing values ─────────────────────────
 
   // All resources of each type — passed to rows for suggestions + name autofill
-  const crewResources  = resources.filter(r => r.type === 'crew')
-  const equipResources = resources.filter(r => r.type === 'equipment')
+  const crewResources  = useMemo(() => resources.filter(r => r.type === 'crew'),      [resources])
+  const equipResources = useMemo(() => resources.filter(r => r.type === 'equipment'), [resources])
+
+  // Keep the "latest" snapshot current so []-stable callbacks below can read
+  // frequently-changing values without taking them as deps (which would churn
+  // the callback identities and re-render every memoized row).
+  // eslint-disable-next-line react-hooks/refs -- latest-value ref, read only in event handlers
+  latestRef.current = {
+    resources, bookings, shootDays,
+    colSpecs, shootDateSet, bookingsByResource,
+    setBooking, updateResource, deleteResource,
+    moveResourceUp, moveResourceDown,
+    findOrCreatePerson, updateCrewPerson,
+  }
 
   // ── Filter + group resources ───────────────────────────────────────────────
 
@@ -1057,13 +1100,13 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
   // ── Phase toggle ───────────────────────────────────────────────────────────
 
-  function togglePhase(phaseId) {
+  const togglePhase = useCallback(phaseId => {
     setExpandedPhases(s => {
       const next = { ...s, [phaseId]: !s[phaseId] }
       localStorage.setItem('fm_gantt_phases', JSON.stringify(next))
       return next
     })
-  }
+  }, [])
 
   function collapseBeforeToday() {
     setExpandedPhases(prev => {
@@ -1129,19 +1172,12 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   // mouseenter during drag only paints shoot days; non-shoot days are skipped
   // (they can still be painted by a discrete single click / mousedown).
 
-  function handleCellMouseDown(resourceId, date, dayId = null) {
-    isDraggingRef.current = true
-    paintedInDrag.current = new Set()
-    setIsDragging(true)
-
-    const key      = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
-    const existing = bMap[key]
-    // Toggle off by re-clicking only for non-cancelled statuses.
-    // Cancelled cells must not be wiped by an accidental second click — use
-    // the Clear brush (Esc) to explicitly remove a cancelled booking.
-    const sameStatus = existing?.status === paintMode
-    dragActionRef.current = (sameStatus && paintMode !== 'cancelled') ? null : paintMode
-
+  // Paint one cell with the current drag action (dedupe + hire-date dirty
+  // tracking). Reads everything through refs so the callers stay []-stable.
+  const paintCell = useCallback((resourceId, date, dayId = null) => {
+    const key = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
+    if (paintedInDrag.current.has(key)) return
+    paintedInDrag.current.add(key)
     // Only track dirty resources for hire-date sync when painting booked/clear
     // on a main-unit cell. Painting cancelled/unavailable/hold triggers no hire-date update,
     // which avoids a race condition where the hire-date DB write triggers a
@@ -1149,23 +1185,65 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     if (!dayId && (dragActionRef.current === 'booked' || dragActionRef.current === null)) {
       dirtyResources.current.add(resourceId)
     }
+    latestRef.current.setBooking(resourceId, date, dragActionRef.current, dayId)
+  }, [])
 
-    paintedInDrag.current.add(key)
-    setBooking(resourceId, date, dragActionRef.current, dayId)
-  }
+  const handleCellMouseDown = useCallback((resourceId, date, dayId = null, specIndex = -1) => {
+    isDraggingRef.current = true
+    paintedInDrag.current = new Set()
+    setIsDragging(true)
 
-  function handleCellMouseEnter(resourceId, date, dayId = null) {
+    const brush    = paintModeRef.current
+    const existing = latestRef.current.bookingsByResource[resourceId]?.[dayId ?? date]
+    // Toggle off by re-clicking only for non-cancelled statuses.
+    // Cancelled cells must not be wiped by an accidental second click — use
+    // the Clear brush (Esc) to explicitly remove a cancelled booking.
+    const sameStatus = existing?.status === brush
+    dragActionRef.current = (sameStatus && brush !== 'cancelled') ? null : brush
+
+    paintCell(resourceId, date, dayId)
+    // Anchor gap filling at the starting cell (main-unit day cells only)
+    lastPaintedRef.current = (!dayId && specIndex >= 0) ? { resourceId, specIndex } : null
+  }, [paintCell])
+
+  const handleCellMouseEnter = useCallback((resourceId, date, dayId = null, specIndex = -1) => {
     if (!isDraggingRef.current) return
-    // For prep columns always allow drag; for main columns skip non-shoot dates
-    if (!dayId && !shootDateSet.has(date)) return
-    const key = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
-    if (paintedInDrag.current.has(key)) return
-    paintedInDrag.current.add(key)
-    if (!dayId && (dragActionRef.current === 'booked' || dragActionRef.current === null)) {
-      dirtyResources.current.add(resourceId)
+    const { colSpecs, shootDateSet } = latestRef.current
+
+    // Sub-unit (dayId) cells: always paintable on drag, no gap interpolation.
+    if (dayId) {
+      paintCell(resourceId, date, dayId)
+      lastPaintedRef.current = null
+      return
     }
-    setBooking(resourceId, date, dragActionRef.current, dayId)
-  }
+
+    // Main-unit cell. Fast drags skip mouseenter events — when we're still on
+    // the row we last painted, fill every main-unit day cell between the last
+    // spec index and this one (exclusive → inclusive), in order. Summary
+    // columns and sub-unit columns are skipped, and (as for a direct enter)
+    // non-shoot dates are skipped during a drag.
+    const last = lastPaintedRef.current
+    const from = (last && last.resourceId === resourceId && specIndex >= 0 &&
+                  last.specIndex !== specIndex && colSpecs[last.specIndex] && colSpecs[specIndex])
+      ? last.specIndex
+      : specIndex   // no valid anchor → just this cell
+
+    if (specIndex >= 0 && colSpecs[specIndex]) {
+      const step = specIndex >= from ? 1 : -1
+      for (let i = from === specIndex ? specIndex : from + step; ; i += step) {
+        const spec = colSpecs[i]
+        if (spec && spec.type === 'day' && !spec.dayId && shootDateSet.has(spec.date)) {
+          paintCell(resourceId, spec.date, null)
+        }
+        if (i === specIndex) break
+      }
+      lastPaintedRef.current = { resourceId, specIndex }
+    } else {
+      // No spec index available — mirror the old single-cell behaviour
+      if (shootDateSet.has(date)) paintCell(resourceId, date, null)
+      lastPaintedRef.current = null
+    }
+  }, [paintCell])
 
   // Stop drag on mouseup anywhere in the window
   useEffect(() => {
@@ -1175,6 +1253,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       setIsDragging(false)
       clearInterval(scrollInterval.current)
       paintedInDrag.current = new Set()
+      lastPaintedRef.current = null
     }
     window.addEventListener('mouseup', stop)
     return () => window.removeEventListener('mouseup', stop)
@@ -1425,7 +1504,8 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   // all main-unit shoot days (not non-shoot) within that range.
   // Does NOT add to dirtyResources so Direction 1 won't subsequently overwrite.
 
-  function handleUpdateResource(id, field, value) {
+  const handleUpdateResource = useCallback((id, field, value) => {
+    const { resources, bookings, shootDays, setBooking, updateResource } = latestRef.current
     updateResource(id, field, value)
     if (field !== 'hireStartDate' && field !== 'hireEndDate') return
     const resource = resources.find(r => r.id === id)
@@ -1450,7 +1530,15 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     for (const b of outside) {
       setBooking(id, b.date, null, null)
     }
-  }
+  }, [])
+
+  // Stable wrappers around per-render store functions, so memoized rows don't
+  // re-render when the store hook recreates its closures.
+  const handleDeleteResource = useCallback(id => latestRef.current.deleteResource(id), [])
+  const handleMoveUp         = useCallback(id => latestRef.current.moveResourceUp(id), [])
+  const handleMoveDown       = useCallback(id => latestRef.current.moveResourceDown(id), [])
+  const handleCreatePerson   = useCallback(p  => latestRef.current.findOrCreatePerson(p), [])
+  const handleUpdatePerson   = useCallback((id, field, value) => latestRef.current.updateCrewPerson(id, field, value), [])
 
   if (loading) return <div className="gantt-state-msg">Loading…</div>
   if (error)   return <div className="gantt-state-msg gantt-state-error">Error: {error}</div>
@@ -1732,21 +1820,19 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                         resource={resource}
                         activeTab={effTab}
                         colSpecs={colSpecs}
-                        bMap={bMap}
+                        rowBookings={bookingsByResource[resource.id]}
                         shootDateSet={shootDateSet}
-                        paintMode={paintMode}
-                        isDragging={isDragging}
                         onCellMouseDown={handleCellMouseDown}
                         onCellMouseEnter={handleCellMouseEnter}
                         onUpdate={handleUpdateResource}
-                        onDelete={deleteResource}
-                        onMoveUp={moveResourceUp}
-                        onMoveDown={moveResourceDown}
+                        onDelete={handleDeleteResource}
+                        onMoveUp={handleMoveUp}
+                        onMoveDown={handleMoveDown}
                         onPhaseToggle={togglePhase}
                         typeResources={effTab === 'crew' ? crewResources : equipResources}
                         people={people}
-                        onCreatePerson={findOrCreatePerson}
-                        onUpdatePerson={updateCrewPerson}
+                        onCreatePerson={handleCreatePerson}
+                        onUpdatePerson={handleUpdatePerson}
                         estEndDate={production?.shootEndDate ?? ''}
                         showDetails={showDetails}
                         rateCalcSettings={rateCalcSettings}
