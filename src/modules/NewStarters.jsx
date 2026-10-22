@@ -509,7 +509,7 @@ export default function NewStarters() {
           <div className="empty-state-icon">📋</div>
           <div className="empty-state-text">No starters this week</div>
           <div className="empty-state-sub">
-            Set start dates on fulltime crew members or add hire start dates in the Crew &amp; Equipment Gantt.
+            Set start dates on fulltime crew members or add hire start dates in the Crew Tracker (Crew tab).
           </div>
         </div>
       ) : (

@@ -195,7 +195,7 @@ export default function CrewDatabase() {
           <div className="empty-state-icon">👤</div>
           <div className="empty-state-text">No crew yet.</div>
           <div className="empty-state-sub">
-            Add crew members here or in the Crew &amp; Equipment Gantt — they'll appear in both places.
+            Add crew members here or in the Crew Tracker (Crew tab) — they'll appear in both places.
           </div>
         </div>
       ) : (

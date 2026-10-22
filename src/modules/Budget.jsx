@@ -585,7 +585,7 @@ export default function Budget({ store, onUpdate }) {
         {/* ── Crew Costs ───────────────────────────────────────────────────────── */}
         <BudgetSection title="Crew Costs" total={cv(crewConfirmed)} symbol={displaySymbol} action={<CopyBtn getText={crewTSV} />}>
           {crewByDept.length === 0 ? (
-            <p className="budget-empty">No crew added yet — add crew in the Crew &amp; Equipment tab.</p>
+            <p className="budget-empty">No crew added yet — add crew in the Crew Tracker (Crew tab).</p>
           ) : (
             crewByDept.map(([dept, members]) => {
               const deptConf = members.reduce((s, r) => s + r.confirmedCost, 0)
@@ -647,7 +647,7 @@ export default function Budget({ store, onUpdate }) {
                                   {r.contactPhone && <div className="budget-detail-item"><span className="budget-detail-label">Phone</span>{r.contactPhone}</div>}
                                   {r.contactEmail && <div className="budget-detail-item"><span className="budget-detail-label">Email</span>{r.contactEmail}</div>}
                                   {!r.poNumber && !r.hireStartDate && !r.hireEndDate && !r.contactPhone && !r.contactEmail && (
-                                    <span style={{ color: '#9ca3af', fontSize: 12 }}>No PO details — add in Crew &amp; Equipment</span>
+                                    <span style={{ color: '#9ca3af', fontSize: 12 }}>No PO details — add in the Crew Tracker</span>
                                   )}
                                 </div>
                               </td>
@@ -679,7 +679,7 @@ export default function Budget({ store, onUpdate }) {
         {/* ── Equipment Costs ──────────────────────────────────────────────────── */}
         <BudgetSection title="Equipment Costs" total={cv(equipConfirmed)} symbol={displaySymbol} action={<CopyBtn getText={equipTSV} />}>
           {equipByCat.length === 0 ? (
-            <p className="budget-empty">No equipment added yet — add items in the Crew &amp; Equipment tab.</p>
+            <p className="budget-empty">No equipment added yet — add items in the Equipment tab.</p>
           ) : (
             equipByCat.map(([cat, items]) => {
               const catConf = items.reduce((s, r) => s + r.confirmedCost, 0)
@@ -741,7 +741,7 @@ export default function Budget({ store, onUpdate }) {
                                   {r.contactPhone && <div className="budget-detail-item"><span className="budget-detail-label">Phone</span>{r.contactPhone}</div>}
                                   {r.contactEmail && <div className="budget-detail-item"><span className="budget-detail-label">Email</span>{r.contactEmail}</div>}
                                   {!r.poNumber && !r.hireStartDate && !r.hireEndDate && !r.contactPhone && !r.contactEmail && (
-                                    <span style={{ color: '#9ca3af', fontSize: 12 }}>No PO details — add in Crew &amp; Equipment</span>
+                                    <span style={{ color: '#9ca3af', fontSize: 12 }}>No PO details — add in the Equipment tab</span>
                                   )}
                                 </div>
                               </td>

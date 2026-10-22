@@ -1108,7 +1108,7 @@ export default function DPR({ productionName, shootDays, castMembers }) {
               <div>
                 <div className="dpr-field-label" style={{ marginBottom: 6 }}>Additional Crew</div>
                 {bookedCrew.length === 0 ? (
-                  <div style={{ color: '#9ca3af', fontSize: 12 }}>No additional crew booked from the Gantt for this day.</div>
+                  <div style={{ color: '#9ca3af', fontSize: 12 }}>No additional crew booked in the Crew Tracker for this day.</div>
                 ) : (
                   <table className="dpr-table">
                     <thead>
@@ -1130,7 +1130,7 @@ export default function DPR({ productionName, shootDays, castMembers }) {
               <div>
                 <div className="dpr-field-label" style={{ marginBottom: 6 }}>Additional Equipment</div>
                 {bookedEquipment.length === 0 ? (
-                  <div style={{ color: '#9ca3af', fontSize: 12 }}>No additional equipment booked from the Gantt for this day.</div>
+                  <div style={{ color: '#9ca3af', fontSize: 12 }}>No equipment booked in the Equipment tab for this day.</div>
                 ) : (
                   <table className="dpr-table">
                     <thead>

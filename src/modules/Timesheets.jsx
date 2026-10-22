@@ -367,7 +367,7 @@ export default function Timesheets({ store }) {
         <div style={{ fontSize: 32, opacity: 0.2 }}>📋</div>
         <div className="ts-empty-title">No crew yet</div>
         <div className="ts-empty-sub">
-          Add crew in Fulltime Crew and book additional crew in the Crew Gantt.
+          Add crew in Fulltime Crew and book additional crew in the Crew Tracker.
         </div>
       </div>
     )

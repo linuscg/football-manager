@@ -190,14 +190,16 @@ export function useCrewStore() {
   // rows: array of plain objects already mapped to camelCase resource fields.
   // Returns the number of resources actually created.
 
-  async function importResources(type, rows) {
+  async function importResources(type, rows, options = {}) {
     const prodId    = getCurrentProductionId()
     const sortStart = resources.filter(r => r.type === type).length
+    const crewClass = options.crewClass ?? 'additional'
 
     const inserts = rows.map((row, i) => ({
       id:            crypto.randomUUID(),
       production_id: prodId,
       type,
+      crew_class:    crewClass,
       sort_order:    sortStart + i,
       name:          row.name          || '',
       role:          row.role          || '',

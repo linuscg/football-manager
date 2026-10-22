@@ -610,10 +610,24 @@ function ResourceRow({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function CrewGantt({ production, shootDays }) {
+export default function CrewGantt({ production, shootDays, mode = 'both' }) {
   const [activeTab, setActiveTab] = useState(() =>
     localStorage.getItem('fm_gantt_tab') ?? 'crew'
   )
+  const [crewClassTab, setCrewClassTab] = useState(() => {
+    const saved = localStorage.getItem('fm_gantt_crew_class')
+    return saved === 'fulltime' || saved === 'additional' ? saved : 'fulltime'
+  })
+
+  // Effective type + class filter — the single place (mode, activeTab, crewClassTab)
+  // is resolved. Everything below filters/renders off these two values.
+  //   mode='equipment' → equipment only, no sub-tabs
+  //   mode='crew'      → crew only, Full-Time | Additional sub-tabs (crewClassTab)
+  //   mode='both'      → legacy Crew | Equipment sub-tabs (activeTab)
+  const effTab = mode === 'equipment' ? 'equipment'
+               : mode === 'crew'      ? 'crew'
+               : activeTab
+  const classFilter = mode === 'crew' ? crewClassTab : null
   const [expandedPhases, setExpandedPhases] = useState(() => {
     try {
       const saved = localStorage.getItem('fm_gantt_phases')
@@ -699,9 +713,12 @@ export default function CrewGantt({ production, shootDays }) {
 
   // ── Filter + group resources ───────────────────────────────────────────────
 
-  const filtered = resources.filter(r => r.type === activeTab)
-  const groupKey = activeTab === 'crew' ? 'department' : 'category'
-  const FALLBACK = activeTab === 'crew' ? 'Unassigned' : 'Uncategorised'
+  const filtered = resources.filter(r =>
+    r.type === effTab &&
+    (!classFilter || (r.crewClass ?? 'additional') === classFilter)
+  )
+  const groupKey = effTab === 'crew' ? 'department' : 'category'
+  const FALLBACK = effTab === 'crew' ? 'Unassigned' : 'Uncategorised'
 
   const groupMap = {}
   for (const r of filtered) {
@@ -749,6 +766,15 @@ export default function CrewGantt({ production, shootDays }) {
   function switchTab(tab) {
     setActiveTab(tab)
     localStorage.setItem('fm_gantt_tab', tab)
+  }
+
+  function switchCrewClassTab(cls) {
+    setCrewClassTab(cls)
+    localStorage.setItem('fm_gantt_crew_class', cls)
+  }
+
+  function handleAddResource() {
+    addResource(effTab, effTab === 'crew' && classFilter ? { crewClass: classFilter } : {})
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
@@ -888,8 +914,8 @@ export default function CrewGantt({ production, shootDays }) {
   const EQUIP_HEADERS = ['Name','Category','Supplier','PO Number','Cost Amount','Cost Type (daily/weekly)','Notes']
 
   function downloadTemplate() {
-    const headers = activeTab === 'crew' ? CREW_HEADERS : EQUIP_HEADERS
-    const example = activeTab === 'crew'
+    const headers = effTab === 'crew' ? CREW_HEADERS : EQUIP_HEADERS
+    const example = effTab === 'crew'
       ? ['Jane Smith','Director of Photography','Camera','jane@example.com','+44 7700 900000','850','daily','5day','no','','']
       : ['ARRI ALEXA 35','Camera','Panavision Ltd','PO-1234','1500','daily','']
     const csv = [headers, example].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
@@ -897,7 +923,7 @@ export default function CrewGantt({ production, shootDays }) {
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
-    a.download = activeTab === 'crew' ? 'crew_template.csv' : 'equipment_template.csv'
+    a.download = effTab === 'crew' ? 'crew_template.csv' : 'equipment_template.csv'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -932,7 +958,7 @@ export default function CrewGantt({ production, shootDays }) {
     const h = header.map(s => s.toLowerCase())
 
     let mapped
-    if (activeTab === 'crew') {
+    if (effTab === 'crew') {
       mapped = dataRows.map(r => ({
         name:          r[h.indexOf('name')]            ?? '',
         role:          r[h.indexOf('role')]            ?? '',
@@ -960,8 +986,12 @@ export default function CrewGantt({ production, shootDays }) {
 
     if (!mapped.length) return
 
-    const count = await importResources(activeTab, mapped)
-    setImportMsg({ count, type: activeTab })
+    const count = await importResources(
+      effTab,
+      mapped,
+      effTab === 'crew' && classFilter ? { crewClass: classFilter } : {}
+    )
+    setImportMsg({ count, type: effTab })
     setTimeout(() => setImportMsg(null), 4000)
   }
 
@@ -1000,7 +1030,8 @@ export default function CrewGantt({ production, shootDays }) {
   if (loading) return <div className="gantt-state-msg">Loading…</div>
   if (error)   return <div className="gantt-state-msg gantt-state-error">Error: {error}</div>
 
-  const typeLabel = activeTab === 'crew' ? 'Crew Member' : 'Equipment'
+  const typeLabel = effTab === 'crew' ? 'Crew Member' : 'Equipment'
+  const crewClassLabel = classFilter === 'fulltime' ? 'full-time' : 'additional'
   const activePaint = PAINT_MODES.find(m => m.value === paintMode)
 
   return (
@@ -1009,16 +1040,26 @@ export default function CrewGantt({ production, shootDays }) {
       {/* ── Top bar ──────────────────────────────────────────────────────────── */}
       <div className="gantt-top">
 
-        <div className="gantt-tabs">
-          <button className={`gantt-tab${activeTab === 'crew'      ? ' active' : ''}`}
-            onClick={() => switchTab('crew')}>Crew</button>
-          <button className={`gantt-tab${activeTab === 'equipment' ? ' active' : ''}`}
-            onClick={() => switchTab('equipment')}>Equipment</button>
-        </div>
+        {mode === 'both' && (
+          <div className="gantt-tabs">
+            <button className={`gantt-tab${activeTab === 'crew'      ? ' active' : ''}`}
+              onClick={() => switchTab('crew')}>Crew</button>
+            <button className={`gantt-tab${activeTab === 'equipment' ? ' active' : ''}`}
+              onClick={() => switchTab('equipment')}>Equipment</button>
+          </div>
+        )}
+        {mode === 'crew' && (
+          <div className="gantt-tabs">
+            <button className={`gantt-tab${crewClassTab === 'fulltime'   ? ' active' : ''}`}
+              onClick={() => switchCrewClassTab('fulltime')}>Full-Time</button>
+            <button className={`gantt-tab${crewClassTab === 'additional' ? ' active' : ''}`}
+              onClick={() => switchCrewClassTab('additional')}>Additional</button>
+          </div>
+        )}
 
         <div className="gantt-toolbar">
           {/* Add / import resource */}
-          <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={() => addResource(activeTab)}>
+          <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={handleAddResource}>
             + Add {typeLabel}
           </button>
           <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadTemplate} title="Download CSV template">
@@ -1124,7 +1165,7 @@ export default function CrewGantt({ production, shootDays }) {
               {/* ── Phase banner row ───────────────────────────────────────────── */}
               <tr>
                 <th className="pm-g-corner pm-g-corner--tall" rowSpan={2}>
-                  {activeTab === 'crew' ? 'Name / Role / Dept' : 'Item / Category'}
+                  {effTab === 'crew' ? 'Name / Role / Dept' : 'Item / Category'}
                 </th>
                 {buildPhaseSpans(colSpecs).map(span => (
                   <th
@@ -1210,7 +1251,9 @@ export default function CrewGantt({ production, shootDays }) {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={colSpecs.length + 1} className="gantt-empty-row">
-                    No {activeTab === 'crew' ? 'crew members' : 'equipment'} yet —
+                    No {effTab === 'crew'
+                      ? (classFilter ? `${crewClassLabel} crew` : 'crew members')
+                      : 'equipment'} yet —
                     click + Add above.
                   </td>
                 </tr>
@@ -1226,7 +1269,7 @@ export default function CrewGantt({ production, shootDays }) {
                       <ResourceRow
                         key={resource.id}
                         resource={resource}
-                        activeTab={activeTab}
+                        activeTab={effTab}
                         colSpecs={colSpecs}
                         bMap={bMap}
                         shootDateSet={shootDateSet}
@@ -1239,7 +1282,7 @@ export default function CrewGantt({ production, shootDays }) {
                         onMoveUp={moveResourceUp}
                         onMoveDown={moveResourceDown}
                         onPhaseToggle={togglePhase}
-                        typeResources={activeTab === 'crew' ? crewResources : equipResources}
+                        typeResources={effTab === 'crew' ? crewResources : equipResources}
                         people={people}
                         onCreatePerson={findOrCreatePerson}
                         onUpdatePerson={updateCrewPerson}
@@ -1252,7 +1295,7 @@ export default function CrewGantt({ production, shootDays }) {
                 <td colSpan={colSpecs.length + 1}>
                   <button
                     className="pm-btn pm-btn--ghost pm-btn--sm gantt-add-bottom-btn"
-                    onClick={() => addResource(activeTab)}
+                    onClick={handleAddResource}
                   >
                     + Add {typeLabel}
                   </button>

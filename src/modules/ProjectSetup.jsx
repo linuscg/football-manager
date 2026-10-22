@@ -470,8 +470,8 @@ export default function ProjectSetup({
       })}
 
       <p className="setup-info-note">
-        Phase date ranges populate the columns in <strong>Crew &amp; Equipment</strong>.
-        Each phase can be expanded or collapsed in that view.
+        Phase date ranges populate the columns in the <strong>Crew Tracker</strong> and <strong>Equipment</strong> gantts.
+        Each phase can be expanded or collapsed in those views.
       </p>
 
       {/* ── Currency & Exchange Rates ─────────────────────────────────────────── */}
@@ -720,7 +720,7 @@ export default function ProjectSetup({
 
         {hods.length === 0 && (
           <p className="setup-card-hint" style={{ marginBottom: 10 }}>
-            Key contacts for the production. Separate from the full crew roster in Crew &amp; Equipment.
+            Key contacts for the production. Separate from the full crew roster in the Crew Tracker.
           </p>
         )}
 

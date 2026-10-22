@@ -65,7 +65,7 @@ const SETUP_MODULE_SUB = {
 
 const FM_NAV = [
   { id: 'schedule',  num: '01', label: 'Schedule'         },
-  { id: 'crew',      num: '02', label: 'Crew & Equipment' },
+  { id: 'crew',      num: '02', label: 'Equipment'        },
   { id: 'callsheet', num: '03', label: 'Daily Info'       },
   { id: 'budget',    num: '04', label: 'Cost Tracking'    },
   { id: 'crew-db',   num: '05', label: 'Crew Database'    },
@@ -73,7 +73,7 @@ const FM_NAV = [
 
 const FM_MODULE_SUB = {
   schedule:  'Shooting board',
-  crew:      'Booking gantt',
+  crew:      'Equipment booking gantt',
   callsheet: 'Call sheet',
   budget:    'Cost tracking',
   'crew-db': 'Cross-production people roster',
@@ -111,13 +111,15 @@ const CAT_MODULE_SUB = {
 
 const CT_NAV = [
   { id: 'ct-crew',       num: '01', label: 'Fulltime Crew' },
-  { id: 'ct-backpage',   num: '02', label: 'Backpage'      },
-  { id: 'ct-timesheets', num: '03', label: 'Timesheets'    },
-  { id: 'ct-starters',   num: '04', label: 'New Starters'  },
+  { id: 'ct-tracker',    num: '02', label: 'Crew Tracker'  },
+  { id: 'ct-backpage',   num: '03', label: 'Backpage'      },
+  { id: 'ct-timesheets', num: '04', label: 'Timesheets'    },
+  { id: 'ct-starters',   num: '05', label: 'New Starters'  },
 ]
 
 const CT_MODULE_SUB = {
   'ct-crew':       'Full-time crew list',
+  'ct-tracker':    'Full-time & additional crew gantt',
   'ct-backpage':   'Daily back page',
   'ct-timesheets': 'Weekly timesheets',
   'ct-starters':   'Weekly new starter onboarding',
@@ -371,7 +373,8 @@ function AppShell({ session, signOut }) {
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
-  const isGantt     = topTab === 'fm' && fmModule === 'crew'
+  const isGantt     = (topTab === 'fm' && fmModule === 'crew') ||
+                      (topTab === 'crew-times' && ctModule === 'ct-tracker')
   const isCallsheet = topTab === 'fm' && fmModule === 'callsheet'
 
   // Hide admin/requests nav from users without permission
@@ -670,7 +673,7 @@ function AppShell({ session, signOut }) {
               <Schedule store={store} actions={scheduleActions} />
             )}
             {topTab === 'fm' && fmModule === 'crew' && (
-              <CrewGantt production={store.production} shootDays={store.shootDays} />
+              <CrewGantt production={store.production} shootDays={store.shootDays} mode="equipment" />
             )}
             {topTab === 'fm' && fmModule === 'callsheet' && (
               <CallSheet store={store} castMembers={store.castMembers} />
@@ -685,6 +688,9 @@ function AppShell({ session, signOut }) {
             {/* ── Crew Times tab ────────────────────────────────────────────── */}
             {topTab === 'crew-times' && ctModule === 'ct-crew' && (
               <FulltimeCrew productionName={store.production.name} />
+            )}
+            {topTab === 'crew-times' && ctModule === 'ct-tracker' && (
+              <CrewGantt production={store.production} shootDays={store.shootDays} mode="crew" />
             )}
             {topTab === 'crew-times' && ctModule === 'ct-backpage' && (
               <Backpage store={store} />
