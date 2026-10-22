@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { supabase } from './lib/supabase'
 import { useScheduleStore }  from './store/useScheduleStore'
 import { useAuthStore }      from './store/useAuthStore'
 import { useProfileStore }   from './store/useProfileStore'
@@ -209,6 +210,33 @@ export default function App() {
   // Detect invite token in URL (?invite=TOKEN)
   const inviteToken = new URLSearchParams(window.location.search).get('invite')
 
+  // The magic-link redirect can drop the ?invite= param, leaving the user
+  // signed in but never shown the accept screen. Fall back to any pending
+  // invite matching their email (RLS lets them read their own invites).
+  const [pendingInviteToken, setPendingInviteToken] = useState(null)
+  useEffect(() => {
+    if (!session?.user?.email || inviteToken) return
+    let cancelled = false
+    async function checkPendingInvite() {
+      const { data: invs } = await supabase
+        .from('invites')
+        .select('token, production_id')
+        .eq('email', session.user.email.toLowerCase())
+        .eq('accepted', false)
+        .gte('expires_at', new Date().toISOString())
+      if (!invs?.length) return
+      const { data: mems } = await supabase
+        .from('production_members')
+        .select('production_id')
+        .eq('user_id', session.user.id)
+      const memberOf = new Set((mems ?? []).map(m => m.production_id))
+      const inv = invs.find(i => !memberOf.has(i.production_id))
+      if (inv && !cancelled) setPendingInviteToken(inv.token)
+    }
+    checkPendingInvite()
+    return () => { cancelled = true }
+  }, [session, inviteToken])
+
   if (session === undefined) {
     return (
       <div style={{
@@ -227,8 +255,8 @@ export default function App() {
   }
 
   // If there's a valid invite token and the user is authenticated (via magic link), show accept flow
-  if (inviteToken && session) {
-    return <AcceptInvite token={inviteToken} session={session} />
+  if ((inviteToken || pendingInviteToken) && session) {
+    return <AcceptInvite token={inviteToken ?? pendingInviteToken} session={session} />
   }
 
   if (session === null) {
