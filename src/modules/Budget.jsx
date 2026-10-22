@@ -265,10 +265,13 @@ export default function Budget({ store, onUpdate }) {
   const enrichedCrew  = enriched.filter(r => r.type === 'crew')
   const enrichedEquip = enriched.filter(r => r.type === 'equipment')
 
-  // Group crew by department
-  const crewByDept = useMemo(() => {
+  // Crew split by class — full-time vs additional, each grouped by department
+  const enrichedFulltime   = enrichedCrew.filter(r => (r.crewClass ?? 'additional') === 'fulltime')
+  const enrichedAdditional = enrichedCrew.filter(r => (r.crewClass ?? 'additional') !== 'fulltime')
+
+  const groupByDept = list => {
     const map = {}
-    for (const r of enrichedCrew) {
+    for (const r of list) {
       const key = r.department.trim() || 'Unassigned'
       if (!map[key]) map[key] = []
       map[key].push(r)
@@ -276,7 +279,9 @@ export default function Budget({ store, onUpdate }) {
     return Object.entries(map).sort(([a], [b]) =>
       a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b)
     )
-  }, [enrichedCrew])
+  }
+  const ftByDept  = useMemo(() => groupByDept(enrichedFulltime),   [enriched])
+  const addByDept = useMemo(() => groupByDept(enrichedAdditional), [enriched])
 
   // Group equipment by category
   const equipByCat = useMemo(() => {
@@ -292,8 +297,12 @@ export default function Budget({ store, onUpdate }) {
   }, [enrichedEquip])
 
   // Totals (in base currency)
-  const crewConfirmed  = enrichedCrew.reduce((s, r)  => s + r.confirmedCost, 0)
-  const crewHold       = enrichedCrew.reduce((s, r)  => s + r.holdCost,      0)
+  const ftConfirmed    = enrichedFulltime.reduce((s, r)   => s + r.confirmedCost, 0)
+  const ftHold         = enrichedFulltime.reduce((s, r)   => s + r.holdCost,      0)
+  const addConfirmed   = enrichedAdditional.reduce((s, r) => s + r.confirmedCost, 0)
+  const addHold        = enrichedAdditional.reduce((s, r) => s + r.holdCost,      0)
+  const crewConfirmed  = ftConfirmed + addConfirmed
+  const crewHold       = ftHold + addHold
   const equipConfirmed = enrichedEquip.reduce((s, r) => s + r.confirmedCost, 0)
   const equipHold      = enrichedEquip.reduce((s, r) => s + r.holdCost,      0)
   const otherTotal     = otherItems.reduce((s, i)    => s + (parseFloat(i.amount) || 0), 0)
@@ -305,10 +314,10 @@ export default function Budget({ store, onUpdate }) {
   const cv = n => n * fxRate
 
   // ── TSV builders for per-section copy (display currency, plain numbers) ──────
-  function crewTSV() {
+  function crewTSV(byDept) {
     const headers = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
     const rows = []
-    for (const [dept, members] of crewByDept) {
+    for (const [dept, members] of byDept) {
       for (const r of members) {
         rows.push([
           dept, r.name, r.role || '', r.costCode || '', rateStr(r),
@@ -409,21 +418,23 @@ export default function Budget({ store, onUpdate }) {
     tsWs['!cols'] = [{ wch: 14 }, { wch: 34 }, { wch: 14 }, { wch: 14 }, { wch: 14 }]
     XLSX.utils.book_append_sheet(wb, tsWs, 'Topsheet')
 
-    // 2. Crew
+    // 2. Crew — one sheet per class
     const crewHeader = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
-    const crewData = [crewHeader.map(h => ({ v: h, s: bold }))]
-    let cConf = 0, cHold = 0
-    for (const [dept, members] of crewByDept) {
-      for (const r of members) {
-        const conf = r2(cv(r.confirmedCost)), hold = r2(cv(r.holdCost))
-        cConf += conf; cHold += hold
-        crewData.push([dept, r.name, r.role || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0, conf, hold])
+    for (const [sheetName, byDept] of [['Full-Time Crew', ftByDept], ['Additional Crew', addByDept]]) {
+      const crewData = [crewHeader.map(h => ({ v: h, s: bold }))]
+      let cConf = 0, cHold = 0
+      for (const [dept, members] of byDept) {
+        for (const r of members) {
+          const conf = r2(cv(r.confirmedCost)), hold = r2(cv(r.holdCost))
+          cConf += conf; cHold += hold
+          crewData.push([dept, r.name, r.role || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0, conf, hold])
+        }
       }
+      crewData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', { v: r2(cConf), s: bold }, { v: r2(cHold), s: bold }])
+      const crewWs = XLSX.utils.aoa_to_sheet(crewData)
+      crewWs['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }]
+      XLSX.utils.book_append_sheet(wb, crewWs, sheetName)
     }
-    crewData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', { v: r2(cConf), s: bold }, { v: r2(cHold), s: bold }])
-    const crewWs = XLSX.utils.aoa_to_sheet(crewData)
-    crewWs['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }]
-    XLSX.utils.book_append_sheet(wb, crewWs, 'Crew')
 
     // 3. Equipment
     const equipHeader = ['Category', 'Item', 'Vendor', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
@@ -547,9 +558,14 @@ export default function Budget({ store, onUpdate }) {
             )}
           </div>
           <div className="budget-card">
-            <div className="budget-card-label">Crew</div>
-            <div className="budget-card-value">{fmtZero(cv(crewConfirmed), displaySymbol)}</div>
-            {crewHold > 0 && <div className="budget-card-sub">+{fmtZero(cv(crewHold), displaySymbol)} on hold</div>}
+            <div className="budget-card-label">Full-Time Crew</div>
+            <div className="budget-card-value">{fmtZero(cv(ftConfirmed), displaySymbol)}</div>
+            {ftHold > 0 && <div className="budget-card-sub">+{fmtZero(cv(ftHold), displaySymbol)} on hold</div>}
+          </div>
+          <div className="budget-card">
+            <div className="budget-card-label">Additional Crew</div>
+            <div className="budget-card-value">{fmtZero(cv(addConfirmed), displaySymbol)}</div>
+            {addHold > 0 && <div className="budget-card-sub">+{fmtZero(cv(addHold), displaySymbol)} on hold</div>}
           </div>
           <div className="budget-card">
             <div className="budget-card-label">Equipment</div>
@@ -582,12 +598,16 @@ export default function Budget({ store, onUpdate }) {
           </div>
         )}
 
-        {/* ── Crew Costs ───────────────────────────────────────────────────────── */}
-        <BudgetSection title="Crew Costs" total={cv(crewConfirmed)} symbol={displaySymbol} action={<CopyBtn getText={crewTSV} />}>
-          {crewByDept.length === 0 ? (
-            <p className="budget-empty">No crew added yet — add crew in the Crew Tracker (Crew tab).</p>
+        {/* ── Crew Costs — full-time and additional, same layout ───────────────── */}
+        {[
+          { key: 'ft',  title: 'Full-Time Crew Costs',  byDept: ftByDept,  total: ftConfirmed,  empty: 'No full-time crew yet — add crew in the Crew Tracker (Full-Time tab).' },
+          { key: 'add', title: 'Additional Crew Costs', byDept: addByDept, total: addConfirmed, empty: 'No additional crew yet — add crew in the Crew Tracker (Additional tab).' },
+        ].map(sec => (
+        <BudgetSection key={sec.key} title={sec.title} total={cv(sec.total)} symbol={displaySymbol} action={<CopyBtn getText={() => crewTSV(sec.byDept)} />}>
+          {sec.byDept.length === 0 ? (
+            <p className="budget-empty">{sec.empty}</p>
           ) : (
-            crewByDept.map(([dept, members]) => {
+            sec.byDept.map(([dept, members]) => {
               const deptConf = members.reduce((s, r) => s + r.confirmedCost, 0)
               const deptHold = members.reduce((s, r) => s + r.holdCost, 0)
               return (
@@ -675,6 +695,7 @@ export default function Budget({ store, onUpdate }) {
             })
           )}
         </BudgetSection>
+        ))}
 
         {/* ── Equipment Costs ──────────────────────────────────────────────────── */}
         <BudgetSection title="Equipment Costs" total={cv(equipConfirmed)} symbol={displaySymbol} action={<CopyBtn getText={equipTSV} />}>
