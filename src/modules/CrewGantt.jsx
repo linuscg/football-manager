@@ -292,7 +292,50 @@ function OverrideCell({ override, derived, onCommit, width }) {
 }
 
 // The full run of detail <td>s for one crew row
-function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPhone }) {
+// End date with an estimated fallback: when no real end date is set, show the
+// production's final shoot day as an amber "est." value. Click to set a real
+// date; clearing a real date reverts to the estimate.
+function EndDateCell({ resource, estEndDate, onUpdate }) {
+  const [editing, setEditing] = useState(false)
+  const hasReal = !!resource.hireEndDate
+
+  function fmtEst(iso) {
+    try {
+      return new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+    } catch { return iso }
+  }
+
+  if (!hasReal && estEndDate && !editing) {
+    return (
+      <td className="crewd-td" style={{ width: 108, minWidth: 108 }}>
+        <button
+          className="crewd-est"
+          onClick={() => setEditing(true)}
+          title={`Estimated end — final shoot day (${estEndDate}). Click to set a real end date.`}
+        >
+          est. {fmtEst(estEndDate)}
+        </button>
+      </td>
+    )
+  }
+
+  return (
+    <td className="crewd-td" style={{ width: 108, minWidth: 108 }}>
+      <input
+        className="crewd-input crewd-date"
+        type="date"
+        value={resource.hireEndDate ?? ''}
+        min={resource.hireStartDate || undefined}
+        autoFocus={editing && !hasReal}
+        onChange={e => onUpdate(resource.id, 'hireEndDate', e.target.value)}
+        onBlur={() => setEditing(false)}
+        title={hasReal ? 'End date — clear to revert to the estimated end (final shoot day)' : undefined}
+      />
+    </td>
+  )
+}
+
+function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPhone, estEndDate = '' }) {
   const u = field => value => onUpdate(resource.id, field, value)
   return (
     <Fragment>
@@ -365,15 +408,7 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
           onChange={e => onUpdate(resource.id, 'hireStartDate', e.target.value)}
         />
       </td>
-      <td className="crewd-td" style={{ width: 108, minWidth: 108 }}>
-        <input
-          className="crewd-input crewd-date"
-          type="date"
-          value={resource.hireEndDate ?? ''}
-          min={resource.hireStartDate || undefined}
-          onChange={e => onUpdate(resource.id, 'hireEndDate', e.target.value)}
-        />
-      </td>
+      <EndDateCell resource={resource} estEndDate={estEndDate} onUpdate={onUpdate} />
       {/* Other */}
       <DetailTextCell value={resource.vendor} onCommit={u('vendor')} width={100} placeholder="vendor" title="Vendor / company supplying this crew member" />
       <DetailTextCell value={resource.notes}  onCommit={u('notes')}  width={170} placeholder="notes" title="Notes" />
@@ -429,7 +464,7 @@ function ResourceRow({
   // People database
   people, onCreatePerson, onUpdatePerson,
   // Crew details panel
-  showDetails = false, rateCalcSettings = null,
+  showDetails = false, rateCalcSettings = null, estEndDate = '',
 }) {
   // Build suggestions from all other resources (for role/dept/etc.)
   const others = typeResources.filter(r => r.id !== resource.id)
@@ -688,6 +723,7 @@ function ResourceRow({
             onUpdate={onUpdate}
             onCommitEmail={commitEmailValue}
             onCommitPhone={commitPhoneValue}
+            estEndDate={estEndDate}
           />
         )}
 
@@ -1327,8 +1363,8 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       if (dateChanges.length && (entry.resource.crewClass ?? 'additional') === 'fulltime') {
         const finalStart = entry.changes.find(c => c.field === 'hireStartDate')?.to ?? entry.resource.hireStartDate
         const finalEnd   = entry.changes.find(c => c.field === 'hireEndDate')?.to   ?? entry.resource.hireEndDate
-        if (finalStart && finalEnd) {
-          await syncFulltimeBookings(supabase, entry.resource.id, finalStart, finalEnd)
+        if (finalStart) {
+          await syncFulltimeBookings(supabase, entry.resource.id, finalStart, finalEnd || null)
         }
       }
       applied++
@@ -1365,8 +1401,8 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       // Fulltime hires with both dates → auto-book their weekdays.
       if (crewClass === 'fulltime') {
         for (const r of inserted) {
-          if (r.hireStartDate && r.hireEndDate) {
-            await syncFulltimeBookings(supabase, r.id, r.hireStartDate, r.hireEndDate)
+          if (r.hireStartDate) {
+            await syncFulltimeBookings(supabase, r.id, r.hireStartDate, r.hireEndDate || null)
           }
         }
       }
@@ -1703,6 +1739,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                         people={people}
                         onCreatePerson={findOrCreatePerson}
                         onUpdatePerson={updateCrewPerson}
+                        estEndDate={production?.shootEndDate ?? ''}
                         showDetails={showDetails}
                         rateCalcSettings={rateCalcSettings}
                       />

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { markIdsNotified } from '../lib/ganttNotified'
+import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
 import {
   getCurrentProductionId,
   setCurrentProductionId,
@@ -315,10 +316,28 @@ export function useScheduleStore() {
     optimistic(s => ({ ...s, production: { ...s.production, [field]: value } }))
     const prodId = getCurrentProductionId()
     const col = PRODUCTION_FIELD_MAP[field] ?? field
-    dbWrite(supabase.from('production').update({ [col]: dbVal(value) }).eq('id', prodId))
+    const write = dbWrite(supabase.from('production').update({ [col]: dbVal(value) }).eq('id', prodId))
     // Keep productions list name in sync
     if (field === 'name') {
       setProductions(ps => ps.map(p => p.id === prodId ? { ...p, name: value } : p))
+    }
+    // The final shoot day doubles as the ESTIMATED end date for fulltime crew
+    // with no real end date — moving it re-syncs their weekday auto-bookings.
+    if (field === 'shootEndDate' && value) {
+      Promise.resolve(write).then(async () => {
+        const { data, error } = await supabase
+          .from('resources')
+          .select('id, hire_start_date')
+          .eq('production_id', prodId)
+          .eq('type', 'crew')
+          .eq('crew_class', 'fulltime')
+          .is('hire_end_date', null)
+          .not('hire_start_date', 'is', null)
+        if (error) { console.error('[store] est-end resync:', error); return }
+        for (const r of data ?? []) {
+          await syncFulltimeBookings(supabase, r.id, r.hire_start_date, null)
+        }
+      })
     }
   }
 

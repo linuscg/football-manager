@@ -10593,3 +10593,19 @@ select.pm-input { cursor: pointer; }
 .crew-xlsx-from { color: #94a3b8; text-decoration: line-through; }
 .crew-xlsx-arrow { color: #b45309; }
 .crew-xlsx-to { color: #b45309; font-weight: 600; }
+
+/* ── Crew details: estimated end date ─────────────────────────────────────── */
+.crewd-est {
+  width: 100%;
+  font-size: 10.5px;
+  font-style: italic;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px dashed #fcd34d;
+  border-radius: 4px;
+  padding: 2px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.crewd-est:hover { background: #fde68a; }

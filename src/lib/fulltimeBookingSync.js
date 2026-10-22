@@ -1,4 +1,5 @@
 import { supabase as defaultSupabase } from './supabase'
+import { getCurrentProductionId } from './productionContext'
 
 // ─── Fulltime weekday auto-booking sync ──────────────────────────────────────
 //
@@ -7,7 +8,9 @@ import { supabase as defaultSupabase } from './supabase'
 //   • insert a 'booked' booking for every WEEKDAY (Mon–Fri) in [start, end]
 //     that has no existing booking for this resource
 //   • delete this resource's bookings dated OUTSIDE [start, end]
-// If either date is missing the sync does nothing (never wipes bookings).
+// If the end date is missing, the production's final shoot day is used as the
+// ESTIMATED end (matching the UI's "est." end date). If the start date is
+// missing — or no end can be resolved — the sync does nothing (never wipes).
 //
 // existingBookings is optional: an array of { id, date } for this resource.
 // When omitted, the helper fetches the resource's bookings itself.
@@ -21,7 +24,23 @@ function toISODate(d) {
 
 export async function syncFulltimeBookings(supabase, resourceId, start, end, existingBookings = null) {
   const sb = supabase ?? defaultSupabase
-  if (!resourceId || !start || !end || end < start) return
+  if (!resourceId || !start) return
+
+  // No explicit end → fall back to the estimated end (final shoot day).
+  let effEnd = end
+  if (!effEnd) {
+    const prodId = getCurrentProductionId()
+    if (!prodId) return
+    const { data, error } = await sb
+      .from('production')
+      .select('shoot_end_date')
+      .eq('id', prodId)
+      .single()
+    if (error) { console.error('[fulltime booking sync] fetch shoot end:', error); return }
+    effEnd = data?.shoot_end_date ?? null
+  }
+  if (!effEnd || effEnd < start) return
+  end = effEnd
 
   let existing = existingBookings
   if (!existing) {
