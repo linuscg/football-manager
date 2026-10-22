@@ -103,6 +103,37 @@ export function useCrewStore() {
     }
   }
 
+  // ── Realtime handlers ────────────────────────────────────────────────────────
+
+  // Debounce full reloads (resources change rarely; bursts collapse to one).
+  const debounceRef = { current: null }
+  function debouncedLoadAll() {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => { debounceRef.current = null; loadAll() }, 400)
+  }
+
+  // Apply a single resource_bookings change to state. Optimistic writes use
+  // client-generated ids, so our own events reconcile by id with no visual
+  // change; other users' edits stream in row by row.
+  function applyBookingEvent(payload) {
+    const { eventType } = payload
+    if (eventType === 'DELETE') {
+      const oldId = payload.old?.id
+      if (oldId) setBookings(bs => bs.filter(b => b.id !== oldId))
+      return
+    }
+    const row = payload.new
+    if (!row?.id) return
+    const mapped = mapBooking(row)
+    setBookings(bs => {
+      const idx = bs.findIndex(b => b.id === mapped.id)
+      if (idx === -1) return [...bs, mapped]
+      const next = [...bs]
+      next[idx] = mapped
+      return next
+    })
+  }
+
   useEffect(() => {
     loadAll()
     const unsub = onProductionChange(() => {
@@ -113,8 +144,12 @@ export function useCrewStore() {
     })
     const channel = supabase
       .channel('crew_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' },         loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_bookings' }, loadAll)
+      // Resources change rarely — a debounced full reload is fine.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, debouncedLoadAll)
+      // Bookings change in bursts while painting — apply each event
+      // incrementally instead of re-fetching thousands of rows (which also
+      // stomped optimistic paints and made cells flash).
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_bookings' }, applyBookingEvent)
       .subscribe()
     return () => {
       unsub()
