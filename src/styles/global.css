@@ -10403,3 +10403,62 @@ select.pm-input { cursor: pointer; }
 .hotel-detail-input--rooms {
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Timesheets: FLAT days + OT popover ───────────────────────────────────── */
+.ts-td--flat { text-align: center; position: relative; }
+.ts-flat-wrap { position: relative; display: inline-block; }
+.ts-flat {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ts-flat:hover { background: #e0e7ff; }
+.ts-flat--ot {
+  border-color: #fcd34d;
+  background: #fef3c7;
+  color: #b45309;
+}
+.ts-ot-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 150px;
+}
+.ts-ot-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+.ts-ot-input {
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+}
+.ts-ot-input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px #e0e7ff; }
+.ts-ot-actions { display: flex; justify-content: space-between; gap: 6px; }
+.ts-week-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+}

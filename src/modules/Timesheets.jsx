@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useFullCrewList } from '../store/useFullCrewList'
 import { useCrewStore }         from '../store/useCrewStore'
 import { useBackpageStore }     from '../store/useBackpageStore'
+import { useTimesheetOtStore }  from '../store/useTimesheetOtStore'
 // xlsx-js-style is loaded lazily (same pattern as exportBackpage.js)
 
 // ─── Time helpers (same logic as Backpage) ────────────────────────────────────
@@ -78,6 +79,16 @@ export default function Timesheets({ store }) {
   const {
     getDeptSetting, getMemberOverride, getDaySetting,
   } = useBackpageStore()
+  const { getOt, setOt } = useTimesheetOtStore()
+
+  // ── Production phase per date (prep/wrap days are FLAT days) ─────────────
+  function phaseFor(date) {
+    const p = production
+    if (p.prepStartDate  && p.prepEndDate  && date >= p.prepStartDate  && date <= p.prepEndDate)  return 'prep'
+    if (p.wrapStartDate  && p.wrapEndDate  && date >= p.wrapStartDate  && date <= p.wrapEndDate)  return 'wrap'
+    if (p.shootStartDate && p.shootEndDate && date >= p.shootStartDate && date <= p.shootEndDate) return 'shoot'
+    return null
+  }
 
   // ── Week navigation (persisted to localStorage) ───────────────────────────
 
@@ -117,6 +128,19 @@ export default function Timesheets({ store }) {
   // ── Time derivation ───────────────────────────────────────────────────────
 
   function getFulltimeTimes(member, date) {
+    // Fulltime crew go off their painted gantt days — no booking, no times.
+    // (Member ids are resource ids since the crew pools were unified.)
+    const booked = bookings.some(b =>
+      b.resourceId === member.id &&
+      b.date       === date &&
+      (b.status === 'booked' || b.status === 'hold')
+    )
+    if (!booked) return null
+
+    // Pre-production and wrap are FLAT days (click FLAT to add OT).
+    const phase = phaseFor(date)
+    if (phase === 'prep' || phase === 'wrap') return { type: 'flat' }
+
     const day = primaryByDate[date]
     if (!day) return null
 
@@ -182,15 +206,26 @@ export default function Timesheets({ store }) {
 
   // ── Grouping ──────────────────────────────────────────────────────────────
 
+  // Fulltime crew go off their painted gantt days — only list members with at
+  // least one booking this week.
+  const ftThisWeek = useMemo(() => {
+    const dateSet = new Set(weekDates)
+    return members.filter(m => bookings.some(b =>
+      b.resourceId === m.id &&
+      dateSet.has(b.date) &&
+      (b.status === 'booked' || b.status === 'hold')
+    ))
+  }, [members, bookings, weekDates])
+
   const ftGroupMap = useMemo(() => {
     const map = {}
-    for (const m of members) {
+    for (const m of ftThisWeek) {
       const key = m.department?.trim() || FALLBACK
       if (!map[key]) map[key] = []
       map[key].push(m)
     }
     return map
-  }, [members])
+  }, [ftThisWeek])
 
   const ftDepts = useMemo(() =>
     Object.keys(ftGroupMap).sort((a, b) => {
@@ -241,11 +276,12 @@ export default function Timesheets({ store }) {
     })
     const headers = ['Department', 'Name', 'Role', ...dayHeaders]
 
-    function timesToCells(times) {
+    function timesToCells(times, ot = 0) {
       if (!times)                    return ['', '']
       if (times.type === 'excluded') return ['EXCL', '']
       if (times.type === 'status')   return [times.label, '']
       if (times.type === 'noCall')   return ['—', '']
+      if (times.type === 'flat')     return ['FLAT', ot > 0 ? `OT ${ot}h` : '']
       return [times.callTime || '', times.wrapTime || '']
     }
 
@@ -254,7 +290,7 @@ export default function Timesheets({ store }) {
     for (const dept of ftDepts) {
       for (const m of ftGroupMap[dept]) {
         const row = [dept, m.name, m.role]
-        for (const date of weekDates) row.push(...timesToCells(getFulltimeTimes(m, date)))
+        for (const date of weekDates) row.push(...timesToCells(getFulltimeTimes(m, date), getOt(m.id, date)))
         rows.push(row)
       }
     }
@@ -262,7 +298,7 @@ export default function Timesheets({ store }) {
     for (const dept of addDepts) {
       for (const r of addGroupMap[dept]) {
         const row = [`${dept} – Additional`, r.name, r.role]
-        for (const date of weekDates) row.push(...timesToCells(getAdditionalTimes(r, date)))
+        for (const date of weekDates) row.push(...timesToCells(getAdditionalTimes(r, date), getOt(r.id, date)))
         rows.push(row)
       }
     }
@@ -279,7 +315,98 @@ export default function Timesheets({ store }) {
 
   // ── Cell renderer ─────────────────────────────────────────────────────────
 
-  function TimeCell({ times, hasDay }) {
+  function FlatCell({ resourceId, date }) {
+    const [open, setOpen]   = useState(false)
+    const ot                = getOt(resourceId, date)
+    const [local, setLocal] = useState('')
+    const [pos, setPos]     = useState(null)
+    const ref    = useRef(null)
+    const btnRef = useRef(null)
+
+    useEffect(() => { if (open) setLocal(ot ? String(ot) : '') }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+      if (!open) return
+      function onClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+      document.addEventListener('mousedown', onClick)
+      return () => document.removeEventListener('mousedown', onClick)
+    }, [open])
+
+    // Fixed-position the popover so the scrolling table can't clip it.
+    useEffect(() => {
+      if (!open || !btnRef.current) return
+      function place() {
+        const r = btnRef.current.getBoundingClientRect()
+        const width = 150
+        const left = Math.min(Math.max(8, r.left + r.width / 2 - width / 2), window.innerWidth - width - 8)
+        const below = window.innerHeight - r.bottom
+        const openUp = below < 140 && r.top > below
+        setPos({
+          left,
+          top:    openUp ? undefined : r.bottom + 4,
+          bottom: openUp ? (window.innerHeight - r.top + 4) : undefined,
+          width,
+        })
+      }
+      place()
+      window.addEventListener('scroll', place, true)
+      window.addEventListener('resize', place)
+      return () => {
+        window.removeEventListener('scroll', place, true)
+        window.removeEventListener('resize', place)
+      }
+    }, [open])
+
+    function commit() {
+      setOt(resourceId, date, local)
+      setOpen(false)
+    }
+
+    return (
+      <div className="ts-flat-wrap" ref={ref}>
+        <button
+          ref={btnRef}
+          className={`ts-flat${ot > 0 ? ' ts-flat--ot' : ''}`}
+          onClick={() => setOpen(o => !o)}
+          title={ot > 0 ? `FLAT day + ${ot}h OT — click to edit` : 'FLAT day — click to add OT'}
+        >
+          FLAT{ot > 0 ? ` +${ot}h OT` : ''}
+        </button>
+        {open && pos && (
+          <div
+            className="ts-ot-pop"
+            style={{ position: 'fixed', left: pos.left, top: pos.top, bottom: pos.bottom, width: pos.width }}
+          >
+            <label className="ts-ot-label">OT hours</label>
+            <input
+              className="ts-ot-input"
+              type="number"
+              min="0"
+              step="0.5"
+              value={local}
+              autoFocus
+              placeholder="0"
+              onChange={e => setLocal(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setOpen(false) }}
+            />
+            <div className="ts-ot-actions">
+              <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => { setOt(resourceId, date, 0); setOpen(false) }}>Clear</button>
+              <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={commit}>Save</button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function TimeCell({ times, hasDay, resourceId, date }) {
+    if (times?.type === 'flat') {
+      return (
+        <td className="ts-td ts-td-day ts-td--flat">
+          <FlatCell resourceId={resourceId} date={date} />
+        </td>
+      )
+    }
     if (!hasDay) return <td className="ts-td ts-td-day ts-td--noday" />
     return (
       <td className="ts-td ts-td-day">
@@ -321,7 +448,7 @@ export default function Timesheets({ store }) {
             <td className="ts-td ts-td-role">{m.role}</td>
             <td className="ts-td ts-td-dept">{m.department || '—'}</td>
             {weekDates.map(date => (
-              <TimeCell key={date} times={getFulltimeTimes(m, date)} hasDay={!!primaryByDate[date]} />
+              <TimeCell key={date} times={getFulltimeTimes(m, date)} hasDay={!!primaryByDate[date]} resourceId={m.id} date={date} />
             ))}
           </tr>
         )
@@ -348,7 +475,7 @@ export default function Timesheets({ store }) {
               <td className="ts-td ts-td-role">{r.role}</td>
               <td className="ts-td ts-td-dept">{r.department || '—'}</td>
               {weekDates.map(date => (
-                <TimeCell key={date} times={getAdditionalTimes(r, date)} hasDay={!!primaryByDate[date]} />
+                <TimeCell key={date} times={getAdditionalTimes(r, date)} hasDay={!!primaryByDate[date]} resourceId={r.id} date={date} />
               ))}
             </tr>
           )
@@ -373,6 +500,8 @@ export default function Timesheets({ store }) {
     )
   }
 
+  const nobodyThisWeek = ftThisWeek.length === 0 && addThisWeek.length === 0
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -392,6 +521,12 @@ export default function Timesheets({ store }) {
       </div>
 
       {/* ── Table ─────────────────────────────────────────────────────────── */}
+      {nobodyThisWeek && (
+        <div className="ts-week-empty">
+          No crew booked this week — paint days in the Crew Tracker to populate timesheets.
+        </div>
+      )}
+
       <div className="ts-scroll">
         <table className="ts-table">
           <thead>
