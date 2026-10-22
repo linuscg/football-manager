@@ -1364,7 +1364,11 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
         const finalStart = entry.changes.find(c => c.field === 'hireStartDate')?.to ?? entry.resource.hireStartDate
         const finalEnd   = entry.changes.find(c => c.field === 'hireEndDate')?.to   ?? entry.resource.hireEndDate
         if (finalStart) {
-          await syncFulltimeBookings(supabase, entry.resource.id, finalStart, finalEnd || null)
+          try {
+            await syncFulltimeBookings(supabase, entry.resource.id, finalStart, finalEnd || null)
+          } catch (err) {
+            console.error('[xlsx import] booking sync failed for', entry.resource.name, err)
+          }
         }
       }
       applied++
@@ -1402,7 +1406,11 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       if (crewClass === 'fulltime') {
         for (const r of inserted) {
           if (r.hireStartDate) {
-            await syncFulltimeBookings(supabase, r.id, r.hireStartDate, r.hireEndDate || null)
+            try {
+              await syncFulltimeBookings(supabase, r.id, r.hireStartDate, r.hireEndDate || null)
+            } catch (err) {
+              console.error('[xlsx import] booking sync failed for', r.name, err)
+            }
           }
         }
       }
