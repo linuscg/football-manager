@@ -6,6 +6,11 @@ import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
 // ─── Row mappers ──────────────────────────────────────────────────────────────
 
 function mapResource(row) {
+  // Money fields live in the RLS-guarded resource_rates table (embedded as a
+  // one-to-one object by the loadAll select). For a member flagged
+  // denyCrewRates the embed comes back null — rates render blank and the
+  // database refuses rate reads/writes outright.
+  const rates = row.resource_rates ?? {}
   return {
     id:            row.id,
     type:          row.type            ?? 'crew',
@@ -15,9 +20,9 @@ function mapResource(row) {
     category:      row.category        ?? '',
     notes:         row.notes           ?? '',
     sortOrder:     row.sort_order      ?? 0,
-    costAmount:    row.cost_amount     ?? '',
-    costType:      row.cost_type       ?? 'daily',
-    weekType:      row.week_type       ?? '5day',
+    costAmount:    rates.cost_amount   ?? '',
+    costType:      rates.cost_type     ?? 'daily',
+    weekType:      rates.week_type     ?? '5day',
     contactEmail:  row.contact_email   ?? '',
     contactPhone:  row.contact_phone   ?? '',
     isVendorCrew:  row.is_vendor_crew  ?? false,
@@ -33,15 +38,31 @@ function mapResource(row) {
     isHod:         row.is_hod          ?? false,
     agent:          row.agent             ?? '',
     taxStatus:      row.tax_status        ?? '',
-    boxPw:          row.box_pw            ?? '',
-    carAllowance:   row.car_allowance     ?? '',
-    otRate:         row.ot_rate           ?? null,
-    sixthDayRate:   row.sixth_day_rate    ?? null,
-    seventhDayRate: row.seventh_day_rate  ?? null,
+    boxPw:          rates.box_pw          ?? '',
+    carAllowance:   rates.car_allowance   ?? '',
+    otRate:         rates.ot_rate         ?? null,
+    sixthDayRate:   rates.sixth_day_rate  ?? null,
+    seventhDayRate: rates.seventh_day_rate ?? null,
     dealMemoEmailed: row.deal_memo_emailed ?? '',
     dealMemoDrafted: row.deal_memo_drafted ?? '',
     dealMemoSent:    row.deal_memo_sent    ?? '',
   }
+}
+
+// Fields stored in resource_rates rather than on resources
+const RATE_FIELDS = new Set([
+  'costAmount', 'costType', 'weekType',
+  'otRate', 'sixthDayRate', 'seventhDayRate', 'boxPw', 'carAllowance',
+])
+const RATE_COLS = {
+  costAmount:     'cost_amount',
+  costType:       'cost_type',
+  weekType:       'week_type',
+  otRate:         'ot_rate',
+  sixthDayRate:   'sixth_day_rate',
+  seventhDayRate: 'seventh_day_rate',
+  boxPw:          'box_pw',
+  carAllowance:   'car_allowance',
 }
 
 function mapBooking(row) {
@@ -76,7 +97,7 @@ export function useCrewStore() {
 
     try {
       const { data: recs, error: recErr } = await supabase
-        .from('resources').select('*')
+        .from('resources').select('*, resource_rates(*)')
         .eq('production_id', prodId)
         .order('sort_order', { ascending: true })
       if (recErr) throw recErr
@@ -167,6 +188,7 @@ export function useCrewStore() {
       .channel(`crew_changes_${crypto.randomUUID()}`)
       // Resources change rarely — a debounced full reload is fine.
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, debouncedLoadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_rates' }, debouncedLoadAll)
       // Bookings change in bursts while painting — apply each event
       // incrementally instead of re-fetching thousands of rows (which also
       // stomped optimistic paints and made cells flash).
@@ -349,12 +371,24 @@ export function useCrewStore() {
   function updateResource(id, field, value) {
     const prev = resources.find(r => r.id === id)
     optR(rs => rs.map(r => r.id === id ? { ...r, [field]: value } : r))
-    const col = FIELD_MAP[field] ?? field
     const dbValue = (field === 'hireStartDate' || field === 'hireEndDate' || field === 'personId')
       ? (value || null)
       : NUMERIC_NULL_FIELDS.has(field)
         ? (value === '' || value === undefined ? null : value)
         : value
+
+    // Money fields live in resource_rates (RLS-guarded per-user) — upsert
+    // there; the row may not exist yet for resources created pre-split.
+    if (RATE_FIELDS.has(field)) {
+      dbWrite(supabase.from('resource_rates').upsert({
+        resource_id:   id,
+        production_id: getCurrentProductionId(),
+        [RATE_COLS[field]]: dbValue,
+      }, { onConflict: 'resource_id' }))
+      return
+    }
+
+    const col = FIELD_MAP[field] ?? field
     const write = dbWrite(supabase.from('resources').update({ [col]: dbValue }).eq('id', id))
 
     // Fulltime weekday auto-booking sync: when a fulltime crew member's hire
@@ -391,9 +425,12 @@ export function useCrewStore() {
     // '' / undefined → NULL for numeric columns
     const numOrNull = v => (v === '' || v === undefined || v === null ? null : v)
 
-    const inserts = rows.map((row, i) => {
+    const inserts = []
+    const rateInserts = []   // money fields live in resource_rates
+    rows.forEach((row, i) => {
+      const id = crypto.randomUUID()
       const rec = {
-        id:            crypto.randomUUID(),
+        id,
         production_id: prodId,
         type,
         crew_class:    crewClass,
@@ -408,26 +445,34 @@ export function useCrewStore() {
         is_vendor_crew: Boolean(row.isVendorCrew),
         vendor:        row.vendor        || '',
         po_number:     row.poNumber      || '',
-        cost_amount:   row.costAmount    || null,
-        cost_type:     row.costType      || 'daily',
-        week_type:     row.weekType      || '5day',
         notes:         row.notes         || '',
       }
       // Extended crew-detail fields — only written when the row provides them
       if (row.agent           !== undefined) rec.agent             = row.agent || ''
       if (row.taxStatus       !== undefined) rec.tax_status        = row.taxStatus || ''
-      if (row.boxPw           !== undefined) rec.box_pw            = numOrNull(row.boxPw)
-      if (row.carAllowance    !== undefined) rec.car_allowance     = numOrNull(row.carAllowance)
-      if (row.otRate          !== undefined) rec.ot_rate           = numOrNull(row.otRate)
-      if (row.sixthDayRate    !== undefined) rec.sixth_day_rate    = numOrNull(row.sixthDayRate)
-      if (row.seventhDayRate  !== undefined) rec.seventh_day_rate  = numOrNull(row.seventhDayRate)
       if (row.dealMemoEmailed !== undefined) rec.deal_memo_emailed = row.dealMemoEmailed || ''
       if (row.dealMemoDrafted !== undefined) rec.deal_memo_drafted = row.dealMemoDrafted || ''
       if (row.dealMemoSent    !== undefined) rec.deal_memo_sent    = row.dealMemoSent || ''
       if (row.hireStartDate   !== undefined) rec.hire_start_date   = row.hireStartDate || null
       if (row.hireEndDate     !== undefined) rec.hire_end_date     = row.hireEndDate || null
       if (row.level           !== undefined) rec.level             = row.level ?? 5
-      return rec
+      inserts.push(rec)
+
+      const rates = {
+        resource_id:   id,
+        production_id: prodId,
+        cost_amount:   numOrNull(row.costAmount),
+        cost_type:     row.costType || 'daily',
+        week_type:     row.weekType || '5day',
+      }
+      if (row.otRate         !== undefined) rates.ot_rate          = numOrNull(row.otRate)
+      if (row.sixthDayRate   !== undefined) rates.sixth_day_rate   = numOrNull(row.sixthDayRate)
+      if (row.seventhDayRate !== undefined) rates.seventh_day_rate = numOrNull(row.seventhDayRate)
+      if (row.boxPw          !== undefined) rates.box_pw           = numOrNull(row.boxPw)
+      if (row.carAllowance   !== undefined) rates.car_allowance    = numOrNull(row.carAllowance)
+      rateInserts.push(rates)
+
+      rec.resource_rates = rates   // so the optimistic mapResource sees them
     })
 
     const mapped = inserts.map(r => mapResource(r))
@@ -435,11 +480,19 @@ export function useCrewStore() {
     // Optimistic update
     optR(rs => [...rs, ...mapped])
 
-    const { error: err } = await supabase.from('resources').insert(inserts)
+    const { error: err } = await supabase.from('resources')
+      .insert(inserts.map(({ resource_rates: _ignored, ...rec }) => rec))
     if (err) {
       console.error('[crew store] importResources:', err)
       loadAll()
       return []
+    }
+    const { error: rateErr } = await supabase.from('resource_rates').insert(rateInserts)
+    if (rateErr) {
+      // Rates are refused (e.g. importer flagged denyCrewRates) — the people
+      // still imported; report and reload so state matches the DB.
+      console.error('[crew store] importResources rates:', rateErr)
+      loadAll()
     }
     return mapped
   }
