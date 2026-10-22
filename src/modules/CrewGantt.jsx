@@ -813,10 +813,10 @@ const ResourceRow = memo(function ResourceRow({
                 unitLabel
                   ? (status ? `${unitLabel}: ${status}` : `${unitLabel} unit — click to assign`)
                   : status
-                    ? `${status.charAt(0).toUpperCase() + status.slice(1)}${isShootDay ? ' — drag to paint more' : ''}`
-                    : isShootDay
+                    ? `${status.charAt(0).toUpperCase() + status.slice(1)} — drag to paint more`
+                    : (isShootDay || !spec.isWeekend)
                       ? 'Click or drag to paint'
-                      : 'Click to mark (not a shoot day — drag skips this)'
+                      : 'Click to mark (weekend — drag skips this)'
               }
             >
               {status && <span className="gantt-cell-icon">
@@ -1324,8 +1324,13 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     // Main-unit cell. Fast drags skip mouseenter events — when we're still on
     // the row we last painted, fill every main-unit day cell between the last
     // spec index and this one (exclusive → inclusive), in order. Summary
-    // columns and sub-unit columns are skipped, and (as for a direct enter)
-    // non-shoot dates are skipped during a drag.
+    // columns and sub-unit columns are skipped. A drag paints weekdays and
+    // shoot days; weekends that aren't shoot days need a deliberate single
+    // click (productions often have no generated shoot_days rows at all, so
+    // the old shoot-days-only rule made drags paint nothing there).
+    const dragPaintable = spec =>
+      spec && spec.type === 'day' && !spec.dayId &&
+      (shootDateSet.has(spec.date) || !spec.isWeekend)
     const last = lastPaintedRef.current
     const from = (last && last.resourceId === resourceId && specIndex >= 0 &&
                   last.specIndex !== specIndex && colSpecs[last.specIndex] && colSpecs[specIndex])
@@ -1336,15 +1341,16 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       const step = specIndex >= from ? 1 : -1
       for (let i = from === specIndex ? specIndex : from + step; ; i += step) {
         const spec = colSpecs[i]
-        if (spec && spec.type === 'day' && !spec.dayId && shootDateSet.has(spec.date)) {
+        if (dragPaintable(spec)) {
           paintCell(resourceId, spec.date, null, i === specIndex ? el : null)
         }
         if (i === specIndex) break
       }
       lastPaintedRef.current = { resourceId, specIndex }
     } else {
-      // No spec index available — mirror the old single-cell behaviour
-      if (shootDateSet.has(date)) paintCell(resourceId, date, null, el)
+      // No spec index available — mirror the single-cell behaviour
+      const dow = new Date(`${date}T00:00:00`).getDay()
+      if (shootDateSet.has(date) || (dow !== 0 && dow !== 6)) paintCell(resourceId, date, null, el)
       lastPaintedRef.current = null
     }
   }, [paintCell])
