@@ -73,10 +73,24 @@ export function useCrewStore() {
       if (recErr) throw recErr
 
       const ids = (recs ?? []).map(r => r.id)
-      const { data: bks, error: bkErr } = ids.length
-        ? await supabase.from('resource_bookings').select('*').in('resource_id', ids)
-        : { data: [], error: null }
-      if (bkErr) throw bkErr
+
+      // Bookings can easily exceed Supabase's 1,000-row per-request cap
+      // (fulltime crew × ~170 weekdays), so fetch in pages until exhausted.
+      const bks = []
+      if (ids.length) {
+        const PAGE = 1000
+        for (let from = 0; ; from += PAGE) {
+          const { data, error: bkErr } = await supabase
+            .from('resource_bookings')
+            .select('*')
+            .in('resource_id', ids)
+            .order('id', { ascending: true })
+            .range(from, from + PAGE - 1)
+          if (bkErr) throw bkErr
+          bks.push(...(data ?? []))
+          if (!data || data.length < PAGE) break
+        }
+      }
 
       setResources((recs ?? []).map(mapResource))
       setBookings((bks ?? []).map(mapBooking))

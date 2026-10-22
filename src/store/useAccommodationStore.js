@@ -76,17 +76,30 @@ export function useAccommodationStore() {
         { data: hData, error: hErr },
         { data: aData, error: aErr },
         { data: sData, error: sErr },
-        { data: nData, error: nErr },
       ] = await Promise.all([
         supabase.from('hotels').select('*').eq('production_id', prodId).order('sort_order'),
         supabase.from('crew_hotel_assignments').select('*').eq('production_id', prodId),
         supabase.from('accom_stays').select('*').eq('production_id', prodId).order('sort_order'),
-        supabase.from('accom_nights').select('*').eq('production_id', prodId),
       ])
       if (hErr) throw hErr
       if (aErr) throw aErr
       if (sErr) throw sErr
-      if (nErr) throw nErr
+
+      // Nights grow as stays × dates and can exceed Supabase's 1,000-row
+      // per-request cap — fetch in pages until exhausted.
+      const nData = []
+      const PAGE = 1000
+      for (let from = 0; ; from += PAGE) {
+        const { data, error: nErr } = await supabase
+          .from('accom_nights')
+          .select('*')
+          .eq('production_id', prodId)
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1)
+        if (nErr) throw nErr
+        nData.push(...(data ?? []))
+        if (!data || data.length < PAGE) break
+      }
       setHotels((hData ?? []).map(mapHotel))
       setAssignments((aData ?? []).map(mapAssignment))
       setStays((sData ?? []).map(mapStay))
