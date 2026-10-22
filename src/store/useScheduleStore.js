@@ -91,6 +91,7 @@ function mapProduction(row) {
     scwdLunch:      row.scwd_lunch       ?? 30,
     format:         row.format           ?? 'film',
     episodeCount:   row.episode_count    ?? null,
+    rateCalc:       row.rate_calc        ?? {},
   }
 }
 
@@ -154,6 +155,7 @@ const PRODUCTION_FIELD_MAP = {
   scwdLunch:      'scwd_lunch',
   format:         'format',
   episodeCount:   'episode_count',
+  rateCalc:       'rate_calc',
 }
 
 function dbVal(value) {

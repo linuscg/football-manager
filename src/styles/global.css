@@ -10462,3 +10462,126 @@ select.pm-input { cursor: pointer; }
   color: #9ca3af;
   font-size: 13px;
 }
+
+/* ═══ Crew Tracker — details panel (spreadsheet columns) ═══════════════════════ */
+
+/* Group header row (top) */
+.crewd-group-th {
+  position: sticky; top: 0; z-index: 4;
+  background: #eef0f2;
+  color: var(--pm-muted);
+  font-family: var(--pm-font-mono);
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  text-align: center;
+  padding: 4px 6px;
+  border-bottom: 2px solid var(--pm-rule-color);
+  border-right: 2px solid var(--pm-rule-color);
+  white-space: nowrap;
+}
+
+/* Individual column label row (bottom) */
+.pm-g-tbl thead .crewd-label-th {
+  position: sticky; top: 28px; z-index: 3;
+  background: var(--pm-card-bg);
+  color: var(--pm-muted);
+  font-family: var(--pm-font-mono);
+  font-size: 9.5px; font-weight: 600;
+  letter-spacing: 0.05em;
+  text-align: center;
+  padding: 4px 3px;
+  white-space: nowrap;
+}
+
+/* Detail body cells */
+.crewd-td {
+  background: #fafbfc;
+  border-right: 1px solid var(--pm-rule-color);
+  border-bottom: 1px solid var(--pm-rule-color);
+  padding: 2px 3px;
+  vertical-align: middle;
+}
+.gantt-resource-row:hover .crewd-td { background: #f3f5f7; }
+
+/* Last detail column — stronger divider before the booking cells */
+.crewd-td:has(+ .pm-g-cell),
+.crewd-td:has(+ .gantt-phase-sum-cell) {
+  border-right: 2px solid var(--pm-rule-color);
+}
+
+.crewd-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font-size: 10.5px;
+  padding: 3px 4px;
+  color: var(--pm-fg);
+}
+.crewd-input:hover  { border-color: var(--pm-rule-color); background: #fff; }
+.crewd-input:focus  { border-color: var(--pm-accent); background: #fff; outline: none; }
+.crewd-input.crewd-num { text-align: right; }
+.crewd-input.crewd-num::-webkit-outer-spin-button,
+.crewd-input.crewd-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.crewd-input.crewd-num[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+.crewd-input.crewd-date { font-size: 10px; padding: 2px 2px; }
+
+/* Derived (calculated) values — muted italic */
+.crewd-input::placeholder { color: var(--pm-muted); font-style: italic; opacity: 0.9; }
+.crewd-input.is-derived::placeholder { color: var(--pm-muted); font-style: italic; }
+.crewd-derived {
+  font-family: var(--pm-font-mono);
+  font-size: 10px;
+  color: var(--pm-muted);
+  text-align: right;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.crewd-select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font-size: 10.5px;
+  padding: 3px 2px;
+  color: var(--pm-fg);
+}
+.crewd-select:hover { border-color: var(--pm-rule-color); background: #fff; }
+.crewd-select:focus { border-color: var(--pm-accent); background: #fff; outline: none; }
+
+/* ── Global rate-calc settings strip ─────────────────────────────────────────── */
+.crewd-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 7px 14px;
+  background: #f8f9fa;
+  border-bottom: 1px solid var(--pm-rule-color);
+}
+.crewd-set-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.crewd-set-label {
+  font-family: var(--pm-font-mono);
+  font-size: 9.5px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--pm-muted);
+  white-space: nowrap;
+}
+.crewd-set-field .crewd-input {
+  width: 64px;
+  border-color: var(--pm-rule-color);
+  background: #fff;
+}
+.crewd-settings-caption {
+  font-size: 10.5px;
+  color: var(--pm-muted);
+  font-style: italic;
+  margin-left: auto;
+}

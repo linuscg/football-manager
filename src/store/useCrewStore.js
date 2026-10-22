@@ -30,6 +30,16 @@ function mapResource(row) {
     crewClass:     row.crew_class      ?? 'additional',
     level:         row.level           ?? 5,
     isHod:         row.is_hod          ?? false,
+    agent:          row.agent             ?? '',
+    taxStatus:      row.tax_status        ?? '',
+    boxPw:          row.box_pw            ?? '',
+    carAllowance:   row.car_allowance     ?? '',
+    otRate:         row.ot_rate           ?? null,
+    sixthDayRate:   row.sixth_day_rate    ?? null,
+    seventhDayRate: row.seventh_day_rate  ?? null,
+    dealMemoEmailed: row.deal_memo_emailed ?? '',
+    dealMemoDrafted: row.deal_memo_drafted ?? '',
+    dealMemoSent:    row.deal_memo_sent    ?? '',
   }
 }
 
@@ -120,6 +130,9 @@ export function useCrewStore() {
       contactEmail: '', contactPhone: '', isVendorCrew: false,
       vendor: '', poNumber: '', hireStartDate: '', hireEndDate: '',
       crewClass, level: 5, isHod: false,
+      agent: '', taxStatus: '', boxPw: '', carAllowance: '',
+      otRate: null, sixthDayRate: null, seventhDayRate: null,
+      dealMemoEmailed: '', dealMemoDrafted: '', dealMemoSent: '',
     }
     optR(rs => [...rs, newRes])
     dbWrite(
@@ -159,7 +172,22 @@ export function useCrewStore() {
     crewClass:     'crew_class',
     level:         'level',
     isHod:         'is_hod',
+    agent:           'agent',
+    taxStatus:       'tax_status',
+    boxPw:           'box_pw',
+    carAllowance:    'car_allowance',
+    otRate:          'ot_rate',
+    sixthDayRate:    'sixth_day_rate',
+    seventhDayRate:  'seventh_day_rate',
+    dealMemoEmailed: 'deal_memo_emailed',
+    dealMemoDrafted: 'deal_memo_drafted',
+    dealMemoSent:    'deal_memo_sent',
   }
+
+  // Numeric columns where an empty input must be written as NULL
+  const NUMERIC_NULL_FIELDS = new Set([
+    'boxPw', 'carAllowance', 'otRate', 'sixthDayRate', 'seventhDayRate',
+  ])
 
   function updateResource(id, field, value) {
     const prev = resources.find(r => r.id === id)
@@ -167,7 +195,9 @@ export function useCrewStore() {
     const col = FIELD_MAP[field] ?? field
     const dbValue = (field === 'hireStartDate' || field === 'hireEndDate' || field === 'personId')
       ? (value || null)
-      : value
+      : NUMERIC_NULL_FIELDS.has(field)
+        ? (value === '' || value === undefined ? null : value)
+        : value
     const write = dbWrite(supabase.from('resources').update({ [col]: dbValue }).eq('id', id))
 
     // Fulltime weekday auto-booking sync: when a fulltime crew member's hire

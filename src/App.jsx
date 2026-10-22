@@ -673,7 +673,7 @@ function AppShell({ session, signOut }) {
               <Schedule store={store} actions={scheduleActions} />
             )}
             {topTab === 'fm' && fmModule === 'crew' && (
-              <CrewGantt production={store.production} shootDays={store.shootDays} mode="equipment" />
+              <CrewGantt production={store.production} shootDays={store.shootDays} mode="equipment" onUpdateProduction={updateProduction} />
             )}
             {topTab === 'fm' && fmModule === 'callsheet' && (
               <CallSheet store={store} castMembers={store.castMembers} />
@@ -690,7 +690,7 @@ function AppShell({ session, signOut }) {
               <FulltimeCrew productionName={store.production.name} />
             )}
             {topTab === 'crew-times' && ctModule === 'ct-tracker' && (
-              <CrewGantt production={store.production} shootDays={store.shootDays} mode="crew" />
+              <CrewGantt production={store.production} shootDays={store.shootDays} mode="crew" onUpdateProduction={updateProduction} />
             )}
             {topTab === 'crew-times' && ctModule === 'ct-backpage' && (
               <Backpage store={store} />

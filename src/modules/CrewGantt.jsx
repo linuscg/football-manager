@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useCrewStore } from '../store/useCrewStore'
 import { useCrewPeopleStore } from '../store/useCrewPeopleStore'
+import { getRateCalc, deriveRates } from '../lib/rateCalc'
 
 // ─── Phase definitions ────────────────────────────────────────────────────────
 
@@ -117,6 +118,293 @@ function buildPhaseSpans(colSpecs) {
   return spans
 }
 
+// ─── Crew details panel — frozen spreadsheet-style columns ────────────────────
+
+// Grouped header (top row) — spans must add up to DETAIL_COLS.length
+const DETAIL_GROUPS = [
+  { label: 'Deal Memo', span: 3 },
+  { label: 'Contact',   span: 3 },
+  { label: 'Weekly',    span: 3 },
+  { label: 'Daily',     span: 3 },
+  { label: 'Hourly',    span: 3 },
+  { label: 'Day Rates', span: 3 },
+  { label: 'Extras',    span: 3 },
+  { label: 'Dates',     span: 2 },
+]
+
+// Individual column labels (bottom header row) + widths
+const DETAIL_COLS = [
+  { label: 'Emailed',  w: 56 },
+  { label: 'Drafted',  w: 56 },
+  { label: 'Sent',     w: 56 },
+  { label: 'Email',    w: 110 },
+  { label: 'Phone',    w: 96 },
+  { label: 'Agent',    w: 90 },
+  { label: 'Rate',     w: 68 },
+  { label: 'Net',      w: 68 },
+  { label: 'Hol',      w: 68 },
+  { label: 'Rate',     w: 68 },
+  { label: 'Net',      w: 68 },
+  { label: 'Hol',      w: 68 },
+  { label: 'Rate',     w: 68 },
+  { label: 'Net',      w: 68 },
+  { label: 'Hol',      w: 68 },
+  { label: '6th Day',  w: 68 },
+  { label: '7th Day',  w: 68 },
+  { label: 'OT',       w: 68 },
+  { label: 'Box (pw)', w: 62 },
+  { label: 'Car',      w: 62 },
+  { label: 'Tax',      w: 94 },
+  { label: 'Start',    w: 108 },
+  { label: 'End',      w: 108 },
+]
+const DETAIL_COL_COUNT = DETAIL_COLS.length
+
+const OVERRIDE_TOOLTIP = 'Calculated — type to override / clear to revert'
+
+function fmtMoney(v) {
+  return v == null || !Number.isFinite(v) ? '' : v.toFixed(2)
+}
+
+// Free-text detail cell — local state, commit on blur
+function DetailTextCell({ value, onCommit, width, placeholder = '', type = 'text', title }) {
+  const [v, setV] = useState(value ?? '')
+  useEffect(() => setV(value ?? ''), [value])
+  return (
+    <td className="crewd-td" style={{ width, minWidth: width }}>
+      <input
+        className="crewd-input"
+        type={type}
+        value={v}
+        placeholder={placeholder}
+        title={title}
+        onChange={e => setV(e.target.value)}
+        onBlur={() => { if (v !== (value ?? '')) onCommit(v) }}
+      />
+    </td>
+  )
+}
+
+// Plain numeric cell (Box pw / Car) — '' commits '' (store writes NULL)
+function DetailNumCell({ value, onCommit, width, title }) {
+  const valStr = value == null || value === '' ? '' : String(value)
+  const [v, setV] = useState(valStr)
+  useEffect(() => setV(valStr), [valStr])
+  function blur() {
+    const t = String(v).trim()
+    if (t === valStr) return
+    if (t === '') { onCommit(''); return }
+    const n = parseFloat(t)
+    if (!Number.isFinite(n)) { setV(valStr); return }
+    onCommit(n)
+  }
+  return (
+    <td className="crewd-td" style={{ width, minWidth: width }}>
+      <input
+        className="crewd-input crewd-num"
+        type="number" min="0" step="0.01"
+        value={v}
+        title={title}
+        onChange={e => setV(e.target.value)}
+        onBlur={blur}
+      />
+    </td>
+  )
+}
+
+// Read-only derived money cell
+function DerivedCell({ value, width, title }) {
+  return (
+    <td className="crewd-td crewd-derived" style={{ width, minWidth: width }} title={title}>
+      {fmtMoney(value)}
+    </td>
+  )
+}
+
+// Editable weekly/daily rate cell. The cell matching the row's costType shows
+// the stored number; the other shows the derived figure as a muted placeholder.
+// Typing in either commits costAmount AND flips costType to this cell's basis.
+function RateCell({ isSource, stored, derived, onCommitRate, width, title }) {
+  const sourceVal = isSource ? String(stored ?? '') : ''
+  const [v, setV] = useState(sourceVal)
+  useEffect(() => setV(sourceVal), [sourceVal])
+  function blur() {
+    const t = String(v).trim()
+    if (t === sourceVal) return
+    if (t === '') {
+      if (isSource) onCommitRate('')    // clear the stored rate
+      return
+    }
+    const n = parseFloat(t)
+    if (!Number.isFinite(n)) { setV(sourceVal); return }
+    onCommitRate(t)
+  }
+  return (
+    <td className="crewd-td" style={{ width, minWidth: width }}>
+      <input
+        className={`crewd-input crewd-num${!isSource ? ' is-derived' : ''}`}
+        type="number" min="0" step="0.01"
+        value={v}
+        placeholder={fmtMoney(derived)}
+        title={title}
+        onChange={e => setV(e.target.value)}
+        onBlur={blur}
+      />
+    </td>
+  )
+}
+
+// 6th / 7th / OT cell — shows the per-row override when set (normal weight),
+// else the derived figure (muted italic placeholder). Typing commits the
+// override column; clearing commits null (back to the formula).
+function OverrideCell({ override, derived, onCommit, width }) {
+  const ovStr = override == null || override === '' ? '' : String(override)
+  const [v, setV] = useState(ovStr)
+  useEffect(() => setV(ovStr), [ovStr])
+  function blur() {
+    const t = String(v).trim()
+    if (t === ovStr) return
+    if (t === '') { onCommit(null); return }
+    const n = parseFloat(t)
+    if (!Number.isFinite(n)) { setV(ovStr); return }
+    onCommit(n)
+  }
+  return (
+    <td className="crewd-td" style={{ width, minWidth: width }}>
+      <input
+        className={`crewd-input crewd-num${v === '' ? ' is-derived' : ''}`}
+        type="number" min="0" step="0.01"
+        value={v}
+        placeholder={fmtMoney(derived)}
+        title={OVERRIDE_TOOLTIP}
+        onChange={e => setV(e.target.value)}
+        onBlur={blur}
+      />
+    </td>
+  )
+}
+
+// The full run of detail <td>s for one crew row
+function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPhone }) {
+  const u = field => value => onUpdate(resource.id, field, value)
+  return (
+    <Fragment>
+      {/* Deal memo */}
+      <DetailTextCell value={resource.dealMemoEmailed} onCommit={u('dealMemoEmailed')} width={56} title="Deal memo emailed (e.g. TRUE / NA / BUY OUT)" />
+      <DetailTextCell value={resource.dealMemoDrafted} onCommit={u('dealMemoDrafted')} width={56} title="Deal memo drafted" />
+      <DetailTextCell value={resource.dealMemoSent}    onCommit={u('dealMemoSent')}    width={56} title="Deal memo sent" />
+      {/* Contact */}
+      <DetailTextCell value={resource.contactEmail} onCommit={onCommitEmail} width={110} type="email" placeholder="email" />
+      <DetailTextCell value={resource.contactPhone} onCommit={onCommitPhone} width={96} type="tel" placeholder="phone" />
+      <DetailTextCell value={resource.agent} onCommit={u('agent')} width={90} placeholder="agent" />
+      {/* Weekly */}
+      <RateCell
+        isSource={rates.source === 'weekly'}
+        stored={resource.costAmount}
+        derived={rates.weekly}
+        onCommitRate={val => {
+          onUpdate(resource.id, 'costAmount', val)
+          if (val !== '' && resource.costType !== 'weekly') onUpdate(resource.id, 'costType', 'weekly')
+        }}
+        width={68}
+        title="Weekly rate — editing sets this row's rate basis to weekly"
+      />
+      <DerivedCell value={rates.weeklyNet} width={68} title="Weekly net (gross ÷ holiday factor)" />
+      <DerivedCell value={rates.weeklyHol} width={68} title="Weekly holiday element" />
+      {/* Daily */}
+      <RateCell
+        isSource={rates.source === 'daily'}
+        stored={resource.costAmount}
+        derived={rates.daily}
+        onCommitRate={val => {
+          onUpdate(resource.id, 'costAmount', val)
+          if (val !== '' && resource.costType !== 'daily') onUpdate(resource.id, 'costType', 'daily')
+        }}
+        width={68}
+        title="Daily rate — editing sets this row's rate basis to daily"
+      />
+      <DerivedCell value={rates.dailyNet} width={68} title="Daily net (gross ÷ holiday factor)" />
+      <DerivedCell value={rates.dailyHol} width={68} title="Daily holiday element" />
+      {/* Hourly */}
+      <DerivedCell value={rates.hourly}    width={68} title="Hourly rate (daily ÷ hours per day)" />
+      <DerivedCell value={rates.hourlyNet} width={68} title="Hourly net" />
+      <DerivedCell value={rates.hourlyHol} width={68} title="Hourly holiday element" />
+      {/* Day rates (overridable) */}
+      <OverrideCell override={resource.sixthDayRate}   derived={rates.sixth}   onCommit={u('sixthDayRate')}   width={68} />
+      <OverrideCell override={resource.seventhDayRate} derived={rates.seventh} onCommit={u('seventhDayRate')} width={68} />
+      <OverrideCell override={resource.otRate}         derived={rates.ot}      onCommit={u('otRate')}         width={68} />
+      {/* Extras */}
+      <DetailNumCell value={resource.boxPw}        onCommit={u('boxPw')}        width={62} title="Box rental per week" />
+      <DetailNumCell value={resource.carAllowance} onCommit={u('carAllowance')} width={62} title="Car allowance" />
+      <td className="crewd-td" style={{ width: 94, minWidth: 94 }}>
+        <select
+          className="crewd-select"
+          value={resource.taxStatus ?? ''}
+          onChange={e => onUpdate(resource.id, 'taxStatus', e.target.value)}
+          title="Tax status"
+        >
+          <option value=""></option>
+          <option value="PAYE">PAYE</option>
+          <option value="Schedule D">Schedule D</option>
+          <option value="Loan Out">Loan Out</option>
+        </select>
+      </td>
+      {/* Dates — go through updateResource so the fulltime booking auto-sync runs */}
+      <td className="crewd-td" style={{ width: 108, minWidth: 108 }}>
+        <input
+          className="crewd-input crewd-date"
+          type="date"
+          value={resource.hireStartDate ?? ''}
+          onChange={e => onUpdate(resource.id, 'hireStartDate', e.target.value)}
+        />
+      </td>
+      <td className="crewd-td" style={{ width: 108, minWidth: 108 }}>
+        <input
+          className="crewd-input crewd-date"
+          type="date"
+          value={resource.hireEndDate ?? ''}
+          min={resource.hireStartDate || undefined}
+          onChange={e => onUpdate(resource.id, 'hireEndDate', e.target.value)}
+        />
+      </td>
+    </Fragment>
+  )
+}
+
+// Global rate-calc settings strip (one input)
+function RateSettingInput({ label, value, onCommit }) {
+  const valStr = String(value)
+  const [v, setV] = useState(valStr)
+  useEffect(() => setV(valStr), [valStr])
+  function blur() {
+    const n = parseFloat(String(v).trim())
+    if (!Number.isFinite(n) || n <= 0) { setV(valStr); return }   // guard: keep previous
+    if (n === value) { setV(valStr); return }
+    onCommit(n)
+  }
+  return (
+    <label className="crewd-set-field">
+      <span className="crewd-set-label">{label}</span>
+      <input
+        className="crewd-input crewd-num"
+        type="number" min="0" step="any"
+        value={v}
+        onChange={e => setV(e.target.value)}
+        onBlur={blur}
+      />
+    </label>
+  )
+}
+
+const RATE_SETTINGS = [
+  { key: 'holidayFactor',  label: 'Holiday factor' },
+  { key: 'daysPerWeek',    label: 'Days/week' },
+  { key: 'hoursPerDay',    label: 'Hours/day' },
+  { key: 'sixthDayMult',   label: '6th day ×' },
+  { key: 'seventhDayMult', label: '7th day ×' },
+  { key: 'otMult',         label: 'OT ×' },
+]
+
 // ─── ResourceRow — isolated so local text state never loses focus ─────────────
 
 // Derive unique sorted values for a given field from a resource list
@@ -130,6 +418,8 @@ function ResourceRow({
   typeResources,
   // People database
   people, onCreatePerson, onUpdatePerson,
+  // Crew details panel
+  showDetails = false, rateCalcSettings = null,
 }) {
   // Build suggestions from all other resources (for role/dept/etc.)
   const others = typeResources.filter(r => r.id !== resource.id)
@@ -259,16 +549,21 @@ function ResourceRow({
     }
   }
 
-  // Email/phone commits: update resource AND the linked person record
-  function commitEmail() {
-    commit('contactEmail', lContactEmail, resource.contactEmail)
-    if (lPersonId) onUpdatePerson(lPersonId, 'email', lContactEmail)
+  // Detail-panel email/phone commits — also sync the linked person record
+  function commitEmailValue(v) {
+    onUpdate(resource.id, 'contactEmail', v)
+    if (lPersonId) onUpdatePerson(lPersonId, 'email', v)
   }
 
-  function commitPhone() {
-    commit('contactPhone', lContactPhone, resource.contactPhone)
-    if (lPersonId) onUpdatePerson(lPersonId, 'phone', lContactPhone)
+  function commitPhoneValue(v) {
+    onUpdate(resource.id, 'contactPhone', v)
+    if (lPersonId) onUpdatePerson(lPersonId, 'phone', v)
   }
+
+  const detailRates = showDetails && rateCalcSettings
+    ? deriveRates(resource, rateCalcSettings)
+    : null
+  const totalColSpan = colSpecs.length + 1 + (showDetails ? DETAIL_COL_COUNT : 0)
 
   return (
     <Fragment>
@@ -373,6 +668,17 @@ function ResourceRow({
           </div>
         </td>
 
+        {/* ── Crew detail columns (spreadsheet panel) ──────────────────────────── */}
+        {showDetails && detailRates && (
+          <CrewDetailCells
+            resource={resource}
+            rates={detailRates}
+            onUpdate={onUpdate}
+            onCommitEmail={commitEmailValue}
+            onCommitPhone={commitPhoneValue}
+          />
+        )}
+
         {/* ── Day / summary cells ──────────────────────────────────────────────── */}
         {colSpecs.map(spec => {
           if (spec.type === 'summary') {
@@ -440,69 +746,49 @@ function ResourceRow({
       {/* ── Details row ─────────────────────────────────────────────────────────── */}
       {expanded && (
         <tr className="gantt-details-row">
-          <td colSpan={colSpecs.length + 1}>
+          <td colSpan={totalColSpan}>
             <div className="gantt-details-panel">
 
-              {/* Cost */}
-              <div className="details-group">
-                <label className="details-label">Cost</label>
-                <input
-                  className="details-input details-input-cost"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={lCostAmount}
-                  placeholder="0.00"
-                  onChange={e => setLCostAmount(e.target.value)}
-                  onBlur={() => commit('costAmount', lCostAmount, resource.costAmount)}
-                />
-                <span className="details-sep">per</span>
-                <select
-                  className="details-select"
-                  value={resource.costType}
-                  onChange={e => onUpdate(resource.id, 'costType', e.target.value)}
-                >
-                  <option value="daily">Day</option>
-                  <option value="halfday">Half Day</option>
-                  <option value="weekly">Week</option>
-                </select>
-                {resource.costType === 'weekly' && (
+              {/* Cost — equipment only; crew rates live in the detail columns */}
+              {activeTab === 'equipment' && (
+                <div className="details-group">
+                  <label className="details-label">Cost</label>
+                  <input
+                    className="details-input details-input-cost"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={lCostAmount}
+                    placeholder="0.00"
+                    onChange={e => setLCostAmount(e.target.value)}
+                    onBlur={() => commit('costAmount', lCostAmount, resource.costAmount)}
+                  />
+                  <span className="details-sep">per</span>
                   <select
                     className="details-select"
-                    value={resource.weekType}
-                    onChange={e => onUpdate(resource.id, 'weekType', e.target.value)}
+                    value={resource.costType}
+                    onChange={e => onUpdate(resource.id, 'costType', e.target.value)}
                   >
-                    <option value="5day">5-day week</option>
-                    <option value="3day">3-day week</option>
+                    <option value="daily">Day</option>
+                    <option value="halfday">Half Day</option>
+                    <option value="weekly">Week</option>
                   </select>
-                )}
-              </div>
+                  {resource.costType === 'weekly' && (
+                    <select
+                      className="details-select"
+                      value={resource.weekType}
+                      onChange={e => onUpdate(resource.id, 'weekType', e.target.value)}
+                    >
+                      <option value="5day">5-day week</option>
+                      <option value="3day">3-day week</option>
+                    </select>
+                  )}
+                </div>
+              )}
 
-              {/* Crew: email + phone + vendor crew */}
+              {/* Crew: vendor crew */}
               {activeTab === 'crew' && (
                 <>
-                  <div className="details-group">
-                    <label className="details-label">Email</label>
-                    <input
-                      className="details-input"
-                      type="email"
-                      value={lContactEmail}
-                      placeholder="email@example.com"
-                      onChange={e => setLContactEmail(e.target.value)}
-                      onBlur={commitEmail}
-                    />
-                  </div>
-                  <div className="details-group">
-                    <label className="details-label">Phone</label>
-                    <input
-                      className="details-input"
-                      type="tel"
-                      value={lContactPhone}
-                      placeholder="+44 7700 900000"
-                      onChange={e => setLContactPhone(e.target.value)}
-                      onBlur={commitPhone}
-                    />
-                  </div>
                   <div className="details-group">
                     <label className="details-label details-label-check">
                       <input
@@ -566,26 +852,30 @@ function ResourceRow({
                 </>
               )}
 
-              {/* Hire period */}
-              <div className="details-group">
-                <label className="details-label">Hire from</label>
-                <input
-                  className="details-input details-input-date"
-                  type="date"
-                  value={lHireStart}
-                  onChange={e => { setLHireStart(e.target.value); onUpdate(resource.id, 'hireStartDate', e.target.value) }}
-                />
-              </div>
-              <div className="details-group">
-                <label className="details-label">Hire to</label>
-                <input
-                  className="details-input details-input-date"
-                  type="date"
-                  value={lHireEnd}
-                  min={lHireStart || undefined}
-                  onChange={e => { setLHireEnd(e.target.value); onUpdate(resource.id, 'hireEndDate', e.target.value) }}
-                />
-              </div>
+              {/* Hire period — equipment only; crew dates live in the detail columns */}
+              {activeTab === 'equipment' && (
+                <>
+                  <div className="details-group">
+                    <label className="details-label">Hire from</label>
+                    <input
+                      className="details-input details-input-date"
+                      type="date"
+                      value={lHireStart}
+                      onChange={e => { setLHireStart(e.target.value); onUpdate(resource.id, 'hireStartDate', e.target.value) }}
+                    />
+                  </div>
+                  <div className="details-group">
+                    <label className="details-label">Hire to</label>
+                    <input
+                      className="details-input details-input-date"
+                      type="date"
+                      value={lHireEnd}
+                      min={lHireStart || undefined}
+                      onChange={e => { setLHireEnd(e.target.value); onUpdate(resource.id, 'hireEndDate', e.target.value) }}
+                    />
+                  </div>
+                </>
+              )}
 
               {/* Notes — all resources */}
               <div className="details-group">
@@ -610,9 +900,14 @@ function ResourceRow({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function CrewGantt({ production, shootDays, mode = 'both' }) {
+export default function CrewGantt({ production, shootDays, mode = 'both', onUpdateProduction }) {
+  const canViewCrewDetails = true  // TODO: wire to the permissions system
+
   const [activeTab, setActiveTab] = useState(() =>
     localStorage.getItem('fm_gantt_tab') ?? 'crew'
+  )
+  const [detailsOpen, setDetailsOpen] = useState(() =>
+    localStorage.getItem('fm_gantt_details_open') === '1'
   )
   const [crewClassTab, setCrewClassTab] = useState(() => {
     const saved = localStorage.getItem('fm_gantt_crew_class')
@@ -628,6 +923,19 @@ export default function CrewGantt({ production, shootDays, mode = 'both' }) {
                : mode === 'crew'      ? 'crew'
                : activeTab
   const classFilter = mode === 'crew' ? crewClassTab : null
+
+  // Crew details panel — only in crew mode, and only for permitted users
+  const showDetails = mode === 'crew' && canViewCrewDetails && detailsOpen
+  const rateCalcSettings = getRateCalc(production)
+  const extraCols = showDetails ? DETAIL_COL_COUNT : 0
+
+  function toggleDetails() {
+    setDetailsOpen(open => {
+      const next = !open
+      localStorage.setItem('fm_gantt_details_open', next ? '1' : '0')
+      return next
+    })
+  }
   const [expandedPhases, setExpandedPhases] = useState(() => {
     try {
       const saved = localStorage.getItem('fm_gantt_phases')
@@ -1062,6 +1370,15 @@ export default function CrewGantt({ production, shootDays, mode = 'both' }) {
           <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={handleAddResource}>
             + Add {typeLabel}
           </button>
+          {mode === 'crew' && canViewCrewDetails && (
+            <button
+              className={`pm-btn pm-btn--ghost pm-btn--sm${detailsOpen ? ' is-active' : ''}`}
+              onClick={toggleDetails}
+              title="Show / hide deal memo, rate and contact detail columns"
+            >
+              {detailsOpen ? '▾ Details' : '▸ Details'}
+            </button>
+          )}
           <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={downloadTemplate} title="Download CSV template">
             ↓ Template
           </button>
@@ -1145,6 +1462,23 @@ export default function CrewGantt({ production, shootDays, mode = 'both' }) {
         </div>
       </div>
 
+      {/* ── Global rate-calc settings strip ──────────────────────────────────── */}
+      {showDetails && (
+        <div className="crewd-settings">
+          {RATE_SETTINGS.map(s => (
+            <RateSettingInput
+              key={s.key}
+              label={s.label}
+              value={rateCalcSettings[s.key]}
+              onCommit={n => onUpdateProduction?.('rateCalc', { ...getRateCalc(production), [s.key]: n })}
+            />
+          ))}
+          <span className="crewd-settings-caption">
+            Rate calculations — applies to all rows; type in a 6th/7th/OT cell to override one row.
+          </span>
+        </div>
+      )}
+
       {/* ── No phases configured ─────────────────────────────────────────────── */}
       {!hasPhases ? (
         <div className="gantt-empty-msg">
@@ -1167,6 +1501,11 @@ export default function CrewGantt({ production, shootDays, mode = 'both' }) {
                 <th className="pm-g-corner pm-g-corner--tall" rowSpan={2}>
                   {effTab === 'crew' ? 'Name / Role / Dept' : 'Item / Category'}
                 </th>
+                {showDetails && DETAIL_GROUPS.map((g, i) => (
+                  <th key={`dgrp-${i}`} className="crewd-group-th" colSpan={g.span}>
+                    {g.label}
+                  </th>
+                ))}
                 {buildPhaseSpans(colSpecs).map(span => (
                   <th
                     key={span.phaseId}
@@ -1181,6 +1520,11 @@ export default function CrewGantt({ production, shootDays, mode = 'both' }) {
 
               {/* ── Date columns row ───────────────────────────────────────────── */}
               <tr>
+                {showDetails && DETAIL_COLS.map((c, i) => (
+                  <th key={`dcol-${i}`} className="crewd-label-th" style={{ width: c.w, minWidth: c.w }}>
+                    {c.label}
+                  </th>
+                ))}
                 {colSpecs.map(spec => {
                   if (spec.type === 'summary') {
                     return (
@@ -1250,7 +1594,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both' }) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={colSpecs.length + 1} className="gantt-empty-row">
+                  <td colSpan={colSpecs.length + 1 + extraCols} className="gantt-empty-row">
                     No {effTab === 'crew'
                       ? (classFilter ? `${crewClassLabel} crew` : 'crew members')
                       : 'equipment'} yet —
@@ -1261,7 +1605,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both' }) {
                 groups.map(([deptName, deptResources]) => (
                   <Fragment key={`dept-${deptName}`}>
                     <tr className="pm-g-dept">
-                      <td colSpan={colSpecs.length + 1}>
+                      <td colSpan={colSpecs.length + 1 + extraCols}>
                         <span className="pm-g-dept-label">{deptName}</span>
                       </td>
                     </tr>
@@ -1286,13 +1630,15 @@ export default function CrewGantt({ production, shootDays, mode = 'both' }) {
                         people={people}
                         onCreatePerson={findOrCreatePerson}
                         onUpdatePerson={updateCrewPerson}
+                        showDetails={showDetails}
+                        rateCalcSettings={rateCalcSettings}
                       />
                     ))}
                   </Fragment>
                 ))
               )}
               <tr className="gantt-add-bottom-row">
-                <td colSpan={colSpecs.length + 1}>
+                <td colSpan={colSpecs.length + 1 + extraCols}>
                   <button
                     className="pm-btn pm-btn--ghost pm-btn--sm gantt-add-bottom-btn"
                     onClick={handleAddResource}
