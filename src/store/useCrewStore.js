@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
+import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
 
 // ─── Row mappers ──────────────────────────────────────────────────────────────
 
@@ -26,6 +27,9 @@ function mapResource(row) {
     hireEndDate:   row.hire_end_date   ?? '',
     personId:      row.person_id       ?? null,
     costCode:      row.cost_code        ?? '',
+    crewClass:     row.crew_class      ?? 'additional',
+    level:         row.level           ?? 5,
+    isHod:         row.is_hod          ?? false,
   }
 }
 
@@ -103,10 +107,11 @@ export function useCrewStore() {
 
   // ── Resources ──────────────────────────────────────────────────────────────
 
-  function addResource(type = 'crew') {
+  function addResource(type = 'crew', options = {}) {
     const prodId    = getCurrentProductionId()
     const newId     = crypto.randomUUID()
     const sortOrder = resources.length
+    const crewClass = options.crewClass ?? 'additional'
     const newRes = {
       id: newId, type,
       name: type === 'crew' ? 'New Person' : 'New Item',
@@ -114,12 +119,14 @@ export function useCrewStore() {
       costAmount: '', costType: 'daily', weekType: '5day',
       contactEmail: '', contactPhone: '', isVendorCrew: false,
       vendor: '', poNumber: '', hireStartDate: '', hireEndDate: '',
+      crewClass, level: 5, isHod: false,
     }
     optR(rs => [...rs, newRes])
     dbWrite(
       supabase.from('resources').insert({
         id: newId, production_id: prodId,
         type, name: newRes.name, sort_order: sortOrder,
+        crew_class: crewClass,
       })
     )
     return newId
@@ -149,15 +156,34 @@ export function useCrewStore() {
     hireEndDate:   'hire_end_date',
     personId:      'person_id',
     costCode:      'cost_code',
+    crewClass:     'crew_class',
+    level:         'level',
+    isHod:         'is_hod',
   }
 
   function updateResource(id, field, value) {
+    const prev = resources.find(r => r.id === id)
     optR(rs => rs.map(r => r.id === id ? { ...r, [field]: value } : r))
     const col = FIELD_MAP[field] ?? field
     const dbValue = (field === 'hireStartDate' || field === 'hireEndDate' || field === 'personId')
       ? (value || null)
       : value
-    dbWrite(supabase.from('resources').update({ [col]: dbValue }).eq('id', id))
+    const write = dbWrite(supabase.from('resources').update({ [col]: dbValue }).eq('id', id))
+
+    // Fulltime weekday auto-booking sync: when a fulltime crew member's hire
+    // dates change, fill weekdays in range and clear bookings outside it.
+    if (
+      (field === 'hireStartDate' || field === 'hireEndDate') &&
+      prev && prev.type === 'crew' && prev.crewClass === 'fulltime'
+    ) {
+      const start = field === 'hireStartDate' ? (value || null) : (prev.hireStartDate || null)
+      const end   = field === 'hireEndDate'   ? (value || null) : (prev.hireEndDate   || null)
+      const existing = bookings
+        .filter(b => b.resourceId === id)
+        .map(b => ({ id: b.id, date: b.date }))
+      write.then(() => syncFulltimeBookings(supabase, id, start, end, existing))
+      // realtime subscription on resource_bookings refreshes the store
+    }
   }
 
   // ── Bulk import (CSV) ──────────────────────────────────────────────────────

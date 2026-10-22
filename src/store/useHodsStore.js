@@ -1,42 +1,50 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
+import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
+
+// HODs, backed by the `resources` table (type='crew', is_hod=true).
+// Public API is unchanged from the old `hods`-backed store (title ↔ role).
 
 function mapHod(row) {
   return {
     id:         row.id,
-    name:       row.name       ?? '',
-    title:      row.title      ?? '',
-    department: row.department ?? '',
-    phone:      row.phone      ?? '',
-    email:      row.email      ?? '',
-    startDate:  row.start_date ?? '',
-    endDate:    row.end_date   ?? '',
-    sortOrder:  row.sort_order ?? 0,
-    level:      row.level      ?? 1,
+    name:       row.name            ?? '',
+    title:      row.role            ?? '',
+    department: row.department      ?? '',
+    phone:      row.contact_phone   ?? '',
+    email:      row.contact_email   ?? '',
+    startDate:  row.hire_start_date ?? '',
+    endDate:    row.hire_end_date   ?? '',
+    sortOrder:  row.sort_order      ?? 0,
+    level:      row.level           ?? 1,
   }
 }
 
 export function useHodsStore() {
-  const [hods, setHods] = useState([])
+  const [hods,    setHods]    = useState([])
+  const [loading, setLoading] = useState(true)
 
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
     const { data, error } = await supabase
-      .from('hods')
+      .from('resources')
       .select('*')
       .eq('production_id', prodId)
+      .eq('type', 'crew')
+      .eq('is_hod', true)
       .order('sort_order', { ascending: true })
     if (!error) setHods((data ?? []).map(mapHod))
+    setLoading(false)
   }
 
   useEffect(() => {
     loadAll()
-    const unsub = onProductionChange(() => { setHods([]); loadAll() })
+    const unsub = onProductionChange(() => { setLoading(true); setHods([]); loadAll() })
     const channel = supabase
-      .channel('hods_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'hods' }, loadAll)
+      .channel('hods_resources_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, loadAll)
       .subscribe()
     return () => { unsub(); supabase.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -50,30 +58,44 @@ export function useHodsStore() {
     const prodId    = getCurrentProductionId()
     const newId     = crypto.randomUUID()
     const sortOrder = hods.length
-    setHods(hs => [...hs, { id: newId, name: '', title: '', department: '', phone: '', email: '', sortOrder }])
-    dbWrite(supabase.from('hods').insert({ id: newId, production_id: prodId, sort_order: sortOrder }))
+    setHods(hs => [...hs, { id: newId, name: '', title: '', department: '', phone: '', email: '', startDate: '', endDate: '', sortOrder, level: 1 }])
+    dbWrite(supabase.from('resources').insert({
+      id: newId, production_id: prodId,
+      type: 'crew', crew_class: 'fulltime', is_hod: true,
+      name: '', level: 1, sort_order: sortOrder,
+    }))
   }
 
   function deleteHod(id) {
     setHods(hs => hs.filter(h => h.id !== id))
-    dbWrite(supabase.from('hods').delete().eq('id', id))
+    dbWrite(supabase.from('resources').delete().eq('id', id))
   }
 
   const HOD_FIELD_MAP = {
     name:       'name',
-    title:      'title',
+    title:      'role',
     department: 'department',
-    phone:      'phone',
-    email:      'email',
-    startDate:  'start_date',
-    endDate:    'end_date',
+    phone:      'contact_phone',
+    email:      'contact_email',
+    startDate:  'hire_start_date',
+    endDate:    'hire_end_date',
     level:      'level',
   }
 
   function updateHod(id, field, value) {
+    const prev = hods.find(h => h.id === id)
     setHods(hs => hs.map(h => h.id === id ? { ...h, [field]: value } : h))
-    dbWrite(supabase.from('hods').update({ [HOD_FIELD_MAP[field] ?? field]: value }).eq('id', id))
+    const col = HOD_FIELD_MAP[field] ?? field
+    const dbValue = (field === 'startDate' || field === 'endDate') ? (value || null) : value
+    const write = dbWrite(supabase.from('resources').update({ [col]: dbValue }).eq('id', id))
+
+    // HODs are fulltime crew — keep weekday auto-bookings in step with hire dates
+    if ((field === 'startDate' || field === 'endDate') && prev) {
+      const start = field === 'startDate' ? (value || null) : (prev.startDate || null)
+      const end   = field === 'endDate'   ? (value || null) : (prev.endDate   || null)
+      write.then(() => syncFulltimeBookings(supabase, id, start, end))
+    }
   }
 
-  return { hods, addHod, deleteHod, updateHod }
+  return { hods, loading, addHod, deleteHod, updateHod }
 }

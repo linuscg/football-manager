@@ -516,7 +516,7 @@ export default function Backpage({ store }) {
   const additionalMembers = useMemo(() => {
     const ids = new Set(Object.keys(additionalBookingMap))
     return resources
-      .filter(r => r.type === 'crew' && ids.has(r.id))
+      .filter(r => r.type === 'crew' && r.crewClass === 'additional' && ids.has(r.id))
       .sort((a, b) => a.sortOrder - b.sortOrder)
   }, [additionalBookingMap, resources])
 

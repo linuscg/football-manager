@@ -1099,7 +1099,7 @@ export default function DPR({ productionName, shootDays, castMembers }) {
         const dayBookings = bookings.filter(b => b.date === selectedDay.date && b.status !== 'cancelled')
         const bookedResourceIds = new Set(dayBookings.map(b => b.resourceId))
         const bookedResources = resources.filter(r => bookedResourceIds.has(r.id))
-        const bookedCrew = bookedResources.filter(r => r.type === 'crew')
+        const bookedCrew = bookedResources.filter(r => r.type === 'crew' && r.crewClass === 'additional')
         const bookedEquipment = bookedResources.filter(r => r.type === 'equipment')
         return (
           <div className="dpr-section">

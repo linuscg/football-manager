@@ -202,7 +202,7 @@ export default function Catering({ store }) {
       (day.dayCategory === 'main' ? !b.dayId : b.dayId === day.id)
     )
     for (const booking of activeOnDay) {
-      const resource = resources.find(r => r.id === booking.resourceId && r.type === 'crew')
+      const resource = resources.find(r => r.id === booking.resourceId && r.type === 'crew' && r.crewClass === 'additional')
       if (!resource) continue
       if (list.some(p => p.id === resource.id)) continue
       const rec      = getRecord(day.id, resource.id)
@@ -297,7 +297,7 @@ export default function Catering({ store }) {
           (b.status === 'booked' || b.status === 'hold') &&
           (day.dayCategory === 'main' ? !b.dayId : b.dayId === day.id)
         )
-        .map(b => resources.find(r => r.id === b.resourceId && r.type === 'crew')?.id)
+        .map(b => resources.find(r => r.id === b.resourceId && r.type === 'crew' && r.crewClass === 'additional')?.id)
         .filter(id => id && !ftIds.has(id))
     ).size
     const sceneCastIds = new Set((day.scenes ?? []).flatMap(s => s.castMemberIds ?? []))

@@ -148,6 +148,8 @@ export default function Schedule({ store, actions }) {
   for (const b of bookings) {
     const resource = resources.find(r => r.id === b.resourceId)
     if (!resource) continue
+    // Fulltime crew have weekday auto-bookings — only additionals belong here
+    if (resource.type === 'crew' && resource.crewClass !== 'additional') continue
     if (b.dayId) {
       if (!additionalsByDayId[b.dayId]) additionalsByDayId[b.dayId] = []
       additionalsByDayId[b.dayId].push({ ...resource, bookingStatus: b.status })

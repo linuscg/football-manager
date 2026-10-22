@@ -1,0 +1,32 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2870
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset0 .SFNS-Regular_wdth_opsz110000_GRAD_wght1AE0000;}
+{\colortbl;\red255\green255\blue255;\red15\green15\blue15;\red235\green234\blue230;}
+{\*\expandedcolortbl;;\cssrgb\c7059\c7059\c7059;\cssrgb\c93725\c93333\c92157;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 I want to create a new section of football manager to track travel and accommodation, it should be based on the functionality of the attached spreadsheet. I am going to lay out the functionality below. Can you then please look into the functionality tat exists in the app already and propose a plan to integrate these new features\
+The spreadsheet has multiple tabs.\
+1) Top sheet - this tracks the expenditure across the other tabs based on the total cost column and the budget code columns. I want this to feed into the cost tracking section of the app and pull from the budget codes entered here. There should be a new \'93travel\'94 section and \'93accommodation\'94 section of the cost tracking page\
+2) Accom log - this is where the work happens for accommodation. It is a Gantt chart of dates spanning across pre-production-production and post/wrap. The first section has lines for each stay for each cast and crew member. The sheet is broken down by department. The gantt section allows you to put in a code which relates to a specific hotel for each date. Based on the dates filled in the gantt, it pulls through the check in and check out dates (with the check out date being the day after the last date in the gantt where a hotel code is entered. There is a spot to put in the nightly cost, which is then calculated to show the total cost of the stay. There\'92s aslo a spot for the \'93room type\'94 but I have been using this to put in the confirmation code of the booking. There\'92s also a notes column. There is also the ability to put in TBC into dates, this allows me to see what hotels I still need to book. The gantt in our app should work in the same way as it does on the crew/equipment page. And the hotel options should have keyboard shortcuts to paint in. I think we have already built the bones of this page. We should also add a column for PO number. There\'92s also a column for TMO number which we will get to in the TMO section.\
+2b) at the bottom of the accom log sheet, there is a list of hotels. In our app, I want this to be its own tab. There are some hotels which we\'92ve made bookings at, and some which are just candidates. They should be separated out and moved into the main list only when they\'92ve been added in the gantt. I think we have already built the bones of this page. This section also tracks the total number of rooms booked at the hotel per night, the total allocated, and the Total remaining. On our app, it should also track the total spend. We should also have a section which lists all the PO numbers for this hotel.\
+3) Travel log - this page is quite self explanatory - it has the details of flights or trains which our cast/crew will catch. On this page in our app, I want the ability to upload flight or train confirmations and for them to be parsed by the google AI like we have with the schedule AI parsing. I should be able to upload multiple documents and the AI should be able to look through them and pull out the details to fill in the table.This table has a lot of data, and will end up having a lot of rows. So the page needs to be carefully thought through so the design is easy to read and easy to use. There also should be the ability to export this entire page as a well formatted and nice looking excel with colours and a formatted header row etc. for presentation to insurers as a travel/FUTI log. There are also sections for TMO and Budget code which pull thru to their respective pages.\
+4) TMO - the TMO sheet pulls data from the Accommodation log and the Travel log based on the TMO number entered into the TMO column. Sometimes a two will be issued without accommodation info, and sometimes it will be issued without travel info. In travel there are differences if the method is train or plane. I want our TMO page to pull through all of the data based on a particular TMO number across the tabs. It should lay it out in a visually appealing way based on the structure in the TMO tab. You will notice at the top of the TMO there is some company and production information, and at the bottom there is a section for emergency contacts. The TMO page should have a section where we can input emergency contacts which are the same across all TMOs. The Project setup page in the admin section should have the ability to add the company and production information and also a show logo. There should be a button to export the TMO as a Beautiful looking PDF. This PDF should be based on how the TMO looks on this tab of the spreadsheet. It is a professional document.\
+5) Per Diems - the per diems tab I ave not built in the excel document. We can come back to this.\
+\
+Please go thru what exists in the app, become intimately familiar with the spreadsheet I have given you and come up with a plan to implement this. Present it to me and then we can go ahead.\
+\
+Cast List - Minors - add parent(s)\
+\
+In schedule/Daily info - a section (which can be minimised) which shows which cast/crew are accommodated that night.\
+\
+Booking suggestions - based on cast/crew with TBC dates, suggest hotels with rooms available to assign to particular people.\
+\
+In schedule calendar view - on a rehearsal day, list the cast numbers of cast attending the rehearsal\
+\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f1\fs32 \cf2 \cb3 \expnd0\expndtw0\kerning0
+\
+}

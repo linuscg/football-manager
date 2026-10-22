@@ -200,7 +200,7 @@ export default function CallSheet({ store, castMembers = [] }) {
   // Crew grouped by department
   const crewGroups = useMemo(() => {
     const grouped = {}
-    for (const r of dayBookings.filter(r => r.type === 'crew')) {
+    for (const r of dayBookings.filter(r => r.type === 'crew' && r.crewClass === 'additional')) {
       const key = r.department.trim() || 'Unassigned'
       if (!grouped[key]) grouped[key] = []
       grouped[key].push(r)

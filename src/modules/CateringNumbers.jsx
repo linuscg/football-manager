@@ -74,7 +74,7 @@ export default function CateringNumbers({ store }) {
           (b.status === 'booked' || b.status === 'hold') &&
           (day.dayCategory === 'main' ? !b.dayId : b.dayId === day.id)
         )
-        .map(b => resources.find(r => r.id === b.resourceId && r.type === 'crew')?.id)
+        .map(b => resources.find(r => r.id === b.resourceId && r.type === 'crew' && r.crewClass === 'additional')?.id)
         .filter(id => id && !ftIds.has(id))
     )
     const addCount = additionalIds.size

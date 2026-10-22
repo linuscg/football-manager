@@ -204,7 +204,7 @@ export default function Timesheets({ store }) {
   const addThisWeek = useMemo(() => {
     const dateSet = new Set(weekDates)
     return resources
-      .filter(r => r.type === 'crew' && bookings.some(b =>
+      .filter(r => r.type === 'crew' && r.crewClass === 'additional' && bookings.some(b =>
         b.resourceId === r.id &&
         dateSet.has(b.date) &&
         (b.status === 'booked' || b.status === 'hold')

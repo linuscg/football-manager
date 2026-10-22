@@ -377,7 +377,7 @@ export default function NewStarters() {
   const crewResources = resources.filter(r => r.type === 'crew')
 
   const additionalStarters = crewResources
-    .filter(r => r.hireStartDate && r.hireStartDate >= weekStartISO && r.hireStartDate <= weekEndISO)
+    .filter(r => r.crewClass === 'additional' && r.hireStartDate && r.hireStartDate >= weekStartISO && r.hireStartDate <= weekEndISO)
     .map(r => {
       // "Returning" = another resource row with the same personId whose hireEndDate
       // is before this resource's hireStartDate, AND it has actual bookings
