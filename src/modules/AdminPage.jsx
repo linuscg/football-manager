@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import {
-  PERMISSION_TABS, FEATURE_FLAGS,
-  normalizePermissions, cleanPermissions,
+  PERMISSION_TABS, FEATURE_FLAGS, ROLE_GATED_MODULES,
+  normalizePermissions, cleanPermissions, roleAllowsModule,
 } from '../lib/permissionRegistry'
 
 const ROLE_LABELS = { owner: 'Owner', admin: 'Admin', member: 'Member' }
@@ -16,7 +16,7 @@ const ROLE_COLORS = {
 // Checkboxes mean "can see" — everything checked by default. Unchecking stores a
 // denial on production_members.permissions (deniedTabs / deniedModules /
 // denyCrewRates), so an empty permissions object = full visibility.
-function PermissionsPanel({ perms, onChange }) {
+function PermissionsPanel({ perms, role, onChange }) {
   const deniedTabs    = new Set(perms.deniedTabs)
   const deniedModules = new Set(perms.deniedModules)
 
@@ -46,6 +46,7 @@ function PermissionsPanel({ perms, onChange }) {
     <div className="admin-perms-panel" onClick={e => e.stopPropagation()}>
       <div className="admin-perms-caption">
         Visibility — unchecked tabs and modules are hidden from this user.
+        Greyed items are controlled by their role ({ROLE_LABELS[role] ?? role}); change the role to change those.
       </div>
       <div className="admin-perms-grid">
         {PERMISSION_TABS.map(tab => {
@@ -61,17 +62,31 @@ function PermissionsPanel({ perms, onChange }) {
                 <span>{tab.label}</span>
               </label>
               <div className={`admin-perms-modules${tabVisible ? '' : ' is-disabled'}`}>
-                {tab.modules.map(m => (
-                  <label key={m.id} className="admin-perms-module">
-                    <input
-                      type="checkbox"
-                      checked={!deniedModules.has(m.id)}
-                      disabled={!tabVisible}
-                      onChange={() => toggleModule(m.id)}
-                    />
-                    <span>{m.label}</span>
-                  </label>
-                ))}
+                {tab.modules.map(m => {
+                  // Modules the member's role blocks outright (e.g. User
+                  // Management for non-admins) show locked, not grantable.
+                  const roleBlocked = !roleAllowsModule(role, m.id)
+                  return (
+                    <label
+                      key={m.id}
+                      className={`admin-perms-module${roleBlocked ? ' is-role-locked' : ''}`}
+                      title={roleBlocked ? `Granted by role — ${ROLE_GATED_MODULES[m.id].label.toLowerCase()}` : undefined}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={roleBlocked ? false : !deniedModules.has(m.id)}
+                        disabled={!tabVisible || roleBlocked}
+                        onChange={() => toggleModule(m.id)}
+                      />
+                      <span>{m.label}</span>
+                      {roleBlocked && (
+                        <span className="admin-perms-rolelock">
+                          {ROLE_GATED_MODULES[m.id].label}
+                        </span>
+                      )}
+                    </label>
+                  )
+                })}
               </div>
             </div>
           )
@@ -126,21 +141,24 @@ export default function AdminPage({ currentProductionId, productionName, session
       .select('user_id, role, permissions')
       .eq('production_id', currentProductionId)
 
-    // Profiles for those users
+    // Profiles + auth emails (via admin-only RPC) for those users
     const userIds = (memberRows ?? []).map(m => m.user_id)
     let profileMap = {}
+    let emailMap   = {}
     if (userIds.length > 0) {
-      const { data: profileRows } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .in('id', userIds)
+      const [{ data: profileRows }, { data: emailRows }] = await Promise.all([
+        supabase.from('profiles').select('id, first_name, last_name').in('id', userIds),
+        supabase.rpc('get_member_emails', { prod_id: currentProductionId }),
+      ])
       ;(profileRows ?? []).forEach(p => { profileMap[p.id] = p })
+      ;(emailRows ?? []).forEach(r => { emailMap[r.user_id] = r.email })
     }
 
     setMembers(
       (memberRows ?? []).map(m => ({
         ...m,
         profile: profileMap[m.user_id] ?? null,
+        email:   emailMap[m.user_id] ?? null,
       }))
     )
 
@@ -394,6 +412,7 @@ export default function AdminPage({ currentProductionId, productionName, session
                     >
                       <span className={`admin-member-chev${isExpanded ? ' open' : ''}`}>▸</span>
                       {fullName}
+                      {m.email && <span className="admin-member-email">{m.email}</span>}
                       {isSelf && <span className="admin-member-you">You</span>}
                     </button>
                   </div>
@@ -455,6 +474,7 @@ export default function AdminPage({ currentProductionId, productionName, session
                   ) : (
                     <PermissionsPanel
                       perms={normalizePermissions(m.permissions)}
+                      role={m.role}
                       onChange={next => handleChangePermissions(m.user_id, next)}
                     />
                   )

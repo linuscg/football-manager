@@ -6736,6 +6736,14 @@ select.pm-input { cursor: pointer; }
   align-items: center;
   gap: 6px;
 }
+.admin-member-email {
+  font-size: 12px;
+  font-weight: 400;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .admin-member-you {
   font-size: 10px;
   font-weight: 700;
@@ -10715,6 +10723,18 @@ select.pm-input { cursor: pointer; }
   cursor: pointer;
 }
 .admin-perms-module input:disabled { cursor: not-allowed; }
+.admin-perms-module.is-role-locked { opacity: 0.55; cursor: not-allowed; }
+.admin-perms-rolelock {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #f3f4f6;
+  color: #9ca3af;
+  padding: 1px 5px;
+  border-radius: 20px;
+  margin-left: 4px;
+}
 .admin-perms-tab-head input,
 .admin-perms-module input,
 .admin-perms-flag input {

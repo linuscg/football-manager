@@ -69,6 +69,19 @@ export const PERMISSION_TABS = [
   },
 ]
 
+// Modules gated by production role regardless of the checkbox permissions.
+// Mirrors the role gate in App.jsx's visibleSetupNav.
+export const ROLE_GATED_MODULES = {
+  'setup-admin':    { roles: ['owner', 'admin'], label: 'Admins only' },
+  'setup-requests': { roles: ['owner'],          label: 'Owner only'  },
+}
+
+// Whether a member's role grants access to a module at all (before denials).
+export function roleAllowsModule(role, moduleId) {
+  const gate = ROLE_GATED_MODULES[moduleId]
+  return !gate || gate.roles.includes(role)
+}
+
 export const FEATURE_FLAGS = [
   {
     id: 'denyCrewRates',

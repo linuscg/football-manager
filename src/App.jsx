@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { roleAllowsModule } from './lib/permissionRegistry'
 import { useScheduleStore }  from './store/useScheduleStore'
 import { useAuthStore }      from './store/useAuthStore'
 import { useProfileStore }   from './store/useProfileStore'
@@ -361,12 +362,9 @@ function AppShell({ session, signOut }) {
   const deniedModules = new Set(isOwner ? [] : permissions.deniedModules)
   const canViewRates  = isOwner || !permissions.denyCrewRates
 
-  // Hide admin/requests nav from users without permission (existing role gate)
-  const visibleSetupNav = SETUP_NAV.filter(n => {
-    if (n.id === 'setup-admin')    return memberRole === 'owner' || memberRole === 'admin'
-    if (n.id === 'setup-requests') return memberRole === 'owner'
-    return true
-  })
+  // Hide role-gated nav (User Management, Invite Requests) — shared with the
+  // Admin permissions panel via the registry.
+  const visibleSetupNav = SETUP_NAV.filter(n => roleAllowsModule(memberRole, n.id))
 
   const allowedTopTabs   = TOP_TABS.filter(t => !deniedTabs.has(t.id))
   const allowedSetupNav  = visibleSetupNav.filter(n => !deniedModules.has(n.id))
