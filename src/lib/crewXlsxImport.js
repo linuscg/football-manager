@@ -136,7 +136,10 @@ export class CrewTemplateError extends Error {
 // Parse the uploaded .xlsx File into person objects. Throws CrewTemplateError
 // when the first sheet doesn't look like the crew tracker template.
 export async function parseCrewXlsx(file) {
-  const XLSX = await import('xlsx-js-style')
+  // Official SheetJS 0.20.x (cdn.sheetjs.com) — the npm 'xlsx-js-style' fork
+  // tracks an old 0.18.x core with unpatched parse CVEs, so untrusted uploads
+  // are read with the patched build; styled EXPORTS still use xlsx-js-style.
+  const XLSX = await import('xlsx')
   const buf  = await file.arrayBuffer()
   const wb   = XLSX.read(buf, { cellDates: true })
   const ws   = wb.Sheets[wb.SheetNames[0]]
