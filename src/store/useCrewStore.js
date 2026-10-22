@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
@@ -159,6 +159,53 @@ export function useCrewStore() {
 
   function optR(fn) { setResources(rs => fn(rs)) }
   function optB(fn) { setBookings(bs => fn(bs)) }
+
+  // ── Paint batching ───────────────────────────────────────────────────────
+  // During a gantt drag, every cell paints optimistically but DB writes are
+  // queued, then flushed on mouse-up as at most a handful of bulk requests
+  // (instead of one round trip per cell).
+  const paintBatchRef = useRef(null)
+
+  function beginPaintBatch() {
+    paintBatchRef.current = { inserts: [], updates: [], deletes: new Set() }
+  }
+
+  async function endPaintBatch() {
+    const b = paintBatchRef.current
+    paintBatchRef.current = null
+    if (!b) return
+
+    // Reconcile the queue: a row inserted then deleted in the same drag nets to
+    // nothing; an update to a queued insert folds into the insert.
+    for (const u of b.updates) {
+      const ins = b.inserts.find(i => i.id === u.id)
+      if (ins) ins.status = u.status
+    }
+    const inserts = b.inserts.filter(r => !b.deletes.has(r.id))
+    const updates = b.updates.filter(u =>
+      !b.deletes.has(u.id) && !b.inserts.some(i => i.id === u.id))
+    const delIds  = [...b.deletes].filter(id => !b.inserts.some(i => i.id === id))
+
+    try {
+      if (inserts.length) {
+        const { error } = await supabase.from('resource_bookings').insert(inserts)
+        if (error) throw error
+      }
+      const byStatus = {}
+      for (const u of updates) (byStatus[u.status] ??= []).push(u.id)
+      for (const [status, ids] of Object.entries(byStatus)) {
+        const { error } = await supabase.from('resource_bookings').update({ status }).in('id', ids)
+        if (error) throw error
+      }
+      if (delIds.length) {
+        const { error } = await supabase.from('resource_bookings').delete().in('id', delIds)
+        if (error) throw error
+      }
+    } catch (err) {
+      console.error('[crew store] paint batch flush:', err)
+      loadAll()
+    }
+  }
   async function dbWrite(promise) {
     const { error: err } = await promise
     if (err) { console.error('[crew store] write:', err); loadAll() }
@@ -383,30 +430,49 @@ export function useCrewStore() {
       )
       if (conflicts.length) {
         optB(bs => bs.filter(b => !conflicts.some(c => c.id === b.id)))
-        conflicts.forEach(c => {
-          supabase.from('resource_bookings').delete().eq('id', c.id)
-            .then(({ error: err }) => { if (err) loadAll() })
-        })
+        if (paintBatchRef.current) {
+          conflicts.forEach(c => paintBatchRef.current.deletes.add(c.id))
+        } else {
+          conflicts.forEach(c => {
+            supabase.from('resource_bookings').delete().eq('id', c.id)
+              .then(({ error: err }) => { if (err) loadAll() })
+          })
+        }
       }
     }
 
     if (status === null) {
       if (!existing) return
       optB(bs => bs.filter(b => b.id !== existing.id))
-      supabase.from('resource_bookings').delete().eq('id', existing.id)
-        .then(({ error: err }) => { if (err) loadAll() })
+      if (paintBatchRef.current) {
+        paintBatchRef.current.deletes.add(existing.id)
+      } else {
+        supabase.from('resource_bookings').delete().eq('id', existing.id)
+          .then(({ error: err }) => { if (err) loadAll() })
+      }
     } else if (existing) {
       if (existing.status === status) return
       optB(bs => bs.map(b => b.id === existing.id ? { ...b, status } : b))
-      supabase.from('resource_bookings').update({ status }).eq('id', existing.id)
-        .then(({ error: err }) => { if (err) loadAll() })
+      if (paintBatchRef.current) {
+        paintBatchRef.current.updates.push({ id: existing.id, status })
+      } else {
+        supabase.from('resource_bookings').update({ status }).eq('id', existing.id)
+          .then(({ error: err }) => { if (err) loadAll() })
+      }
     } else {
       const newId = crypto.randomUUID()
       optB(bs => [...bs, { id: newId, resourceId, date: dateStr, dayId, status }])
-      supabase.from('resource_bookings').insert({
-        id: newId, resource_id: resourceId, booking_date: dateStr,
-        day_id: dayId ?? null, status,
-      }).then(({ error: err }) => { if (err) loadAll() })
+      if (paintBatchRef.current) {
+        paintBatchRef.current.inserts.push({
+          id: newId, resource_id: resourceId, booking_date: dateStr,
+          day_id: dayId ?? null, status,
+        })
+      } else {
+        supabase.from('resource_bookings').insert({
+          id: newId, resource_id: resourceId, booking_date: dateStr,
+          day_id: dayId ?? null, status,
+        }).then(({ error: err }) => { if (err) loadAll() })
+      }
     }
   }
 
@@ -494,6 +560,7 @@ export function useCrewStore() {
     loading, error,
     resources, bookings,
     addResource, deleteResource, updateResource,
+    beginPaintBatch, endPaintBatch,
     importResources,
     toggleBooking, setBooking,
     moveBookings,

@@ -1000,6 +1000,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     addResource, deleteResource, updateResource,
     importResources,
     setBooking,
+    beginPaintBatch, endPaintBatch,
     moveResourceUp, moveResourceDown,
   } = useCrewStore()
 
@@ -1091,7 +1092,8 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   latestRef.current = {
     resources, bookings, shootDays,
     colSpecs, shootDateSet, bookingsByResource,
-    setBooking, updateResource, deleteResource,
+    setBooking, beginPaintBatch, endPaintBatch,
+    updateResource, deleteResource,
     moveResourceUp, moveResourceDown,
     findOrCreatePerson, updateCrewPerson,
   }
@@ -1206,7 +1208,14 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     // which avoids a race condition where the hire-date DB write triggers a
     // realtime reload that races with the (still in-flight) booking INSERT.
     if (!dayId && (dragActionRef.current === 'booked' || dragActionRef.current === null)) {
-      dirtyResources.current.add(resourceId)
+      // Fulltime crew: hire dates are the source of truth (they drive the
+      // auto-booking), so painting must never rewrite them — otherwise the
+      // date-driven weekday fill instantly undoes manual unpaints (feedback
+      // loop). Only additional crew derive their hire range from paint.
+      const res = latestRef.current.resources.find(r => r.id === resourceId)
+      if ((res?.crewClass ?? 'additional') !== 'fulltime') {
+        dirtyResources.current.add(resourceId)
+      }
     }
     latestRef.current.setBooking(resourceId, date, dragActionRef.current, dayId)
   }, [])
@@ -1228,6 +1237,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const handleCellMouseDown = useCallback((resourceId, date, dayId = null, specIndex = -1) => {
     isDraggingRef.current = true
     paintedInDrag.current = new Set()
+    latestRef.current.beginPaintBatch()
     setIsDragging(true)
 
     const brush    = paintModeRef.current
@@ -1291,6 +1301,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       clearInterval(scrollInterval.current)
       paintedInDrag.current = new Set()
       lastPaintedRef.current = null
+      latestRef.current.endPaintBatch()
     }
     window.addEventListener('mouseup', stop)
     return () => window.removeEventListener('mouseup', stop)
@@ -1547,6 +1558,10 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     if (field !== 'hireStartDate' && field !== 'hireEndDate') return
     const resource = resources.find(r => r.id === id)
     if (!resource) return
+    // Fulltime crew are auto-booked by the store's weekday sync (which also
+    // handles the estimated-end fallback) — running this UI-level fill too
+    // doubled the writes and raced manual paints.
+    if ((resource.crewClass ?? 'additional') === 'fulltime') return
     const newStart = field === 'hireStartDate' ? value : (resource.hireStartDate || '')
     const newEnd   = field === 'hireEndDate'   ? value : (resource.hireEndDate   || '')
     if (!newStart || !newEnd || newStart > newEnd) return
