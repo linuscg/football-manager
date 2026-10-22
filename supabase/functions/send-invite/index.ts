@@ -119,11 +119,22 @@ serve(async (req) => {
     // already exists, so the wrong production name can bleed through.
     // generateLink() gives us the magic link so we send our own email via
     // Resend with the production name baked directly into the HTML.
-    const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+    let { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
       type: 'invite',
       email: cleanEmail,
       options: { redirectTo },
     })
+
+    // 'invite' links only work for brand-new emails — for an existing auth
+    // user fall back to a magic link, which signs them in and still carries
+    // the ?invite=token redirect that joins them to the production.
+    if (linkError && (linkError.code === 'email_exists' || linkError.status === 422)) {
+      ;({ data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+        type: 'magiclink',
+        email: cleanEmail,
+        options: { redirectTo },
+      }))
+    }
 
     if (linkError || !linkData?.properties?.action_link) {
       await adminClient.from('invites').delete().eq('token', token)

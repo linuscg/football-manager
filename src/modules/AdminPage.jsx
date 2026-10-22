@@ -157,6 +157,16 @@ export default function AdminPage({ currentProductionId, productionName, session
 
   useEffect(() => { loadData() }, [loadData])
 
+  // The generic invoke error hides the function's real message — read it from
+  // the response body in error.context when present.
+  async function fnErrorMessage(error, fallback) {
+    try {
+      const body = await error?.context?.json()
+      if (body?.error) return body.error
+    } catch { /* body not JSON or already consumed */ }
+    return error?.message ?? fallback
+  }
+
   // ── Send invite ──────────────────────────────────────────────────────────────
   async function handleSendInvite(e) {
     e.preventDefault()
@@ -173,7 +183,10 @@ export default function AdminPage({ currentProductionId, productionName, session
     })
 
     if (error || data?.error) {
-      setSendResult({ ok: false, message: error?.message ?? data?.error ?? 'Failed to send invite.' })
+      const message = error
+        ? await fnErrorMessage(error, 'Failed to send invite.')
+        : data?.error ?? 'Failed to send invite.'
+      setSendResult({ ok: false, message })
     } else {
       setSendResult({ ok: true, message: `Invite sent to ${inviteEmail.trim()}.` })
       setInviteEmail('')
@@ -210,7 +223,10 @@ export default function AdminPage({ currentProductionId, productionName, session
     })
 
     if (error || data?.error) {
-      setResendResult(r => ({ ...r, [inv.id]: { ok: false, message: error?.message ?? data?.error ?? 'Failed to resend.' } }))
+      const message = error
+        ? await fnErrorMessage(error, 'Failed to resend.')
+        : data?.error ?? 'Failed to resend.'
+      setResendResult(r => ({ ...r, [inv.id]: { ok: false, message } }))
       setResending(r => ({ ...r, [inv.id]: false }))
       // Reload so the deleted row comes back if it still exists
       loadData()
