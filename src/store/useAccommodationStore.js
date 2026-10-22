@@ -169,13 +169,14 @@ export function useAccommodationStore() {
   async function addHotel() {
     const prodId   = getCurrentProductionId()
     const newId    = crypto.randomUUID()
-    const sortOrder = hotels.length
+    const sortOrder = Date.now()   // timestamp: collision-safe vs concurrent adds
     const newHotel = { id: newId, name: '', address: '', contactInfo: '', notes: '', sortOrder }
     setHotels(hs => [...hs, newHotel])
-    await supabase.from('hotels').insert({
+    const { error: err } = await supabase.from('hotels').insert({
       id: newId, production_id: prodId,
       name: '', address: '', contact_info: '', notes: '', sort_order: sortOrder,
     })
+    if (err) { console.error('[accommodation store] addHotel:', err); loadAll() }
   }
 
   async function updateHotel(id, field, value) {
@@ -185,13 +186,15 @@ export function useAccommodationStore() {
       roomsAllocated: 'rooms_allocated',
     }
     setHotels(hs => hs.map(h => h.id === id ? { ...h, [field]: value } : h))
-    await supabase.from('hotels').update({ [colMap[field] ?? field]: value }).eq('id', id)
+    const { error: err } = await supabase.from('hotels').update({ [colMap[field] ?? field]: value }).eq('id', id)
+    if (err) { console.error('[accommodation store] updateHotel:', err); loadAll() }
   }
 
   async function deleteHotel(id) {
     setHotels(hs => hs.filter(h => h.id !== id))
     setAssignments(as => as.filter(a => a.hotelId !== id))
-    await supabase.from('hotels').delete().eq('id', id)
+    const { error: err } = await supabase.from('hotels').delete().eq('id', id)
+    if (err) { console.error('[accommodation store] deleteHotel:', err); loadAll() }
   }
 
   // ── Hotel assignments ─────────────────────────────────────────────────────────
@@ -199,28 +202,37 @@ export function useAccommodationStore() {
   async function setAssignment(crewId, crewType, date, hotelId) {
     const prodId = getCurrentProductionId()
 
-    // Optimistic update
+    // Optimistic update (temp id — reconciled with the DB row's real id below,
+    // otherwise later updates keyed on the phantom id match nothing)
+    const tempId = crypto.randomUUID()
     setAssignments(as => {
       const rest = as.filter(a => !(a.crewId === crewId && a.crewType === crewType && a.date === date))
       if (hotelId === null) return rest
-      return [...rest, { id: crypto.randomUUID(), crewId, crewType, date, hotelId }]
+      return [...rest, { id: tempId, crewId, crewType, date, hotelId }]
     })
 
     if (hotelId === null) {
-      await supabase.from('crew_hotel_assignments')
+      const { error: err } = await supabase.from('crew_hotel_assignments')
         .delete()
         .eq('production_id', prodId)
         .eq('crew_id', crewId)
         .eq('crew_type', crewType)
         .eq('date', date)
+      if (err) { console.error('[accommodation store] setAssignment:', err); loadAll() }
     } else {
-      await supabase.from('crew_hotel_assignments').upsert({
+      const { data, error: err } = await supabase.from('crew_hotel_assignments').upsert({
         production_id: prodId,
         crew_id:   crewId,
         crew_type: crewType,
         date,
         hotel_id:  hotelId,
       }, { onConflict: 'production_id,crew_id,crew_type,date' })
+        .select()
+        .single()
+      if (err) { console.error('[accommodation store] setAssignment:', err); loadAll() }
+      else if (data) {
+        setAssignments(as => as.map(a => a.id === tempId ? mapAssignment(data) : a))
+      }
     }
   }
 
@@ -258,7 +270,7 @@ export function useAccommodationStore() {
   async function addStay({ personId = null, personType = 'crew', name = '', jobTitle = '', department = '' } = {}) {
     const prodId    = getCurrentProductionId()
     const newId     = crypto.randomUUID()
-    const sortOrder = stays.length
+    const sortOrder = Date.now()   // timestamp: collision-safe vs concurrent adds
     const newStay = {
       id: newId, productionId: prodId, personId, personType,
       name, jobTitle, department,
@@ -301,27 +313,35 @@ export function useAccommodationStore() {
   async function setNight(stayId, date, value) {
     const prodId = getCurrentProductionId()
 
-    // Optimistic update
+    // Optimistic update (temp id — reconciled with the DB row's real id below)
+    const tempId = crypto.randomUUID()
     setNights(ns => {
       const rest = ns.filter(n => !(n.stayId === stayId && n.date === date))
       if (value === null) return rest
-      if (value === 'TBC') return [...rest, { id: crypto.randomUUID(), stayId, date, hotelId: null, tbc: true }]
-      return [...rest, { id: crypto.randomUUID(), stayId, date, hotelId: value, tbc: false }]
+      if (value === 'TBC') return [...rest, { id: tempId, stayId, date, hotelId: null, tbc: true }]
+      return [...rest, { id: tempId, stayId, date, hotelId: value, tbc: false }]
     })
 
     if (value === null) {
-      await supabase.from('accom_nights')
+      const { error: err } = await supabase.from('accom_nights')
         .delete()
         .eq('stay_id', stayId)
         .eq('date', date)
+      if (err) { console.error('[accommodation store] setNight:', err); loadAll() }
     } else {
-      await supabase.from('accom_nights').upsert({
+      const { data, error: err } = await supabase.from('accom_nights').upsert({
         production_id: prodId,
         stay_id:  stayId,
         date,
         hotel_id: value === 'TBC' ? null : value,
         tbc:      value === 'TBC',
       }, { onConflict: 'stay_id,date' })
+        .select()
+        .single()
+      if (err) { console.error('[accommodation store] setNight:', err); loadAll() }
+      else if (data) {
+        setNights(ns => ns.map(n => n.id === tempId ? mapNight(data) : n))
+      }
     }
   }
 
@@ -333,18 +353,20 @@ export function useAccommodationStore() {
     setTravelTimesData(prev => ({ ...prev, [key]: value }))
 
     if (!value.trim()) {
-      await supabase.from('hotel_travel_times')
+      const { error: err } = await supabase.from('hotel_travel_times')
         .delete()
         .eq('production_id', prodId)
         .eq('hotel_id', hotelId)
         .eq('location_name', location)
+      if (err) console.error('[accommodation store] setTravelTime:', err)
     } else {
-      await supabase.from('hotel_travel_times').upsert({
+      const { error: err } = await supabase.from('hotel_travel_times').upsert({
         production_id: prodId,
         hotel_id:      hotelId,
         location_name: location,
         travel_time:   value,
       }, { onConflict: 'production_id,hotel_id,location_name' })
+      if (err) console.error('[accommodation store] setTravelTime:', err)
     }
   }
 

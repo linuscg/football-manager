@@ -434,7 +434,7 @@ export function useScheduleStore() {
     }
 
     const newId        = crypto.randomUUID()
-    const newSortOrder = days.length
+    const newSortOrder = Date.now()   // timestamp: collision-safe vs concurrent adds
     const newDayNumber = category === 'main' ? lastDayNum + 1 : null
 
     const newDay = {
@@ -461,7 +461,7 @@ export function useScheduleStore() {
     const prodId = getCurrentProductionId()
     const days = store.shootDays
     const newId = crypto.randomUUID()
-    const newSortOrder = days.length
+    const newSortOrder = Date.now()   // timestamp: collision-safe vs concurrent adds
 
     // Prep days are ALWAYS non-shooting days
     const newDay = {
@@ -488,7 +488,7 @@ export function useScheduleStore() {
     const prodId = getCurrentProductionId()
     const days = store.shootDays
     const newId = crypto.randomUUID()
-    const newSortOrder = days.length
+    const newSortOrder = Date.now()   // timestamp: collision-safe vs concurrent adds
 
     const newDay = {
       id: newId, dayNumber: parentDay.dayNumber, date: parentDay.date,
@@ -597,11 +597,17 @@ export function useScheduleStore() {
   async function _reorder(orderedDays) {
     const updated = orderedDays.map((d, i) => ({ ...d, sortOrder: i }))
     optimistic(s => ({ ...s, shootDays: updated }))
-    await Promise.all(
+    // A partially-failed reorder (flaky network) leaves permanently duplicated
+    // / holey sort_order values — reload to resync if any write failed.
+    const results = await Promise.all(
       updated.map(d =>
         supabase.from('shoot_days').update({ sort_order: d.sortOrder }).eq('id', d.id)
       )
     )
+    if (results.some(r => r.error)) {
+      console.error('[schedule store] _reorder: partial failure, reloading')
+      loadAll()
+    }
   }
 
   function moveDayUp(id) {
@@ -693,7 +699,7 @@ export function useScheduleStore() {
     const newId = crypto.randomUUID()
     const day = store.shootDays.find(d => d.id === dayId)
     const existing = day?.extras?.[category] ?? []
-    const sortOrder = existing.length
+    const sortOrder = Date.now()   // timestamp: collision-safe vs concurrent adds
 
     optimistic(s => ({
       ...s,
@@ -759,7 +765,7 @@ export function useScheduleStore() {
   async function addCastMember() {
     const prodId = getCurrentProductionId()
     const newId = crypto.randomUUID()
-    const sortOrder = store.castMembers.length
+    const sortOrder = Date.now()   // timestamp: collision-safe vs concurrent adds
     // Auto-assign the next available cast number
     const maxNum = store.castMembers.reduce((m, c) => Math.max(m, c.castNumber ?? 0), 0)
     const castNumber = maxNum + 1

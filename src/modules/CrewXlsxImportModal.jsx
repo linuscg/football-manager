@@ -15,7 +15,7 @@ function Badge({ status }) {
 const fmt = v => (v === '' || v === null || v === undefined ? '—' : String(v))
 
 export default function CrewXlsxImportModal({ diff, crewClassLabel, onCancel, onApply }) {
-  const { newPeople, changed, unchangedCount } = diff
+  const { newPeople, changed, unchangedCount, ambiguous = [] } = diff
 
   // Selection state — default: everything checked
   const [newChecked, setNewChecked] = useState(() => new Set(newPeople.map((_, i) => i)))
@@ -53,6 +53,13 @@ export default function CrewXlsxImportModal({ diff, crewClassLabel, onCancel, on
               Untick anyone you don't want to import. New people are added to the {crewClassLabel} crew list.
             </span>
           </div>
+
+          {ambiguous.length > 0 && (
+            <div className="admin-send-result admin-send-result--err" style={{ marginBottom: 12 }}>
+              Skipped (same name appears more than once, so a safe match isn't
+              possible — update these manually): {ambiguous.join(', ')}
+            </div>
+          )}
 
           <div className="sched-import-days">
             {newPeople.map((p, i) => (

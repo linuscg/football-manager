@@ -93,10 +93,12 @@ export default function Timesheets({ store }) {
   // ── Week navigation (persisted to localStorage) ───────────────────────────
 
   const [weekMonday, setWeekMonday] = useState(() => {
+    // Honour the saved week only while it's reasonably recent — a selection
+    // from months ago would reopen on an old empty week instead of today.
     const saved = localStorage.getItem('fm_ts_week')
     if (saved) {
       const d = new Date(saved + 'T00:00:00')
-      if (!isNaN(d)) return d
+      if (!isNaN(d) && Math.abs(d.getTime() - Date.now()) < 60 * 86400000) return d
     }
     return getMonday(new Date())
   })

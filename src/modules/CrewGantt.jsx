@@ -3,6 +3,7 @@ import { useCrewStore } from '../store/useCrewStore'
 import { useCrewPeopleStore } from '../store/useCrewPeopleStore'
 import { getRateCalc, deriveRates } from '../lib/rateCalc'
 import { parseCrewXlsx, buildCrewImportDiff } from '../lib/crewXlsxImport'
+import { parseCSV } from '../lib/csv'
 import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
 import { supabase } from '../lib/supabase'
 import CrewXlsxImportModal from './CrewXlsxImportModal'
@@ -484,7 +485,7 @@ const ResourceRow = memo(function ResourceRow({
   onUpdate, onDelete, onMoveUp, onMoveDown, onPhaseToggle,
   typeResources,
   // People database
-  people, onCreatePerson, onUpdatePerson,
+  people, onCreatePerson, onUpdatePerson, onDeletePerson,
   // Crew details panel
   showDetails = false, rateCalcSettings = null, estEndDate = '',
   canViewRates = true,
@@ -498,6 +499,7 @@ const ResourceRow = memo(function ResourceRow({
   const vendorSuggestions = uniq(others.map(r => r.vendor))
 
   const [expanded,       setExpanded]       = useState(false)
+  const autoCreatedPersonRef = useRef(null) // person record this row's name-blur created
   const [lName,          setLName]          = useState(resource.name)
   const [lPersonId,      setLPersonId]      = useState(resource.personId)
   const [lRole,          setLRole]          = useState(resource.role)
@@ -579,6 +581,13 @@ const ResourceRow = memo(function ResourceRow({
           onUpdate(resource.id, 'personId', conflict.id)
           if (!lContactEmail && conflict.email) { setLContactEmail(conflict.email); onUpdate(resource.id, 'contactEmail', conflict.email) }
           if (!lContactPhone && conflict.phone) { setLContactPhone(conflict.phone); onUpdate(resource.id, 'contactPhone', conflict.phone) }
+          // Typo-fix case: the record this row auto-created moments ago (e.g.
+          // "Jhon Smith") would be left orphaned — remove it. person_id links
+          // are ON DELETE SET NULL, so this can never delete anyone's row.
+          if (onDeletePerson && lPersonId === autoCreatedPersonRef.current) {
+            onDeletePerson(lPersonId)
+            autoCreatedPersonRef.current = null
+          }
         } else {
           // Update the linked person's name in the crew database
           onUpdatePerson(lPersonId, 'name', trimmed)
@@ -613,6 +622,7 @@ const ResourceRow = memo(function ResourceRow({
       phone: lContactPhone,
     })
     if (newId) {
+      autoCreatedPersonRef.current = newId   // so a typo-fix can clean it up
       setLPersonId(newId)
       onUpdate(resource.id, 'personId', newId)
     }
@@ -1030,6 +1040,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     people,
     findOrCreatePerson,
     updatePerson: updateCrewPerson,
+    deletePerson: deleteCrewPerson,
   } = useCrewPeopleStore()
 
   const importFileRef = useRef(null)
@@ -1117,7 +1128,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     setBooking, applyPaintOps,
     updateResource, deleteResource,
     moveResourceUp, moveResourceDown,
-    findOrCreatePerson, updateCrewPerson,
+    findOrCreatePerson, updateCrewPerson, deleteCrewPerson,
   }
 
   // ── Filter + group resources ───────────────────────────────────────────────
@@ -1457,27 +1468,17 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     URL.revokeObjectURL(url)
   }
 
-  // Very small CSV parser — handles double-quoted fields with commas inside.
-  function parseCSV(text) {
-    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
-    return lines.map(line => {
-      const fields = []
-      let cur = '', inQ = false
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i]
-        if (ch === '"') { inQ = !inQ }
-        else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
-        else cur += ch
-      }
-      fields.push(cur.trim())
-      return fields
-    })
-  }
-
   async function handleImportFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
+
+    // Cap import size — a crafted/corrupt file shouldn't be able to hang the
+    // tab (a real crew sheet is well under a megabyte).
+    if (file.size > 20 * 1024 * 1024) {
+      alert('File is too large to import (20 MB max).')
+      return
+    }
 
     // Crew tracker Excel template → parse, diff against existing crew, and
     // open the approval modal instead of the straight CSV import.
@@ -1671,6 +1672,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const handleMoveUp         = useCallback(id => latestRef.current.moveResourceUp(id), [])
   const handleMoveDown       = useCallback(id => latestRef.current.moveResourceDown(id), [])
   const handleCreatePerson   = useCallback(p  => latestRef.current.findOrCreatePerson(p), [])
+  const handleDeletePerson   = useCallback(id => latestRef.current.deleteCrewPerson(id), [])
   const handleUpdatePerson   = useCallback((id, field, value) => latestRef.current.updateCrewPerson(id, field, value), [])
 
   if (loading) return <div className="gantt-state-msg">Loading…</div>
@@ -1974,6 +1976,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                         people={people}
                         onCreatePerson={handleCreatePerson}
                         onUpdatePerson={handleUpdatePerson}
+                        onDeletePerson={handleDeletePerson}
                         estEndDate={production?.shootEndDate ?? ''}
                         onRowContextMenu={handleRowContextMenu}
                         showDetails={showDetails}

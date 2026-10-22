@@ -71,7 +71,7 @@ export function useBudgetStore() {
   function addItem() {
     const prodId    = getCurrentProductionId()
     const newId     = crypto.randomUUID()
-    const sortOrder = items.length
+    const sortOrder = Date.now()   // timestamp: collision-safe vs concurrent adds
     const newItem   = { id: newId, category: 'Other', name: 'New item', amount: 0, notes: '', sortOrder }
     setItems(is => [...is, newItem])
     supabase.from('budget_items').insert({

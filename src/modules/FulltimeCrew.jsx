@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useFulltimeCrewStore } from '../store/useFulltimeCrewStore'
 import { useHodsStore }         from '../store/useHodsStore'
+import { parseCSV }             from '../lib/csv'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -8,21 +9,6 @@ function uniq(arr) {
   return [...new Set(arr.filter(Boolean))].sort()
 }
 
-function parseCSV(text) {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
-  return lines.map(line => {
-    const fields = []
-    let cur = '', inQ = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') { inQ = !inQ }
-      else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = '' }
-      else cur += ch
-    }
-    fields.push(cur.trim())
-    return fields
-  })
-}
 
 function deptPriority(dept) {
   const d = (dept || '').toLowerCase().trim()

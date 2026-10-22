@@ -85,26 +85,42 @@ function overrideVal(cell) {
   return null
 }
 
-// Date value → 'YYYY-MM-DD'. Handles real Date cells (cellDates: true),
-// ISO strings, and dd/mm/yy[yy] strings. Unparseable → ''.
+// A calendar-valid Y/M/D → 'YYYY-MM-DD', else '' (so "31/02/26" never reaches
+// the DB, where the invalid date string would abort the whole import insert).
+function ymdOrEmpty(year, month, day) {
+  const d = new Date(year, month - 1, day)
+  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return ''
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+// Date value → 'YYYY-MM-DD'. Handles real Date cells (cellDates: true), Excel
+// serial-date numbers (cells not formatted as dates arrive as plain numbers),
+// ISO strings, and dd/mm/yy[yy] strings. Unparseable/invalid → ''.
 function dateVal(cell) {
   if (!cell || cell.v === undefined || cell.v === null) return ''
   const v = cell.v
   if (v instanceof Date) return isNaN(v.getTime()) ? '' : toISODate(v)
+  if (typeof v === 'number') {
+    // Excel serial date (days since 1899-12-30); plausible range ≈ 1990–2100
+    if (v > 32000 && v < 75000) {
+      const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000)
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    }
+    return ''
+  }
   if (typeof v === 'string') {
     const s = v.trim()
     if (!s) return ''
-    // Already ISO
+    // Already ISO — still validate the calendar date
     let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-    if (m) return s
+    if (m) return ymdOrEmpty(Number(m[1]), Number(m[2]), Number(m[3]))
     // dd/mm/yy or dd/mm/yyyy (also - or . separators)
     m = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/)
     if (m) {
       const day = Number(m[1]), month = Number(m[2])
       let year = Number(m[3])
       if (m[3].length <= 2) year += 2000
-      if (month < 1 || month > 12 || day < 1 || day > 31) return ''
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      return ymdOrEmpty(year, month, day)
     }
   }
   return ''
@@ -197,22 +213,39 @@ const DIFF_FIELDS = [
 const normName = s => String(s ?? '').trim().toLowerCase()
 
 // Diff parsed people against existing crew resources (ALL classes).
-// Returns { newPeople, changed, unchangedCount }.
+// Returns { newPeople, changed, unchangedCount, ambiguous }.
 //   newPeople: person objects not matching any existing resource by name
 //   changed:   [{ resource, person, changes: [{ field, label, from, to }] }]
+//   ambiguous: names that can't be matched safely (the name appears on more
+//              than one existing crew row, or more than once in the sheet) —
+//              skipped rather than silently writing onto the wrong person.
 export function buildCrewImportDiff(people, crewResources) {
   const byName = new Map()
+  const nameCounts = new Map()
   for (const r of crewResources) {
     const key = normName(r.name)
-    if (key && !byName.has(key)) byName.set(key, r)
+    if (!key) continue
+    nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1)
+    if (!byName.has(key)) byName.set(key, r)
+  }
+  const sheetCounts = new Map()
+  for (const p of people) {
+    const key = normName(p.name)
+    if (key) sheetCounts.set(key, (sheetCounts.get(key) ?? 0) + 1)
   }
 
   const newPeople = []
   const changed = []
+  const ambiguous = []
   let unchangedCount = 0
 
   for (const person of people) {
-    const match = byName.get(normName(person.name))
+    const key = normName(person.name)
+    if ((nameCounts.get(key) ?? 0) > 1 || (sheetCounts.get(key) ?? 0) > 1) {
+      if (!ambiguous.includes(person.name)) ambiguous.push(person.name)
+      continue
+    }
+    const match = byName.get(key)
     if (!match) { newPeople.push(person); continue }
 
     const changes = []
@@ -257,5 +290,5 @@ export function buildCrewImportDiff(people, crewResources) {
     else unchangedCount++
   }
 
-  return { newPeople, changed, unchangedCount }
+  return { newPeople, changed, unchangedCount, ambiguous }
 }

@@ -455,6 +455,20 @@ export default function Backpage({ store }) {
     else     localStorage.removeItem(BP_DAY_KEY)
   }
 
+  // The saved day id can go stale (production switch, deleted day, or days not
+  // yet loaded when the initializer ran) — re-resolve whenever days change so
+  // the page never shows an empty body under a day selector.
+  useEffect(() => {
+    if (allDays.length === 0) return
+    if (selectedDayId && allDays.some(d => d.id === selectedDayId)) return
+    setSelectedDayIdRaw(
+      allDays.find(d => d.date === today)?.id ??
+      allDays.find(d => d.date >= today)?.id  ??
+      allDays[0]?.id ?? null
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDays])
+
   const currentIdx = allDays.findIndex(d => d.id === selectedDayId)
   const prevDay    = currentIdx > 0                    ? allDays[currentIdx - 1] : null
   const nextDay    = currentIdx < allDays.length - 1   ? allDays[currentIdx + 1] : null

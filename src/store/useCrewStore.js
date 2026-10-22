@@ -272,7 +272,10 @@ export function useCrewStore() {
   function addResource(type = 'crew', options = {}) {
     const prodId    = getCurrentProductionId()
     const newId     = crypto.randomUUID()
-    const sortOrder = resources.length
+    // Timestamp, not list length: two users adding at the same moment would
+    // both compute the same positional index and collide. A millisecond value
+    // still sorts after every existing row; drag-reorders rewrite 0..n anyway.
+    const sortOrder = Date.now()
     const crewClass  = options.crewClass ?? 'additional'
     const equipClass = options.equipClass ?? 'ros'
     const newRes = {
@@ -381,7 +384,7 @@ export function useCrewStore() {
 
   async function importResources(type, rows, options = {}) {
     const prodId    = getCurrentProductionId()
-    const sortStart = resources.filter(r => r.type === type).length
+    const sortStart = Date.now()   // timestamp base: collision-safe vs concurrent adds
     const crewClass  = options.crewClass ?? 'additional'
     const equipClass = options.equipClass ?? 'ros'
 
@@ -574,27 +577,54 @@ export function useCrewStore() {
   async function _reorder(list) {
     const updated = list.map((r, i) => ({ ...r, sortOrder: i }))
     optR(() => updated)
-    await Promise.all(
+    const results = await Promise.all(
       updated.map(r =>
         supabase.from('resources').update({ sort_order: r.sortOrder }).eq('id', r.id)
       )
     )
+    // Partial failure would leave duplicate/holey sort_order — resync.
+    if (results.some(r => r.error)) {
+      console.error('[crew store] _reorder: partial failure, reloading')
+      loadAll()
+    }
   }
 
   function moveResourceUp(id) {
-    const list = [...resources]
-    const idx = list.findIndex(r => r.id === id)
-    if (idx <= 0) return
-    ;[list[idx - 1], list[idx]] = [list[idx], list[idx - 1]]
-    _reorder(list)
+    _moveWithinGroup(id, -1)
   }
 
   function moveResourceDown(id) {
-    const list = [...resources]
-    const idx = list.findIndex(r => r.id === id)
-    if (idx < 0 || idx >= list.length - 1) return
-    ;[list[idx], list[idx + 1]] = [list[idx + 1], list[idx]]
-    _reorder(list)
+    _moveWithinGroup(id, +1)
+  }
+
+  // Swap with the adjacent VISIBLE neighbour: same type, same class and same
+  // department/category group — the gantt renders filtered + grouped rows, so
+  // swapping in the raw list could silently reorder hidden rows from another
+  // tab and appear to do nothing.
+  function _moveWithinGroup(id, dir) {
+    const me = resources.find(r => r.id === id)
+    if (!me) return
+    const groupKey = me.type === 'crew' ? 'department' : 'category'
+    const classOf  = r => me.type === 'crew' ? (r.crewClass ?? 'additional') : (r.equipClass ?? 'ros')
+    const peers = resources.filter(r =>
+      r.type === me.type &&
+      classOf(r) === classOf(me) &&
+      (r[groupKey] ?? '').trim() === (me[groupKey] ?? '').trim()
+    )
+    const idx = peers.findIndex(r => r.id === id)
+    const other = peers[idx + dir]
+    if (idx < 0 || !other) return
+
+    // Swap the two rows' sort_order values — in-between rows of other groups
+    // are unaffected, and within-group display order flips as intended.
+    let mySort = me.sortOrder, otherSort = other.sortOrder
+    if (mySort === otherSort) otherSort = mySort + dir   // break legacy ties so the swap is visible
+    optR(rs => rs
+      .map(r => r.id === me.id ? { ...r, sortOrder: otherSort }
+              : r.id === other.id ? { ...r, sortOrder: mySort } : r)
+      .sort((a, b) => a.sortOrder - b.sortOrder))
+    dbWrite(supabase.from('resources').update({ sort_order: otherSort }).eq('id', me.id))
+    dbWrite(supabase.from('resources').update({ sort_order: mySort }).eq('id', other.id))
   }
 
   return {
