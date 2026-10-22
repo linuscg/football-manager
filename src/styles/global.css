@@ -10609,3 +10609,38 @@ select.pm-input { cursor: pointer; }
   white-space: nowrap;
 }
 .crewd-est:hover { background: #fde68a; }
+
+/* ── Gantt row context menu ───────────────────────────────────────────────── */
+.gantt-row-menu {
+  z-index: 300;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+  min-width: 200px;
+  overflow: hidden;
+}
+.gantt-row-menu-name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  padding: 7px 12px 5px;
+  border-bottom: 1px solid #f3f4f6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gantt-row-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  padding: 9px 12px;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  color: #111827;
+}
+.gantt-row-menu-item:hover { background: #f0f7ff; color: #2563eb; }

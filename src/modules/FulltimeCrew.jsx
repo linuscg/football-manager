@@ -26,9 +26,9 @@ function parseCSV(text) {
 
 function deptPriority(dept) {
   const d = (dept || '').toLowerCase().trim()
-  if (d === 'director' || d === 'directors') return 0
-  if (d === 'producer' || d === 'producers') return 1
-  if (d === 'production') return 2
+  if (/^(producers?|executives?)$/.test(d)) return 0
+  if (/^directors?$/.test(d))               return 1
+  if (d === 'production')                   return 2
   return 3
 }
 

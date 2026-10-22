@@ -7,6 +7,15 @@ import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
 import { supabase } from '../lib/supabase'
 import CrewXlsxImportModal from './CrewXlsxImportModal'
 
+// Department display priority: Producers/Executives → Directors → Production → A-Z.
+function deptPriority(name) {
+  const d = (name || '').toLowerCase().trim()
+  if (/^(producers?|executives?)$/.test(d)) return 0
+  if (/^directors?$/.test(d))               return 1
+  if (d === 'production')                   return 2
+  return 3
+}
+
 // ─── Phase definitions ────────────────────────────────────────────────────────
 
 const PHASES = [
@@ -468,6 +477,7 @@ const ResourceRow = memo(function ResourceRow({
   people, onCreatePerson, onUpdatePerson,
   // Crew details panel
   showDetails = false, rateCalcSettings = null, estEndDate = '',
+  onRowContextMenu = null,
 }) {
   // Build suggestions from all other resources (for role/dept/etc.)
   const others = typeResources.filter(r => r.id !== resource.id)
@@ -617,7 +627,15 @@ const ResourceRow = memo(function ResourceRow({
     <Fragment>
       <tr className="gantt-resource-row">
         {/* ── Sticky name cell ─────────────────────────────────────────────────── */}
-        <td className="pm-g-name">
+        <td
+          className="pm-g-name"
+          onContextMenu={e => {
+            if (activeTab === 'crew' && onRowContextMenu) {
+              e.preventDefault()
+              onRowContextMenu(resource.id, resource.crewClass ?? 'additional', resource.name, e.clientX, e.clientY)
+            }
+          }}
+        >
           <div className="gantt-name-cell">
             {activeTab === 'equipment' && (
               <button
@@ -970,6 +988,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const scrollInterval  = useRef(null)
   const dirtyResources  = useRef(new Set())   // resource IDs whose bookings changed via painting
   const paintModeRef    = useRef(paintMode)   // mirror of paintMode for []-stable callbacks
+  const [rowMenu, setRowMenu] = useState(null) // { resourceId, crewClass, name, x, y }
   // eslint-disable-next-line react-hooks/refs -- latest-value ref, read only in event handlers
   paintModeRef.current  = paintMode
   const prevRowMapsRef  = useRef({})          // per-resource booking-map identity cache
@@ -1095,6 +1114,10 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const groups = Object.entries(groupMap).sort(([a], [b]) => {
     if (a === FALLBACK) return 1
     if (b === FALLBACK) return -1
+    if (effTab === 'crew') {
+      const pa = deptPriority(a), pb = deptPriority(b)
+      if (pa !== pb) return pa - pb
+    }
     return a.localeCompare(b)
   })
 
@@ -1187,6 +1210,20 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     }
     latestRef.current.setBooking(resourceId, date, dragActionRef.current, dayId)
   }, [])
+
+  const handleRowContextMenu = useCallback((resourceId, crewClass, name, x, y) => {
+    setRowMenu({ resourceId, crewClass, name, x: Math.min(x, window.innerWidth - 220), y: Math.min(y, window.innerHeight - 90) })
+  }, [])
+
+  // Close the row menu on any outside click / Escape
+  useEffect(() => {
+    if (!rowMenu) return
+    const close = () => setRowMenu(null)
+    const onKey = e => { if (e.key === 'Escape') setRowMenu(null) }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', onKey) }
+  }, [rowMenu])
 
   const handleCellMouseDown = useCallback((resourceId, date, dayId = null, specIndex = -1) => {
     isDraggingRef.current = true
@@ -1834,6 +1871,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                         onCreatePerson={handleCreatePerson}
                         onUpdatePerson={handleUpdatePerson}
                         estEndDate={production?.shootEndDate ?? ''}
+                        onRowContextMenu={handleRowContextMenu}
                         showDetails={showDetails}
                         rateCalcSettings={rateCalcSettings}
                       />
@@ -1853,6 +1891,27 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
               </tr>
             </tbody>
           </table>
+
+          {/* ── Row context menu (right-click on a crew name) ───────────────── */}
+          {rowMenu && (
+            <div
+              className="gantt-row-menu"
+              style={{ position: 'fixed', left: rowMenu.x, top: rowMenu.y }}
+              onMouseDown={e => e.stopPropagation()}
+            >
+              <div className="gantt-row-menu-name">{rowMenu.name || 'Unnamed'}</div>
+              <button
+                className="gantt-row-menu-item"
+                onClick={() => {
+                  const next = rowMenu.crewClass === 'fulltime' ? 'additional' : 'fulltime'
+                  updateResource(rowMenu.resourceId, 'crewClass', next)
+                  setRowMenu(null)
+                }}
+              >
+                Move to {rowMenu.crewClass === 'fulltime' ? 'Additional Crew' : 'Full-Time Crew'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
