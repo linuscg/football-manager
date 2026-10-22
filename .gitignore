@@ -30,3 +30,6 @@ LINUS_Project Notes.rtf
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Stray local files
+*.rtf
