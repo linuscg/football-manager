@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
@@ -62,9 +62,17 @@ export function useCrewStore() {
   const [resources, setResources] = useState([])
   const [bookings,  setBookings]  = useState([])
 
+  // Guards against the production-switch race: a slow multi-page loadAll for
+  // the previous production must never land its rows after a newer load began.
+  const loadGenRef = useRef(0)
+  // Resource ids of the loaded production — realtime booking events for other
+  // productions (unfiltered channel) are dropped against this set.
+  const resourceIdsRef = useRef(new Set())
+
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) return   // wait for production context to be set
+    const gen = ++loadGenRef.current
 
     try {
       const { data: recs, error: recErr } = await supabase
@@ -93,14 +101,20 @@ export function useCrewStore() {
         }
       }
 
+      // A newer load (production switch) started while we were fetching —
+      // discard this result instead of overwriting the newer production.
+      if (gen !== loadGenRef.current) return
+
+      resourceIdsRef.current = new Set(ids)
       setResources((recs ?? []).map(mapResource))
       setBookings((bks ?? []).map(mapBooking))
       setError(null)
     } catch (err) {
+      if (gen !== loadGenRef.current) return
       console.error('[crew store] loadAll:', err)
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) setLoading(false)
     }
   }
 
@@ -125,6 +139,9 @@ export function useCrewStore() {
     }
     const row = payload.new
     if (!row?.id) return
+    // Unfiltered channel: drop events for resources outside the loaded
+    // production (e.g. a colleague painting in another production).
+    if (row.resource_id && !resourceIdsRef.current.has(row.resource_id)) return
     const mapped = mapBooking(row)
     setBookings(bs => {
       const idx = bs.findIndex(b => b.id === mapped.id)
@@ -143,8 +160,11 @@ export function useCrewStore() {
       setBookings([])
       loadAll()
     })
+    // Unique topic per hook instance — multiple components each mount this
+    // hook, and two joins on the same fixed topic conflict in supabase-js
+    // (one instance silently stops receiving events).
     const channel = supabase
-      .channel('crew_changes')
+      .channel(`crew_changes_${crypto.randomUUID()}`)
       // Resources change rarely — a debounced full reload is fine.
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, debouncedLoadAll)
       // Bookings change in bursts while painting — apply each event
@@ -342,10 +362,10 @@ export function useCrewStore() {
     ) {
       const start = field === 'hireStartDate' ? (value || null) : (prev.hireStartDate || null)
       const end   = field === 'hireEndDate'   ? (value || null) : (prev.hireEndDate   || null)
-      const existing = bookings
-        .filter(b => b.resourceId === id)
-        .map(b => ({ id: b.id, date: b.date }))
-      write.then(() => syncFulltimeBookings(supabase, id, start, end, existing))
+      // No `existing` snapshot: render-captured bookings can be stale (mid
+      // paged load, pre-realtime echo) and a stale empty list makes the sync
+      // re-insert every weekday as duplicates. The helper fetches fresh rows.
+      write.then(() => syncFulltimeBookings(supabase, id, start, end))
       // realtime subscription on resource_bookings refreshes the store
     }
   }

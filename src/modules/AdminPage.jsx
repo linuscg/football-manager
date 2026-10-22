@@ -229,9 +229,9 @@ export default function AdminPage({ currentProductionId, productionName, session
     setResending(r => ({ ...r, [inv.id]: true }))
     setResendResult(r => ({ ...r, [inv.id]: null }))
 
-    // Delete the old invite row first so a fresh one gets created
-    await supabase.from('invites').delete().eq('id', inv.id)
-
+    // No client-side delete: the edge function replaces any pending invite for
+    // this email+production itself, so a failed resend keeps the old invite
+    // (deleting first permanently destroyed it on failure).
     const { data, error } = await supabase.functions.invoke('send-invite', {
       body: {
         email:        inv.email,
@@ -246,7 +246,6 @@ export default function AdminPage({ currentProductionId, productionName, session
         : data?.error ?? 'Failed to resend.'
       setResendResult(r => ({ ...r, [inv.id]: { ok: false, message } }))
       setResending(r => ({ ...r, [inv.id]: false }))
-      // Reload so the deleted row comes back if it still exists
       loadData()
     } else {
       setResendResult(r => ({ ...r, [inv.id]: { ok: true, message: 'Resent!' } }))
@@ -470,6 +469,11 @@ export default function AdminPage({ currentProductionId, productionName, session
                   isOwner ? (
                     <div className="admin-perms-owner-note">
                       Owners always see everything.
+                    </div>
+                  ) : isSelf ? (
+                    <div className="admin-perms-owner-note">
+                      You can't edit your own access — unticking User Management
+                      here would lock you out. Ask another admin or the owner.
                     </div>
                   ) : (
                     <PermissionsPanel

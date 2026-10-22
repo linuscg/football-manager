@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
@@ -25,9 +25,14 @@ export function useHodsStore() {
   const [hods,    setHods]    = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Guards against the production-switch race: a slow loadAll for the previous
+  // production must never land its rows after a newer load began.
+  const loadGenRef = useRef(0)
+
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
+    const gen = ++loadGenRef.current
     const { data, error } = await supabase
       .from('resources')
       .select('*')
@@ -35,6 +40,9 @@ export function useHodsStore() {
       .eq('type', 'crew')
       .eq('is_hod', true)
       .order('sort_order', { ascending: true })
+    // A newer load (production switch) started while we were fetching —
+    // discard this result instead of overwriting the newer production.
+    if (gen !== loadGenRef.current) return
     if (!error) setHods((data ?? []).map(mapHod))
     setLoading(false)
   }
@@ -42,8 +50,10 @@ export function useHodsStore() {
   useEffect(() => {
     loadAll()
     const unsub = onProductionChange(() => { setLoading(true); setHods([]); loadAll() })
+    // Unique topic per hook instance — duplicate joins on a fixed topic
+    // conflict in supabase-js when several components mount the same hook.
     const channel = supabase
-      .channel('hods_resources_changes')
+      .channel(`hods_resources_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, loadAll)
       .subscribe()
     return () => { unsub(); supabase.removeChannel(channel) }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 
@@ -66,29 +66,47 @@ export function useAccommodationStore() {
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState(null)
 
+  // Guards against the production-switch race: a slow loadAll for the previous
+  // production must never land its rows after a newer load began.
+  const loadGenRef = useRef(0)
+
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) { setLoading(false); return }
+    const gen = ++loadGenRef.current
 
     // ── Main load: hotels + assignments ──────────────────────────────────────
     try {
       const [
         { data: hData, error: hErr },
-        { data: aData, error: aErr },
         { data: sData, error: sErr },
       ] = await Promise.all([
         supabase.from('hotels').select('*').eq('production_id', prodId).order('sort_order'),
-        supabase.from('crew_hotel_assignments').select('*').eq('production_id', prodId),
         supabase.from('accom_stays').select('*').eq('production_id', prodId).order('sort_order'),
       ])
       if (hErr) throw hErr
-      if (aErr) throw aErr
       if (sErr) throw sErr
+
+      const PAGE = 1000
+
+      // Assignments grow as crew × dates and can exceed Supabase's 1,000-row
+      // per-request cap — fetch in pages until exhausted.
+      const aData = []
+      for (let from = 0; ; from += PAGE) {
+        const { data, error: aErr } = await supabase
+          .from('crew_hotel_assignments')
+          .select('*')
+          .eq('production_id', prodId)
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1)
+        if (aErr) throw aErr
+        aData.push(...(data ?? []))
+        if (!data || data.length < PAGE) break
+      }
 
       // Nights grow as stays × dates and can exceed Supabase's 1,000-row
       // per-request cap — fetch in pages until exhausted.
       const nData = []
-      const PAGE = 1000
       for (let from = 0; ; from += PAGE) {
         const { data, error: nErr } = await supabase
           .from('accom_nights')
@@ -100,16 +118,20 @@ export function useAccommodationStore() {
         nData.push(...(data ?? []))
         if (!data || data.length < PAGE) break
       }
+      // A newer load (production switch) started while we were fetching —
+      // discard this result instead of overwriting the newer production.
+      if (gen !== loadGenRef.current) return
       setHotels((hData ?? []).map(mapHotel))
       setAssignments((aData ?? []).map(mapAssignment))
       setStays((sData ?? []).map(mapStay))
       setNights((nData ?? []).map(mapNight))
       setError(null)
     } catch (err) {
+      if (gen !== loadGenRef.current) return
       console.error('[accommodation store]', err)
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) setLoading(false)
     }
 
     // ── Travel times: separate so a missing table never blocks main load ─────
@@ -120,6 +142,7 @@ export function useAccommodationStore() {
       for (const row of tData ?? []) {
         ttMap[`${row.hotel_id}|${row.location_name}`] = row.travel_time ?? ''
       }
+      if (gen !== loadGenRef.current) return
       setTravelTimesData(ttMap)
     } catch {
       // table may not exist yet — silently ignore
@@ -129,7 +152,9 @@ export function useAccommodationStore() {
   useEffect(() => {
     loadAll()
     const unsub = onProductionChange(() => { setLoading(true); loadAll() })
-    const channel = supabase.channel('accommodation_changes')
+    // Unique topic per hook instance — duplicate joins on a fixed topic
+    // conflict in supabase-js when several components mount the same hook.
+    const channel = supabase.channel(`accommodation_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hotels' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'crew_hotel_assignments' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'accom_stays' }, loadAll)

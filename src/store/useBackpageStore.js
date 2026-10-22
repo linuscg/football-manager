@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 
@@ -46,9 +46,14 @@ export function useBackpageStore() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
 
+  // Guards against the production-switch race: a slow loadAll for the previous
+  // production must never land its rows after a newer load began.
+  const loadGenRef = useRef(0)
+
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
+    const gen = ++loadGenRef.current
     try {
       const [settingsRes, overridesRes, daySettingsRes] = await Promise.all([
         supabase.from('backpage_dept_settings')    .select('*').eq('production_id', prodId),
@@ -58,15 +63,19 @@ export function useBackpageStore() {
       if (settingsRes.error)    throw settingsRes.error
       if (overridesRes.error)   throw overridesRes.error
       if (daySettingsRes.error) throw daySettingsRes.error
+      // A newer load (production switch) started while we were fetching —
+      // discard this result instead of overwriting the newer production.
+      if (gen !== loadGenRef.current) return
       setDeptSettings((settingsRes.data    ?? []).map(mapSetting))
       setMemberOverrides((overridesRes.data ?? []).map(mapOverride))
       setDaySettings((daySettingsRes.data   ?? []).map(mapDaySetting))
       setError(null)
     } catch (err) {
+      if (gen !== loadGenRef.current) return
       console.error('[backpage store] loadAll:', err)
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) setLoading(false)
     }
   }
 
@@ -79,16 +88,18 @@ export function useBackpageStore() {
       setDaySettings([])
       loadAll()
     })
+    // Unique topics per hook instance — duplicate joins on a fixed topic
+    // conflict in supabase-js when several components mount the same hook.
     const ch1 = supabase
-      .channel('backpage_dept_changes')
+      .channel(`backpage_dept_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'backpage_dept_settings' }, loadAll)
       .subscribe()
     const ch2 = supabase
-      .channel('backpage_override_changes')
+      .channel(`backpage_override_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'backpage_member_overrides' }, loadAll)
       .subscribe()
     const ch3 = supabase
-      .channel('backpage_day_changes')
+      .channel(`backpage_day_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'backpage_day_settings' }, loadAll)
       .subscribe()
     return () => { unsub(); supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3) }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 
@@ -20,13 +20,21 @@ export function useNewStartersStore() {
   const [statuses, setStatuses] = useState([])
   const [loading,  setLoading]  = useState(true)
 
+  // Guards against the production-switch race: a slow loadAll for the previous
+  // production must never land its rows after a newer load began.
+  const loadGenRef = useRef(0)
+
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
+    const gen = ++loadGenRef.current
     const { data, error } = await supabase
       .from('new_starter_status')
       .select('*')
       .eq('production_id', prodId)
+    // A newer load (production switch) started while we were fetching —
+    // discard this result instead of overwriting the newer production.
+    if (gen !== loadGenRef.current) return
     if (error) { console.error('[new starters store] loadAll:', error); setLoading(false); return }
     setStatuses((data ?? []).map(mapStatus))
     setLoading(false)
@@ -35,8 +43,10 @@ export function useNewStartersStore() {
   useEffect(() => {
     loadAll()
     const unsub = onProductionChange(() => { setLoading(true); setStatuses([]); loadAll() })
+    // Unique topic per hook instance — duplicate joins on a fixed topic
+    // conflict in supabase-js when several components mount the same hook.
     const channel = supabase
-      .channel('new_starter_status_changes')
+      .channel(`new_starter_status_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'new_starter_status' }, loadAll)
       .subscribe()
     return () => { unsub(); supabase.removeChannel(channel) }

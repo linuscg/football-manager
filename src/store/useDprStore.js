@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 
@@ -95,13 +95,21 @@ export function useDprStore() {
   const [dprs, setDprs] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Guards against the production-switch race: a slow loadAll for the previous
+  // production must never land its rows after a newer load began.
+  const loadGenRef = useRef(0)
+
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) { setLoading(false); return }
+    const gen = ++loadGenRef.current
     const { data, error } = await supabase
       .from('dpr_day')
       .select('*')
       .eq('production_id', prodId)
+    // A newer load (production switch) started while we were fetching —
+    // discard this result instead of overwriting the newer production.
+    if (gen !== loadGenRef.current) return
     if (!error) setDprs((data ?? []).map(mapDpr))
     setLoading(false)
   }
@@ -109,8 +117,10 @@ export function useDprStore() {
   useEffect(() => {
     loadAll()
     const unsub = onProductionChange(() => { setLoading(true); setDprs([]); loadAll() })
+    // Unique topic per hook instance — duplicate joins on a fixed topic
+    // conflict in supabase-js when several components mount the same hook.
     const channel = supabase
-      .channel('dpr_day_changes')
+      .channel(`dpr_day_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dpr_day' }, loadAll)
       .subscribe()
     return () => { unsub(); supabase.removeChannel(channel) }

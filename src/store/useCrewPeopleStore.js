@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 // ─── Row mapper ───────────────────────────────────────────────────────────────
@@ -24,24 +24,43 @@ export function useCrewPeopleStore() {
   const [people,  setPeople]  = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Guards against the stale-load race: a slow loadAll must never land its
+  // rows after a newer load began.
+  const loadGenRef = useRef(0)
+
   async function loadAll() {
-    const { data, error } = await supabase
-      .from('crew_people')
-      .select('*')
-      .order('name')
-    if (error) {
-      console.error('[crew people store] loadAll:', error)
-      setLoading(false)
-      return
+    const gen = ++loadGenRef.current
+    // crew_people spans every production and can exceed Supabase's 1,000-row
+    // per-request cap — fetch in pages until exhausted.
+    const rows = []
+    const PAGE = 1000
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('crew_people')
+        .select('*')
+        .order('name')
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (error) {
+        console.error('[crew people store] loadAll:', error)
+        if (gen === loadGenRef.current) setLoading(false)
+        return
+      }
+      rows.push(...(data ?? []))
+      if (!data || data.length < PAGE) break
     }
-    setPeople((data ?? []).map(mapPerson))
+    // A newer load started while we were fetching — discard this result.
+    if (gen !== loadGenRef.current) return
+    setPeople(rows.map(mapPerson))
     setLoading(false)
   }
 
   useEffect(() => {
     loadAll()
+    // Unique topic per hook instance — duplicate joins on a fixed topic
+    // conflict in supabase-js when several components mount the same hook.
     const channel = supabase
-      .channel('crew_people_changes')
+      .channel(`crew_people_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'crew_people' }, loadAll)
       .subscribe()
     return () => supabase.removeChannel(channel)

@@ -117,7 +117,8 @@ export default function OwnerAdmin({ session }) {
     }
   }
 
-  const removeMember = (userId, prodId) => run(async () => {
+  const removeMember = (userId, prodId, label) => run(async () => {
+    if (!window.confirm(`Remove ${label} from this project?`)) return
     const { error: err } = await supabase.rpc('owner_admin_remove_member', { p_user: userId, p_prod: prodId })
     if (err) throw err
   })
@@ -128,11 +129,13 @@ export default function OwnerAdmin({ session }) {
   })
 
   const setProductionDisabled = (prodId, disabled) => run(async () => {
+    if (disabled && !window.confirm(`Disable "${prodById[prodId]?.name ?? 'this project'}"? It will disappear for everyone except you.`)) return
     const { error: err } = await supabase.rpc('owner_admin_set_production_disabled', { p_prod: prodId, p_disabled: disabled })
     if (err) throw err
   })
 
-  const deleteInvite = (inviteId) => run(async () => {
+  const deleteInvite = (inviteId, label) => run(async () => {
+    if (!window.confirm(`Revoke the invite for ${label}?`)) return
     const { error: err } = await supabase.rpc('owner_admin_delete_invite', { p_invite: inviteId })
     if (err) throw err
   })
@@ -325,7 +328,7 @@ export default function OwnerAdmin({ session }) {
                             </select>
                             <button
                               className="owner-admin-chip-x"
-                              onClick={() => removeMember(u.id, m.production_id)}
+                              onClick={() => removeMember(u.id, m.production_id, isSelf ? 'YOURSELF' : (u.name !== '—' ? u.name : u.email))}
                               title="Remove from this project"
                             >✕</button>
                           </span>
@@ -395,7 +398,7 @@ export default function OwnerAdmin({ session }) {
                 </div>
                 <button
                   className="admin-member-remove"
-                  onClick={() => deleteInvite(i.id)}
+                  onClick={() => deleteInvite(i.id, i.email)}
                   title="Revoke invite"
                 >✕</button>
               </div>

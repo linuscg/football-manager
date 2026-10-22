@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 
@@ -16,9 +16,14 @@ export function useBudgetCodesStore() {
   const [error,   setError]   = useState(null)
   const [codes,   setCodes]   = useState([])
 
+  // Guards against the production-switch race: a slow loadAll for the previous
+  // production must never land its rows after a newer load began.
+  const loadGenRef = useRef(0)
+
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
+    const gen = ++loadGenRef.current
 
     try {
       const { data, error: err } = await supabase
@@ -27,13 +32,17 @@ export function useBudgetCodesStore() {
         .eq('production_id', prodId)
         .order('sort_order', { ascending: true })
       if (err) throw err
+      // A newer load (production switch) started while we were fetching —
+      // discard this result instead of overwriting the newer production.
+      if (gen !== loadGenRef.current) return
       setCodes((data ?? []).map(mapCode))
       setError(null)
     } catch (err) {
+      if (gen !== loadGenRef.current) return
       console.error('[budget codes store] loadAll:', err)
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) setLoading(false)
     }
   }
 
@@ -44,8 +53,10 @@ export function useBudgetCodesStore() {
       setCodes([])
       loadAll()
     })
+    // Unique topic per hook instance — duplicate joins on a fixed topic
+    // conflict in supabase-js when several components mount the same hook.
     const channel = supabase
-      .channel('budget_codes_changes')
+      .channel(`budget_codes_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_codes' }, loadAll)
       .subscribe()
     return () => {

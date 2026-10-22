@@ -808,7 +808,7 @@ const ResourceRow = memo(function ResourceRow({
               className={cls}
               data-cell={`${resource.id}|${spec.dayId ?? spec.date}`}
               onMouseDown={e => { e.preventDefault(); onCellMouseDown(resource.id, spec.date, spec.dayId, specIndex, e.currentTarget) }}
-              onMouseEnter={e => onCellMouseEnter(resource.id, spec.date, spec.dayId, specIndex, e.currentTarget)}
+              onMouseEnter={e => onCellMouseEnter(resource.id, spec.date, spec.dayId, specIndex, e.currentTarget, e.buttons)}
               title={
                 unitLabel
                   ? (status ? `${unitLabel}: ${status}` : `${unitLabel} unit — click to assign`)
@@ -1207,7 +1207,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
   useEffect(() => {
     function onKey(e) {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
       switch (e.key.toLowerCase()) {
         case 'c':      setPaintMode('booked');      break
@@ -1310,8 +1310,11 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     lastPaintedRef.current = (!dayId && specIndex >= 0) ? { resourceId, specIndex } : null
   }, [paintCell])
 
-  const handleCellMouseEnter = useCallback((resourceId, date, dayId = null, specIndex = -1, el = null) => {
+  const handleCellMouseEnter = useCallback((resourceId, date, dayId = null, specIndex = -1, el = null, buttons = null) => {
     if (!isDraggingRef.current) return
+    // Button released outside the window: no mouseup ever fired. Commit the
+    // orphaned drag now instead of painting with the button up.
+    if (buttons === 0) { stopDragRef.current(); return }
     const { colSpecs, shootDateSet } = latestRef.current
 
     // Sub-unit (dayId) cells: always paintable on drag, no gap interpolation.
@@ -1355,7 +1358,11 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     }
   }, [paintCell])
 
-  // Stop drag on mouseup anywhere in the window
+  // Stop drag on mouseup anywhere in the window. Releasing the button OUTSIDE
+  // the window delivers no mouseup, so the drag is also finished on window
+  // blur and whenever a mouseenter arrives with no button held (see below) —
+  // otherwise the orphaned ops would be discarded by the next mousedown.
+  const stopDragRef = useRef(() => {})
   useEffect(() => {
     function stop() {
       if (!isDraggingRef.current) return
@@ -1369,8 +1376,14 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       pendingOpsRef.current = []
       latestRef.current.applyPaintOps(ops)
     }
+    stopDragRef.current = stop
     window.addEventListener('mouseup', stop)
-    return () => window.removeEventListener('mouseup', stop)
+    window.addEventListener('blur', stop)
+    return () => {
+      window.removeEventListener('mouseup', stop)
+      window.removeEventListener('blur', stop)
+      stop()   // unmount mid-drag: commit rather than lose the painted ops
+    }
   }, [])
 
   // ── Direction 1: Paint → Hire dates ───────────────────────────────────────

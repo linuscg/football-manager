@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
@@ -31,9 +31,14 @@ export function useFulltimeCrewStore() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
 
+  // Guards against the production-switch race: a slow loadAll for the previous
+  // production must never land its rows after a newer load began.
+  const loadGenRef = useRef(0)
+
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
+    const gen = ++loadGenRef.current
     try {
       const { data, error: err } = await supabase
         .from('resources')
@@ -44,13 +49,17 @@ export function useFulltimeCrewStore() {
         .eq('is_hod', false)
         .order('sort_order', { ascending: true })
       if (err) throw err
+      // A newer load (production switch) started while we were fetching —
+      // discard this result instead of overwriting the newer production.
+      if (gen !== loadGenRef.current) return
       setMembers((data ?? []).map(mapMember))
       setError(null)
     } catch (err) {
+      if (gen !== loadGenRef.current) return
       console.error('[fulltime crew store] loadAll:', err)
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) setLoading(false)
     }
   }
 
@@ -61,8 +70,10 @@ export function useFulltimeCrewStore() {
       setMembers([])
       loadAll()
     })
+    // Unique topic per hook instance — duplicate joins on a fixed topic
+    // conflict in supabase-js when several components mount the same hook.
     const channel = supabase
-      .channel('fulltime_crew_resources_changes')
+      .channel(`fulltime_crew_resources_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, loadAll)
       .subscribe()
     return () => { unsub(); supabase.removeChannel(channel) }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { markIdsNotified } from '../lib/ganttNotified'
 import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
@@ -182,11 +182,16 @@ export function useScheduleStore() {
     castMembers: [],
   })
 
+  // Guards against the production-switch race: a slow loadAll for the previous
+  // production must never land its rows after a newer load began.
+  const loadGenRef = useRef(0)
+
   // ── Load data for the current production ─────────────────────────────────────
 
   async function loadAll() {
     const prodId = getCurrentProductionId()
     if (!prodId) return
+    const gen = ++loadGenRef.current
 
     try {
       const { data: prod, error: prodErr } = await supabase
@@ -201,19 +206,37 @@ export function useScheduleStore() {
 
       const dayIds = (days ?? []).map(d => d.id)
 
-      const { data: scenes, error: scenesErr } = dayIds.length
-        ? await supabase.from('scenes').select('*')
+      // Scenes grow with the schedule and can exceed Supabase's 1,000-row
+      // per-request cap — fetch in pages until exhausted.
+      const PAGE = 1000
+      const scenes = []
+      if (dayIds.length) {
+        for (let from = 0; ; from += PAGE) {
+          const { data, error: scenesErr } = await supabase.from('scenes').select('*')
             .in('day_id', dayIds)
             .order('sort_order', { ascending: true })
-        : { data: [], error: null }
-      if (scenesErr) throw scenesErr
+            .order('id', { ascending: true })
+            .range(from, from + PAGE - 1)
+          if (scenesErr) throw scenesErr
+          scenes.push(...(data ?? []))
+          if (!data || data.length < PAGE) break
+        }
+      }
 
-      const { data: extras, error: extrasErr } = dayIds.length
-        ? await supabase.from('day_extras').select('*')
+      // Day extras can also exceed the 1,000-row cap — same paged fetch.
+      const extras = []
+      if (dayIds.length) {
+        for (let from = 0; ; from += PAGE) {
+          const { data, error: extrasErr } = await supabase.from('day_extras').select('*')
             .in('day_id', dayIds)
             .order('sort_order', { ascending: true })
-        : { data: [], error: null }
-      if (extrasErr) throw extrasErr
+            .order('id', { ascending: true })
+            .range(from, from + PAGE - 1)
+          if (extrasErr) throw extrasErr
+          extras.push(...(data ?? []))
+          if (!data || data.length < PAGE) break
+        }
+      }
 
       const { data: castRows, error: castErr } = await supabase
         .from('cast_members').select('*')
@@ -233,6 +256,10 @@ export function useScheduleStore() {
         extrasByDay[ex.day_id].push(ex)
       }
 
+      // A newer load (production switch) started while we were fetching —
+      // discard this result instead of overwriting the newer production.
+      if (gen !== loadGenRef.current) return
+
       setStore({
         production:  mapProduction(prod),
         shootDays:   (days ?? []).map(d => mapDay(d, byDay[d.id] ?? [], extrasByDay[d.id] ?? [])),
@@ -240,10 +267,11 @@ export function useScheduleStore() {
       })
       setError(null)
     } catch (err) {
+      if (gen !== loadGenRef.current) return
       console.error('[store] loadAll:', err)
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) setLoading(false)
     }
   }
 
@@ -288,8 +316,10 @@ export function useScheduleStore() {
       setLoading(true)
       loadAll()
     })
+    // Unique topic per hook instance — duplicate joins on a fixed topic
+    // conflict in supabase-js when several components mount the same hook.
     const channel = supabase
-      .channel('fm_changes')
+      .channel(`fm_changes_${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shoot_days' },   loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scenes' },        loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'day_extras' },    loadAll)
