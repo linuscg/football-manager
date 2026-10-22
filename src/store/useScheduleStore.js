@@ -97,7 +97,7 @@ function mapProduction(row) {
 }
 
 function mapProductionSummary(row) {
-  return { id: row.id, name: row.name ?? 'Untitled Production' }
+  return { id: row.id, name: row.name ?? 'Untitled Production', disabled: row.disabled === true }
 }
 
 function mapCastMember(row) {
@@ -253,7 +253,7 @@ export function useScheduleStore() {
     try {
       let { data: prods, error: prodErr } = await supabase
         .from('production')
-        .select('id, name')
+        .select('id, name, disabled')
         .order('id', { ascending: true })
       if (prodErr) throw prodErr
 

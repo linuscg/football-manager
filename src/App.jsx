@@ -23,6 +23,7 @@ import CateringNumbers       from './modules/CateringNumbers'
 import AccountPage           from './modules/AccountPage'
 import ProjectListPage       from './modules/ProjectListPage'
 import AdminPage             from './modules/AdminPage'
+import OwnerAdmin            from './modules/OwnerAdmin'
 import HotelList             from './modules/HotelList'
 import CrewHotels            from './modules/CrewHotels'
 import WeeklyTMO             from './modules/WeeklyTMO'
@@ -52,6 +53,7 @@ const SETUP_NAV = [
   { id: 'setup-settings', num: '04', label: 'Settings'        },
   { id: 'setup-admin',    num: '05', label: 'User Management' },
   { id: 'setup-requests', num: '06', label: 'Invite Requests' },
+  { id: 'setup-owner',    num: '07', label: 'Owner Admin'     },
 ]
 
 const SETUP_MODULE_SUB = {
@@ -61,6 +63,7 @@ const SETUP_MODULE_SUB = {
   'setup-settings': 'App settings',
   'setup-admin':    'User management',
   'setup-requests': 'Invite requests',
+  'setup-owner':    'All users & projects',
 }
 
 // ─── Football Manager nav ─────────────────────────────────────────────────────
@@ -363,8 +366,27 @@ function AppShell({ session, signOut }) {
   const canViewRates  = isOwner || !permissions.denyCrewRates
 
   // Hide role-gated nav (User Management, Invite Requests) — shared with the
-  // Admin permissions panel via the registry.
-  const visibleSetupNav = SETUP_NAV.filter(n => roleAllowsModule(memberRole, n.id))
+  // Admin permissions panel via the registry. Owner Admin is gated on the
+  // app-wide owner flag (profiles.is_owner), not the per-production role.
+  const visibleSetupNav = SETUP_NAV.filter(n => {
+    if (n.id === 'setup-owner') return profile?.is_owner === true
+    return roleAllowsModule(memberRole, n.id)
+  })
+
+  // Disabled projects are hidden from everyone except the app owner.
+  const isAppOwner = profile?.is_owner === true
+  const visibleProductions = isAppOwner ? productions : productions.filter(p => !p.disabled)
+
+  // If the current production was disabled under a non-owner, move them to a
+  // visible one.
+  useEffect(() => {
+    if (isAppOwner || productions.length === 0) return
+    const current = productions.find(p => p.id === currentProductionId)
+    if (current?.disabled && visibleProductions.length > 0) {
+      switchProduction(visibleProductions[0].id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAppOwner, productions, currentProductionId])
 
   const allowedTopTabs   = TOP_TABS.filter(t => !deniedTabs.has(t.id))
   const allowedSetupNav  = visibleSetupNav.filter(n => !deniedModules.has(n.id))
@@ -567,7 +589,7 @@ function AppShell({ session, signOut }) {
 
             {prodMenuOpen && (
               <div className="sidebar-prod-menu">
-                {productions.map(p => (
+                {visibleProductions.map(p => (
                   <div
                     key={p.id}
                     className={`sidebar-prod-option${p.id === currentProductionId ? ' active' : ''}`}
@@ -578,6 +600,7 @@ function AppShell({ session, signOut }) {
                     >
                       {p.id === currentProductionId && <span className="sidebar-prod-tick">✓ </span>}
                       {p.name || 'Untitled'}
+                      {p.disabled && ' (disabled)'}
                     </span>
                     {productions.length > 1 && p.id !== currentProductionId && (
                       <button
@@ -681,7 +704,7 @@ function AppShell({ session, signOut }) {
             {/* ── Project Setup tab ─────────────────────────────────────────── */}
             {effTopTab === 'setup' && effModule === 'setup-list' && (
               <ProjectListPage
-                productions={productions}
+                productions={visibleProductions}
                 currentProductionId={currentProductionId}
                 onSwitch={id => { switchProduction(id); setProdMenuOpen(false) }}
                 onCreate={handleCreateProduction}
@@ -723,6 +746,9 @@ function AppShell({ session, signOut }) {
             )}
             {effTopTab === 'setup' && effModule === 'setup-settings' && (
               <UnderConstruction label="Settings" />
+            )}
+            {effTopTab === 'setup' && effModule === 'setup-owner' && (
+              <OwnerAdmin session={session} />
             )}
             {effTopTab === 'setup' && effModule === 'setup-requests' && (
               <InviteRequestsPage

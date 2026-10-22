@@ -48,15 +48,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // ── Verify caller is owner/admin of the specified production ───────────
-    const { data: membership, error: memberError } = await adminClient
-      .from('production_members')
-      .select('role')
-      .eq('production_id', productionId)
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // ── Verify caller is owner/admin of the specified production, or the
+    // app owner (profiles.is_owner), who can invite to any production ──────
+    const [{ data: membership, error: memberError }, { data: callerProfile }] = await Promise.all([
+      adminClient
+        .from('production_members')
+        .select('role')
+        .eq('production_id', productionId)
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      adminClient
+        .from('profiles')
+        .select('is_owner')
+        .eq('id', user.id)
+        .maybeSingle(),
+    ])
 
-    if (memberError || !membership || !['owner', 'admin'].includes(membership.role)) {
+    const isAppOwner = callerProfile?.is_owner === true
+    if (!isAppOwner && (memberError || !membership || !['owner', 'admin'].includes(membership.role))) {
       return new Response(JSON.stringify({ error: 'You do not have permission to invite to this production.' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

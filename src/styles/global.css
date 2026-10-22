@@ -10779,3 +10779,75 @@ select.pm-input { cursor: pointer; }
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
+
+/* ─── Owner Admin ──────────────────────────────────────────────────────────── */
+.owner-admin-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.owner-admin-search { flex: 1; min-width: 220px; }
+.owner-admin-row { align-items: flex-start; }
+.owner-admin-meta {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+.owner-admin-projects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+.owner-admin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 2px 4px 2px 10px;
+  font-size: 12px;
+  color: #374151;
+}
+.owner-admin-chip.is-disabled { opacity: 0.5; text-decoration: line-through; }
+.owner-admin-chip-name { font-weight: 600; }
+.owner-admin-chip-role {
+  font-size: 10px;
+  font-weight: 600;
+  border: none;
+  border-radius: 20px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+.owner-admin-chip-x {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 50%;
+}
+.owner-admin-chip-x:hover { color: #dc2626; background: #fee2e2; }
+.owner-admin-noproj { font-size: 12px; color: #9ca3af; font-style: italic; }
+.owner-admin-addproj {
+  border: 1px dashed #d1d5db;
+  background: transparent;
+  color: #6b7280;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.owner-admin-addproj:hover { border-color: #6366f1; color: #6366f1; }
+.owner-admin-assign { display: inline-flex; gap: 6px; align-items: center; }
+.owner-admin-prod-disabled { opacity: 0.6; }
+.owner-admin-disable-btn {
+  width: auto;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
