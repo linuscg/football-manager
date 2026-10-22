@@ -28,7 +28,7 @@ import HotelList             from './modules/HotelList'
 import CrewHotels            from './modules/CrewHotels'
 import WeeklyTMO             from './modules/WeeklyTMO'
 import TravelTimes           from './modules/TravelTimes'
-import CrewDatabase          from './modules/CrewDatabase'
+import EquipmentDatabase     from './modules/EquipmentDatabase'
 import NewStarters           from './modules/NewStarters'
 import DPR                   from './modules/DPR'
 import WrapReport            from './modules/WrapReport'
@@ -73,7 +73,7 @@ const FM_NAV = [
   { id: 'crew',      num: '02', label: 'Equipment'        },
   { id: 'callsheet', num: '03', label: 'Daily Info'       },
   { id: 'budget',    num: '04', label: 'Cost Tracking'    },
-  { id: 'crew-db',   num: '05', label: 'Crew Database'    },
+  { id: 'equip-db',  num: '05', label: 'Equipment Database' },
 ]
 
 const FM_MODULE_SUB = {
@@ -81,7 +81,7 @@ const FM_MODULE_SUB = {
   crew:      'Equipment booking gantt',
   callsheet: 'Call sheet',
   budget:    'Cost tracking',
-  'crew-db': 'Cross-production people roster',
+  'equip-db': 'Production equipment inventory',
 }
 
 // ─── Accommodation nav ────────────────────────────────────────────────────────
@@ -771,8 +771,8 @@ function AppShell({ session, signOut }) {
             {effTopTab === 'fm' && effModule === 'budget' && (
               <Budget store={store} onUpdate={updateProduction} />
             )}
-            {effTopTab === 'fm' && effModule === 'crew-db' && (
-              <CrewDatabase />
+            {effTopTab === 'fm' && effModule === 'equip-db' && (
+              <EquipmentDatabase />
             )}
 
             {/* ── Crew Times tab ────────────────────────────────────────────── */}

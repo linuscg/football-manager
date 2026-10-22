@@ -283,10 +283,13 @@ export default function Budget({ store, onUpdate }) {
   const ftByDept  = useMemo(() => groupByDept(enrichedFulltime),   [enriched])
   const addByDept = useMemo(() => groupByDept(enrichedAdditional), [enriched])
 
-  // Group equipment by category
-  const equipByCat = useMemo(() => {
+  // Equipment split by class — Run of Show vs additional, each grouped by category
+  const enrichedRos      = enrichedEquip.filter(r => (r.equipClass ?? 'ros') === 'ros')
+  const enrichedAddEquip = enrichedEquip.filter(r => (r.equipClass ?? 'ros') !== 'ros')
+
+  const groupByCat = list => {
     const map = {}
-    for (const r of enrichedEquip) {
+    for (const r of list) {
       const key = r.category.trim() || 'Uncategorised'
       if (!map[key]) map[key] = []
       map[key].push(r)
@@ -294,7 +297,9 @@ export default function Budget({ store, onUpdate }) {
     return Object.entries(map).sort(([a], [b]) =>
       a === 'Uncategorised' ? 1 : b === 'Uncategorised' ? -1 : a.localeCompare(b)
     )
-  }, [enrichedEquip])
+  }
+  const rosByCat      = useMemo(() => groupByCat(enrichedRos),      [enriched])
+  const addEquipByCat = useMemo(() => groupByCat(enrichedAddEquip), [enriched])
 
   // Totals (in base currency)
   const ftConfirmed    = enrichedFulltime.reduce((s, r)   => s + r.confirmedCost, 0)
@@ -303,8 +308,12 @@ export default function Budget({ store, onUpdate }) {
   const addHold        = enrichedAdditional.reduce((s, r) => s + r.holdCost,      0)
   const crewConfirmed  = ftConfirmed + addConfirmed
   const crewHold       = ftHold + addHold
-  const equipConfirmed = enrichedEquip.reduce((s, r) => s + r.confirmedCost, 0)
-  const equipHold      = enrichedEquip.reduce((s, r) => s + r.holdCost,      0)
+  const rosConfirmed      = enrichedRos.reduce((s, r)      => s + r.confirmedCost, 0)
+  const rosHold           = enrichedRos.reduce((s, r)      => s + r.holdCost,      0)
+  const addEquipConfirmed = enrichedAddEquip.reduce((s, r) => s + r.confirmedCost, 0)
+  const addEquipHold      = enrichedAddEquip.reduce((s, r) => s + r.holdCost,      0)
+  const equipConfirmed    = rosConfirmed + addEquipConfirmed
+  const equipHold         = rosHold + addEquipHold
   const otherTotal     = otherItems.reduce((s, i)    => s + (parseFloat(i.amount) || 0), 0)
 
   const grandConfirmed = crewConfirmed + equipConfirmed + otherTotal
@@ -329,10 +338,10 @@ export default function Budget({ store, onUpdate }) {
     return toTSV(headers, rows)
   }
 
-  function equipTSV() {
+  function equipTSV(byCat) {
     const headers = ['Category', 'Item', 'Vendor', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
     const rows = []
-    for (const [cat, items] of equipByCat) {
+    for (const [cat, items] of byCat) {
       for (const r of items) {
         rows.push([
           cat, r.name, r.vendor || '', r.costCode || '', rateStr(r),
@@ -436,21 +445,23 @@ export default function Budget({ store, onUpdate }) {
       XLSX.utils.book_append_sheet(wb, crewWs, sheetName)
     }
 
-    // 3. Equipment
+    // 3. Equipment — one sheet per class
     const equipHeader = ['Category', 'Item', 'Vendor', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
-    const equipData = [equipHeader.map(h => ({ v: h, s: bold }))]
-    let eConf = 0, eHold = 0
-    for (const [cat, items] of equipByCat) {
-      for (const r of items) {
-        const conf = r2(cv(r.confirmedCost)), hold = r2(cv(r.holdCost))
-        eConf += conf; eHold += hold
-        equipData.push([cat, r.name, r.vendor || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0, conf, hold])
+    for (const [sheetName, byCat] of [['RoS Equipment', rosByCat], ['Additional Equipment', addEquipByCat]]) {
+      const equipData = [equipHeader.map(h => ({ v: h, s: bold }))]
+      let eConf = 0, eHold = 0
+      for (const [cat, items] of byCat) {
+        for (const r of items) {
+          const conf = r2(cv(r.confirmedCost)), hold = r2(cv(r.holdCost))
+          eConf += conf; eHold += hold
+          equipData.push([cat, r.name, r.vendor || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0, conf, hold])
+        }
       }
+      equipData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', { v: r2(eConf), s: bold }, { v: r2(eHold), s: bold }])
+      const equipWs = XLSX.utils.aoa_to_sheet(equipData)
+      equipWs['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }]
+      XLSX.utils.book_append_sheet(wb, equipWs, sheetName)
     }
-    equipData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', { v: r2(eConf), s: bold }, { v: r2(eHold), s: bold }])
-    const equipWs = XLSX.utils.aoa_to_sheet(equipData)
-    equipWs['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }]
-    XLSX.utils.book_append_sheet(wb, equipWs, 'Equipment')
 
     // 4. Other Costs
     const otherHeader = ['Category', 'Description', 'Cost Code', 'Amount', 'Notes']
@@ -568,9 +579,14 @@ export default function Budget({ store, onUpdate }) {
             {addHold > 0 && <div className="budget-card-sub">+{fmtZero(cv(addHold), displaySymbol)} on hold</div>}
           </div>
           <div className="budget-card">
-            <div className="budget-card-label">Equipment</div>
-            <div className="budget-card-value">{fmtZero(cv(equipConfirmed), displaySymbol)}</div>
-            {equipHold > 0 && <div className="budget-card-sub">+{fmtZero(cv(equipHold), displaySymbol)} on hold</div>}
+            <div className="budget-card-label">RoS Equipment</div>
+            <div className="budget-card-value">{fmtZero(cv(rosConfirmed), displaySymbol)}</div>
+            {rosHold > 0 && <div className="budget-card-sub">+{fmtZero(cv(rosHold), displaySymbol)} on hold</div>}
+          </div>
+          <div className="budget-card">
+            <div className="budget-card-label">Additional Equipment</div>
+            <div className="budget-card-value">{fmtZero(cv(addEquipConfirmed), displaySymbol)}</div>
+            {addEquipHold > 0 && <div className="budget-card-sub">+{fmtZero(cv(addEquipHold), displaySymbol)} on hold</div>}
           </div>
           <div className="budget-card">
             <div className="budget-card-label">Other Costs</div>
@@ -697,12 +713,16 @@ export default function Budget({ store, onUpdate }) {
         </BudgetSection>
         ))}
 
-        {/* ── Equipment Costs ──────────────────────────────────────────────────── */}
-        <BudgetSection title="Equipment Costs" total={cv(equipConfirmed)} symbol={displaySymbol} action={<CopyBtn getText={equipTSV} />}>
-          {equipByCat.length === 0 ? (
-            <p className="budget-empty">No equipment added yet — add items in the Equipment tab.</p>
+        {/* ── Equipment Costs — RoS and additional, same layout ────────────────── */}
+        {[
+          { key: 'ros', title: 'RoS Equipment Costs',        byCat: rosByCat,      total: rosConfirmed,      empty: 'No Run of Show equipment yet — add items in the Equipment tab (Run of Show).' },
+          { key: 'adq', title: 'Additional Equipment Costs', byCat: addEquipByCat, total: addEquipConfirmed, empty: 'No additional equipment yet — add items in the Equipment tab (Additional).' },
+        ].map(sec => (
+        <BudgetSection key={sec.key} title={sec.title} total={cv(sec.total)} symbol={displaySymbol} action={<CopyBtn getText={() => equipTSV(sec.byCat)} />}>
+          {sec.byCat.length === 0 ? (
+            <p className="budget-empty">{sec.empty}</p>
           ) : (
-            equipByCat.map(([cat, items]) => {
+            sec.byCat.map(([cat, items]) => {
               const catConf = items.reduce((s, r) => s + r.confirmedCost, 0)
               const catHold = items.reduce((s, r) => s + r.holdCost, 0)
               return (
@@ -790,6 +810,7 @@ export default function Budget({ store, onUpdate }) {
             })
           )}
         </BudgetSection>
+        ))}
 
         {/* ── Other Costs ──────────────────────────────────────────────────────── */}
         <BudgetSection title="Other Costs" total={cv(otherTotal)} symbol={displaySymbol} action={<CopyBtn getText={otherTSV} />}>

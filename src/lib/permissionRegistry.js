@@ -27,7 +27,7 @@ export const PERMISSION_TABS = [
       { id: 'crew',      label: 'Equipment'     },
       { id: 'callsheet', label: 'Daily Info'    },
       { id: 'budget',    label: 'Cost Tracking' },
-      { id: 'crew-db',   label: 'Crew Database' },
+      { id: 'equip-db',  label: 'Equipment Database' },
     ],
   },
   {

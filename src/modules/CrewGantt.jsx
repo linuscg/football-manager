@@ -641,9 +641,12 @@ const ResourceRow = memo(function ResourceRow({
         <td
           className="pm-g-name"
           onContextMenu={e => {
-            if (activeTab === 'crew' && onRowContextMenu) {
+            if (onRowContextMenu) {
               e.preventDefault()
-              onRowContextMenu(resource.id, resource.crewClass ?? 'additional', resource.name, e.clientX, e.clientY)
+              const cls = activeTab === 'crew'
+                ? (resource.crewClass ?? 'additional')
+                : (resource.equipClass ?? 'ros')
+              onRowContextMenu(resource.id, activeTab, cls, resource.name, e.clientX, e.clientY)
             }
           }}
         >
@@ -957,16 +960,22 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     const saved = localStorage.getItem('fm_gantt_crew_class')
     return saved === 'fulltime' || saved === 'additional' ? saved : 'fulltime'
   })
+  const [equipClassTab, setEquipClassTab] = useState(() => {
+    const saved = localStorage.getItem('fm_gantt_equip_class')
+    return saved === 'ros' || saved === 'additional' ? saved : 'ros'
+  })
 
-  // Effective type + class filter — the single place (mode, activeTab, crewClassTab)
+  // Effective type + class filter — the single place (mode, activeTab, class tabs)
   // is resolved. Everything below filters/renders off these two values.
-  //   mode='equipment' → equipment only, no sub-tabs
+  //   mode='equipment' → equipment only, Run of Show | Additional sub-tabs (equipClassTab)
   //   mode='crew'      → crew only, Full-Time | Additional sub-tabs (crewClassTab)
   //   mode='both'      → legacy Crew | Equipment sub-tabs (activeTab)
   const effTab = mode === 'equipment' ? 'equipment'
                : mode === 'crew'      ? 'crew'
                : activeTab
-  const classFilter = mode === 'crew' ? crewClassTab : null
+  const classFilter = mode === 'crew'      ? crewClassTab
+                    : mode === 'equipment' ? equipClassTab
+                    : null
 
   // Crew details panel — only in crew mode. The panel itself is open to everyone;
   // canViewRates only controls whether the money columns / rate settings show.
@@ -1113,7 +1122,9 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
   const filtered = resources.filter(r =>
     r.type === effTab &&
-    (!classFilter || (r.crewClass ?? 'additional') === classFilter)
+    (!classFilter || (effTab === 'crew'
+      ? (r.crewClass ?? 'additional') === classFilter
+      : (r.equipClass ?? 'ros') === classFilter))
   )
   const groupKey = effTab === 'crew' ? 'department' : 'category'
   const FALLBACK = effTab === 'crew' ? 'Unassigned' : 'Uncategorised'
@@ -1175,8 +1186,19 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     localStorage.setItem('fm_gantt_crew_class', cls)
   }
 
+  function switchEquipClassTab(cls) {
+    setEquipClassTab(cls)
+    localStorage.setItem('fm_gantt_equip_class', cls)
+  }
+
   function handleAddResource() {
-    addResource(effTab, effTab === 'crew' && classFilter ? { crewClass: classFilter } : {})
+    if (effTab === 'crew' && classFilter) {
+      addResource(effTab, { crewClass: classFilter })
+    } else if (effTab === 'equipment' && classFilter) {
+      addResource(effTab, { equipClass: classFilter })
+    } else {
+      addResource(effTab, {})
+    }
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
@@ -1231,8 +1253,8 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     latestRef.current.setBooking(resourceId, date, dragActionRef.current, dayId)
   }, [])
 
-  const handleRowContextMenu = useCallback((resourceId, crewClass, name, x, y) => {
-    setRowMenu({ resourceId, crewClass, name, x: Math.min(x, window.innerWidth - 220), y: Math.min(y, window.innerHeight - 90) })
+  const handleRowContextMenu = useCallback((resourceId, rowType, cls, name, x, y) => {
+    setRowMenu({ resourceId, rowType, cls, name, x: Math.min(x, window.innerWidth - 220), y: Math.min(y, window.innerHeight - 90) })
   }, [])
 
   // Close the row menu on any outside click / Escape
@@ -1476,7 +1498,9 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     const inserted = await importResources(
       effTab,
       mapped,
-      effTab === 'crew' && classFilter ? { crewClass: classFilter } : {}
+      effTab === 'crew' && classFilter      ? { crewClass: classFilter }
+      : effTab === 'equipment' && classFilter ? { equipClass: classFilter }
+      : {}
     )
     setImportMsg({ count: inserted.length, type: effTab })
     setTimeout(() => setImportMsg(null), 4000)
@@ -1630,6 +1654,14 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
               onClick={() => switchCrewClassTab('fulltime')}>Full-Time</button>
             <button className={`gantt-tab${crewClassTab === 'additional' ? ' active' : ''}`}
               onClick={() => switchCrewClassTab('additional')}>Additional</button>
+          </div>
+        )}
+        {mode === 'equipment' && (
+          <div className="gantt-tabs">
+            <button className={`gantt-tab${equipClassTab === 'ros'        ? ' active' : ''}`}
+              onClick={() => switchEquipClassTab('ros')}>Run of Show</button>
+            <button className={`gantt-tab${equipClassTab === 'additional' ? ' active' : ''}`}
+              onClick={() => switchEquipClassTab('additional')}>Additional</button>
           </div>
         )}
 
@@ -1927,16 +1959,29 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
               onMouseDown={e => e.stopPropagation()}
             >
               <div className="gantt-row-menu-name">{rowMenu.name || 'Unnamed'}</div>
-              <button
-                className="gantt-row-menu-item"
-                onClick={() => {
-                  const next = rowMenu.crewClass === 'fulltime' ? 'additional' : 'fulltime'
-                  updateResource(rowMenu.resourceId, 'crewClass', next)
-                  setRowMenu(null)
-                }}
-              >
-                Move to {rowMenu.crewClass === 'fulltime' ? 'Additional Crew' : 'Full-Time Crew'}
-              </button>
+              {rowMenu.rowType === 'crew' ? (
+                <button
+                  className="gantt-row-menu-item"
+                  onClick={() => {
+                    const next = rowMenu.cls === 'fulltime' ? 'additional' : 'fulltime'
+                    updateResource(rowMenu.resourceId, 'crewClass', next)
+                    setRowMenu(null)
+                  }}
+                >
+                  Move to {rowMenu.cls === 'fulltime' ? 'Additional Crew' : 'Full-Time Crew'}
+                </button>
+              ) : (
+                <button
+                  className="gantt-row-menu-item"
+                  onClick={() => {
+                    const next = rowMenu.cls === 'ros' ? 'additional' : 'ros'
+                    updateResource(rowMenu.resourceId, 'equipClass', next)
+                    setRowMenu(null)
+                  }}
+                >
+                  Move to {rowMenu.cls === 'ros' ? 'Additional Equipment' : 'Run of Show'}
+                </button>
+              )}
             </div>
           )}
         </div>

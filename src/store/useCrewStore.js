@@ -28,6 +28,7 @@ function mapResource(row) {
     personId:      row.person_id       ?? null,
     costCode:      row.cost_code        ?? '',
     crewClass:     row.crew_class      ?? 'additional',
+    equipClass:    row.equip_class     ?? 'ros',
     level:         row.level           ?? 5,
     isHod:         row.is_hod          ?? false,
     agent:          row.agent             ?? '',
@@ -217,9 +218,10 @@ export function useCrewStore() {
     const prodId    = getCurrentProductionId()
     const newId     = crypto.randomUUID()
     const sortOrder = resources.length
-    const crewClass = options.crewClass ?? 'additional'
+    const crewClass  = options.crewClass ?? 'additional'
+    const equipClass = options.equipClass ?? 'ros'
     const newRes = {
-      id: newId, type,
+      id: newId, type, equipClass,
       name: type === 'crew' ? 'New Person' : 'New Item',
       department: '', role: '', category: '', notes: '', sortOrder,
       costAmount: '', costType: 'daily', weekType: '5day',
@@ -235,7 +237,7 @@ export function useCrewStore() {
       supabase.from('resources').insert({
         id: newId, production_id: prodId,
         type, name: newRes.name, sort_order: sortOrder,
-        crew_class: crewClass,
+        crew_class: crewClass, equip_class: equipClass,
       })
     )
     return newId
@@ -266,6 +268,7 @@ export function useCrewStore() {
     personId:      'person_id',
     costCode:      'cost_code',
     crewClass:     'crew_class',
+    equipClass:    'equip_class',
     level:         'level',
     isHod:         'is_hod',
     agent:           'agent',
@@ -324,7 +327,8 @@ export function useCrewStore() {
   async function importResources(type, rows, options = {}) {
     const prodId    = getCurrentProductionId()
     const sortStart = resources.filter(r => r.type === type).length
-    const crewClass = options.crewClass ?? 'additional'
+    const crewClass  = options.crewClass ?? 'additional'
+    const equipClass = options.equipClass ?? 'ros'
 
     // '' / undefined → NULL for numeric columns
     const numOrNull = v => (v === '' || v === undefined || v === null ? null : v)
@@ -335,6 +339,7 @@ export function useCrewStore() {
         production_id: prodId,
         type,
         crew_class:    crewClass,
+        equip_class:   equipClass,
         sort_order:    sortStart + i,
         name:          row.name          || '',
         role:          row.role          || '',
