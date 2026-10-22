@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
@@ -161,31 +161,66 @@ export function useCrewStore() {
   function optR(fn) { setResources(rs => fn(rs)) }
   function optB(fn) { setBookings(bs => fn(bs)) }
 
-  // ── Paint batching ───────────────────────────────────────────────────────
-  // During a gantt drag, every cell paints optimistically but DB writes are
-  // queued, then flushed on mouse-up as at most a handful of bulk requests
-  // (instead of one round trip per cell).
-  const paintBatchRef = useRef(null)
+  // ── Paint ops (gantt drag commit) ──────────────────────────────────────────
+  // A whole drag commits here at once: the gantt paints cells via direct DOM
+  // feedback (no React state per cell) and hands the accumulated ops over on
+  // mouse-up. One optimistic state pass, then at most three bulk DB requests.
+  // ops: [{ resourceId, date, dayId, status }] in paint order; status null = clear.
+  async function applyPaintOps(ops) {
+    if (!ops.length) return
 
-  function beginPaintBatch() {
-    paintBatchRef.current = { inserts: [], updates: [], deletes: new Set() }
-  }
-
-  async function endPaintBatch() {
-    const b = paintBatchRef.current
-    paintBatchRef.current = null
-    if (!b) return
-
-    // Reconcile the queue: a row inserted then deleted in the same drag nets to
-    // nothing; an update to a queued insert folds into the insert.
-    for (const u of b.updates) {
-      const ins = b.inserts.find(i => i.id === u.id)
-      if (ins) ins.status = u.status
+    // Index current bookings once — O(ops) processing instead of O(ops × bookings)
+    const byKey = new Map()     // `${resourceId}|${dayId ?? date}` → booking
+    const byResDate = new Map() // `${resourceId}|${date}` → bookings on that date
+    for (const b of bookings) {
+      byKey.set(`${b.resourceId}|${b.dayId ?? b.date}`, b)
+      const dk = `${b.resourceId}|${b.date}`
+      if (!byResDate.has(dk)) byResDate.set(dk, [])
+      byResDate.get(dk).push(b)
     }
-    const inserts = b.inserts.filter(r => !b.deletes.has(r.id))
-    const updates = b.updates.filter(u =>
-      !b.deletes.has(u.id) && !b.inserts.some(i => i.id === u.id))
-    const delIds  = [...b.deletes].filter(id => !b.inserts.some(i => i.id === id))
+
+    const inserts    = []        // DB rows to insert
+    const newRows    = []        // mapped optimistic rows
+    const deletes    = new Set() // booking ids to delete
+    const statusById = new Map() // booking id → new status
+
+    for (const { resourceId, date, dayId = null, status } of ops) {
+      const key = `${resourceId}|${dayId ?? date}`
+      const existing = byKey.get(key)
+
+      // One person can only be in one place at a time — clear conflicting
+      // bookings on the same date for a different unit (mirrors setBooking).
+      if (status !== null) {
+        for (const c of byResDate.get(`${resourceId}|${date}`) ?? []) {
+          if (c.id !== existing?.id &&
+              (dayId === null ? c.dayId !== null : c.dayId !== dayId)) {
+            deletes.add(c.id)
+            byKey.delete(`${c.resourceId}|${c.dayId ?? c.date}`)
+          }
+        }
+      }
+
+      if (status === null) {
+        if (existing) { deletes.add(existing.id); byKey.delete(key) }
+      } else if (existing) {
+        if (existing.status !== status) statusById.set(existing.id, status)
+      } else {
+        const id = crypto.randomUUID()
+        const row = { id, resourceId, date, dayId, status }
+        newRows.push(row)
+        byKey.set(key, row)
+        inserts.push({ id, resource_id: resourceId, booking_date: date, day_id: dayId ?? null, status })
+      }
+    }
+
+    // Single optimistic state pass (new rows share ids with the DB inserts, so
+    // our own realtime echoes reconcile silently)
+    optB(bs => [
+      ...bs
+        .filter(b => !deletes.has(b.id))
+        .map(b => statusById.has(b.id) ? { ...b, status: statusById.get(b.id) } : b),
+      ...newRows,
+    ])
 
     try {
       if (inserts.length) {
@@ -193,17 +228,17 @@ export function useCrewStore() {
         if (error) throw error
       }
       const byStatus = {}
-      for (const u of updates) (byStatus[u.status] ??= []).push(u.id)
+      for (const [id, status] of statusById) (byStatus[status] ??= []).push(id)
       for (const [status, ids] of Object.entries(byStatus)) {
         const { error } = await supabase.from('resource_bookings').update({ status }).in('id', ids)
         if (error) throw error
       }
-      if (delIds.length) {
-        const { error } = await supabase.from('resource_bookings').delete().in('id', delIds)
+      if (deletes.size) {
+        const { error } = await supabase.from('resource_bookings').delete().in('id', [...deletes])
         if (error) throw error
       }
     } catch (err) {
-      console.error('[crew store] paint batch flush:', err)
+      console.error('[crew store] applyPaintOps:', err)
       loadAll()
     }
   }
@@ -435,49 +470,30 @@ export function useCrewStore() {
       )
       if (conflicts.length) {
         optB(bs => bs.filter(b => !conflicts.some(c => c.id === b.id)))
-        if (paintBatchRef.current) {
-          conflicts.forEach(c => paintBatchRef.current.deletes.add(c.id))
-        } else {
-          conflicts.forEach(c => {
-            supabase.from('resource_bookings').delete().eq('id', c.id)
-              .then(({ error: err }) => { if (err) loadAll() })
-          })
-        }
+        conflicts.forEach(c => {
+          supabase.from('resource_bookings').delete().eq('id', c.id)
+            .then(({ error: err }) => { if (err) loadAll() })
+        })
       }
     }
 
     if (status === null) {
       if (!existing) return
       optB(bs => bs.filter(b => b.id !== existing.id))
-      if (paintBatchRef.current) {
-        paintBatchRef.current.deletes.add(existing.id)
-      } else {
-        supabase.from('resource_bookings').delete().eq('id', existing.id)
-          .then(({ error: err }) => { if (err) loadAll() })
-      }
+      supabase.from('resource_bookings').delete().eq('id', existing.id)
+        .then(({ error: err }) => { if (err) loadAll() })
     } else if (existing) {
       if (existing.status === status) return
       optB(bs => bs.map(b => b.id === existing.id ? { ...b, status } : b))
-      if (paintBatchRef.current) {
-        paintBatchRef.current.updates.push({ id: existing.id, status })
-      } else {
-        supabase.from('resource_bookings').update({ status }).eq('id', existing.id)
-          .then(({ error: err }) => { if (err) loadAll() })
-      }
+      supabase.from('resource_bookings').update({ status }).eq('id', existing.id)
+        .then(({ error: err }) => { if (err) loadAll() })
     } else {
       const newId = crypto.randomUUID()
       optB(bs => [...bs, { id: newId, resourceId, date: dateStr, dayId, status }])
-      if (paintBatchRef.current) {
-        paintBatchRef.current.inserts.push({
-          id: newId, resource_id: resourceId, booking_date: dateStr,
-          day_id: dayId ?? null, status,
-        })
-      } else {
-        supabase.from('resource_bookings').insert({
-          id: newId, resource_id: resourceId, booking_date: dateStr,
-          day_id: dayId ?? null, status,
-        }).then(({ error: err }) => { if (err) loadAll() })
-      }
+      supabase.from('resource_bookings').insert({
+        id: newId, resource_id: resourceId, booking_date: dateStr,
+        day_id: dayId ?? null, status,
+      }).then(({ error: err }) => { if (err) loadAll() })
     }
   }
 
@@ -565,7 +581,7 @@ export function useCrewStore() {
     loading, error,
     resources, bookings,
     addResource, deleteResource, updateResource,
-    beginPaintBatch, endPaintBatch,
+    applyPaintOps,
     importResources,
     toggleBooking, setBooking,
     moveBookings,

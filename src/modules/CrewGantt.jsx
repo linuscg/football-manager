@@ -806,8 +806,9 @@ const ResourceRow = memo(function ResourceRow({
             <td
               key={spec.dayId ?? spec.date}
               className={cls}
-              onMouseDown={e => { e.preventDefault(); onCellMouseDown(resource.id, spec.date, spec.dayId, specIndex) }}
-              onMouseEnter={() => onCellMouseEnter(resource.id, spec.date, spec.dayId, specIndex)}
+              data-cell={`${resource.id}|${spec.dayId ?? spec.date}`}
+              onMouseDown={e => { e.preventDefault(); onCellMouseDown(resource.id, spec.date, spec.dayId, specIndex, e.currentTarget) }}
+              onMouseEnter={e => onCellMouseEnter(resource.id, spec.date, spec.dayId, specIndex, e.currentTarget)}
               title={
                 unitLabel
                   ? (status ? `${unitLabel}: ${status}` : `${unitLabel} unit — click to assign`)
@@ -1003,6 +1004,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const isDraggingRef   = useRef(false)
   const dragActionRef   = useRef(paintMode)   // the status being applied for the current drag
   const paintedInDrag   = useRef(new Set())   // keys painted this drag session
+  const pendingOpsRef   = useRef([])          // ops accumulated this drag, committed on mouse-up
   const lastPaintedRef  = useRef(null)        // { resourceId, specIndex } of the last MAIN-unit cell painted this drag
   const scrollRef       = useRef(null)        // gantt-scroll container
   const scrollInterval  = useRef(null)
@@ -1020,7 +1022,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     addResource, deleteResource, updateResource,
     importResources,
     setBooking,
-    beginPaintBatch, endPaintBatch,
+    applyPaintOps,
     moveResourceUp, moveResourceDown,
   } = useCrewStore()
 
@@ -1112,7 +1114,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   latestRef.current = {
     resources, bookings, shootDays,
     colSpecs, shootDateSet, bookingsByResource,
-    setBooking, beginPaintBatch, endPaintBatch,
+    setBooking, applyPaintOps,
     updateResource, deleteResource,
     moveResourceUp, moveResourceDown,
     findOrCreatePerson, updateCrewPerson,
@@ -1232,15 +1234,20 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
   // Paint one cell with the current drag action (dedupe + hire-date dirty
   // tracking). Reads everything through refs so the callers stay []-stable.
-  const paintCell = useCallback((resourceId, date, dayId = null) => {
+  //
+  // During a drag nothing touches React state: the cell's class is flipped
+  // directly on the DOM for instant feedback and the op is queued; mouse-up
+  // commits every op in one state update + bulk DB writes (applyPaintOps).
+  const paintCell = useCallback((resourceId, date, dayId = null, el = null) => {
     const key = dayId ? `${resourceId}:${dayId}` : `${resourceId}:${date}`
     if (paintedInDrag.current.has(key)) return
     paintedInDrag.current.add(key)
+    const status = dragActionRef.current
     // Only track dirty resources for hire-date sync when painting booked/clear
     // on a main-unit cell. Painting cancelled/unavailable/hold triggers no hire-date update,
     // which avoids a race condition where the hire-date DB write triggers a
     // realtime reload that races with the (still in-flight) booking INSERT.
-    if (!dayId && (dragActionRef.current === 'booked' || dragActionRef.current === null)) {
+    if (!dayId && (status === 'booked' || status === null)) {
       // Fulltime crew: hire dates are the source of truth (they drive the
       // auto-booking), so painting must never rewrite them — otherwise the
       // date-driven weekday fill instantly undoes manual unpaints (feedback
@@ -1250,7 +1257,24 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
         dirtyResources.current.add(resourceId)
       }
     }
-    latestRef.current.setBooking(resourceId, date, dragActionRef.current, dayId)
+    pendingOpsRef.current.push({ resourceId, date, dayId, status })
+
+    // Instant visual feedback without a render. Gap-interpolated cells (no
+    // element at hand) are looked up by their data-cell key; the post-commit
+    // render replaces all of this with the real cell markup.
+    const cell = el ?? scrollRef.current?.querySelector(
+      `td[data-cell="${CSS.escape(`${resourceId}|${dayId ?? date}`)}"]`
+    )
+    // Class-only mutation: React re-writes className for every cell whose
+    // booking actually changed on commit, so this never drifts; touching the
+    // cell's children here would corrupt React's reconciliation. (Status icons
+    // therefore appear on mouse-up, colors immediately.)
+    if (cell) {
+      cell.className = cell.className.replace(/\s*pm-g-cell--\S+/g, '')
+      if (status) {
+        cell.className += ` pm-g-cell--${status === 'unavailable' ? 'unavail' : status}`
+      }
+    }
   }, [])
 
   const handleRowContextMenu = useCallback((resourceId, rowType, cls, name, x, y) => {
@@ -1267,10 +1291,10 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', onKey) }
   }, [rowMenu])
 
-  const handleCellMouseDown = useCallback((resourceId, date, dayId = null, specIndex = -1) => {
+  const handleCellMouseDown = useCallback((resourceId, date, dayId = null, specIndex = -1, el = null) => {
     isDraggingRef.current = true
     paintedInDrag.current = new Set()
-    latestRef.current.beginPaintBatch()
+    pendingOpsRef.current = []
     setIsDragging(true)
 
     const brush    = paintModeRef.current
@@ -1281,18 +1305,18 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     const sameStatus = existing?.status === brush
     dragActionRef.current = (sameStatus && brush !== 'cancelled') ? null : brush
 
-    paintCell(resourceId, date, dayId)
+    paintCell(resourceId, date, dayId, el)
     // Anchor gap filling at the starting cell (main-unit day cells only)
     lastPaintedRef.current = (!dayId && specIndex >= 0) ? { resourceId, specIndex } : null
   }, [paintCell])
 
-  const handleCellMouseEnter = useCallback((resourceId, date, dayId = null, specIndex = -1) => {
+  const handleCellMouseEnter = useCallback((resourceId, date, dayId = null, specIndex = -1, el = null) => {
     if (!isDraggingRef.current) return
     const { colSpecs, shootDateSet } = latestRef.current
 
     // Sub-unit (dayId) cells: always paintable on drag, no gap interpolation.
     if (dayId) {
-      paintCell(resourceId, date, dayId)
+      paintCell(resourceId, date, dayId, el)
       lastPaintedRef.current = null
       return
     }
@@ -1313,14 +1337,14 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       for (let i = from === specIndex ? specIndex : from + step; ; i += step) {
         const spec = colSpecs[i]
         if (spec && spec.type === 'day' && !spec.dayId && shootDateSet.has(spec.date)) {
-          paintCell(resourceId, spec.date, null)
+          paintCell(resourceId, spec.date, null, i === specIndex ? el : null)
         }
         if (i === specIndex) break
       }
       lastPaintedRef.current = { resourceId, specIndex }
     } else {
       // No spec index available — mirror the old single-cell behaviour
-      if (shootDateSet.has(date)) paintCell(resourceId, date, null)
+      if (shootDateSet.has(date)) paintCell(resourceId, date, null, el)
       lastPaintedRef.current = null
     }
   }, [paintCell])
@@ -1334,7 +1358,10 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       clearInterval(scrollInterval.current)
       paintedInDrag.current = new Set()
       lastPaintedRef.current = null
-      latestRef.current.endPaintBatch()
+      // Commit the whole drag at once: one state update, bulk DB writes
+      const ops = pendingOpsRef.current
+      pendingOpsRef.current = []
+      latestRef.current.applyPaintOps(ops)
     }
     window.addEventListener('mouseup', stop)
     return () => window.removeEventListener('mouseup', stop)
