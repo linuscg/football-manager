@@ -10,15 +10,29 @@ import { getRateCalc, deriveRates } from './rateCalc'
 // holiday factor). Fields the production doesn't track render as [●] for the
 // crew member to complete, matching the template's own placeholder style.
 
-const PLACEHOLDER = '[●]'
+// Blank write-in line for anything we can't fill (matches the template's own
+// crew-member fill-in blanks).
+const PLACEHOLDER = '__________'
 
-const money = n =>
-  n == null || !Number.isFinite(n)
-    ? null
-    : n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
+// House money style (matches the executed memos): 2dp, trailing .00 stripped,
+// no thousands separators — 1300, 1159.99, 232, 23.64.
+const r2 = n => Math.round(n * 100) / 100
+const money = n => {
+  if (n == null || !Number.isFinite(n)) return null
+  return String(r2(n).toFixed(2)).replace(/\.00$/, '')
+}
 const m = n => money(n) ?? PLACEHOLDER
 
+// Start/End dates in the executed style: 19/10/2026
+function fmtDateShort(iso) {
+  if (!iso) return null
+  const d = new Date(`${iso}T00:00:00`)
+  if (isNaN(d)) return null
+  const p = x => String(x).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+// Production periods keep the template's long form: 5 October 2026
 function fmtDate(iso) {
   if (!iso) return null
   const d = new Date(`${iso}T00:00:00`)
@@ -55,24 +69,36 @@ export function dealMemoFilename(resource) {
 export function buildDealMemoData(resource, production) {
   const calc = getRateCalc(production)
   const r = deriveRates(resource, calc)
-  const net = g => (g == null || !(calc.holidayFactor > 0) ? null : g / calc.holidayFactor)
-  const hol = g => (g == null || net(g) == null ? null : g - net(g))
+  // Display math follows the executed memos: round the gross and the net to
+  // display precision first, holiday element = their difference — so every
+  // printed row adds up exactly (e.g. 23.64 = 21.09 + 2.55).
+  const split = gross => {
+    if (gross == null || !Number.isFinite(gross) || !(calc.holidayFactor > 0)) {
+      return { g: PLACEHOLDER, n: PLACEHOLDER, h: PLACEHOLDER }
+    }
+    const g = r2(gross)
+    const n = r2(gross / calc.holidayFactor)
+    return { g: m(g), n: m(n), h: m(r2(g - n)) }
+  }
   const { first, last } = splitName(resource.name)
 
   const endDate = resource.hireEndDate || production?.shootEndDate || null
+  const d = split(r.daily), w = split(r.weekly), h = split(r.hourly)
 
   return {
-    surname:    last || PLACEHOLDER,
-    first_name: first || PLACEHOLDER,
+    surname:     last || PLACEHOLDER,
+    first_name:  first || PLACEHOLDER,
+    credit_name: (resource.name ?? '').trim() || PLACEHOLDER,
+    unit:        'Main',
     department: resource.department || PLACEHOLDER,
     job_title:  resource.role || PLACEHOLDER,
     mobile:     resource.contactPhone || PLACEHOLDER,
     email:      resource.contactEmail || PLACEHOLDER,
-    start_date: dateOr(resource.hireStartDate),
+    start_date: fmtDateShort(resource.hireStartDate) ?? PLACEHOLDER,
     // Falls back to the final shoot day (the tracker's estimated end); the memo
     // itself says "unless terminated or extended", and the generated doc is
     // reviewed in Word before sending.
-    end_date:   dateOr(endDate),
+    end_date:   fmtDateShort(endDate) ?? PLACEHOLDER,
     chk_daily:  resource.costType !== 'weekly' ? '☒' : '☐',
     chk_weekly: resource.costType === 'weekly' ? '☒' : '☐',
     schedule_status:
@@ -83,13 +109,15 @@ export function buildDealMemoData(resource, production) {
       ? `${fmtDate(production?.wrapStartDate)} onwards`
       : PLACEHOLDER,
 
-    // Direct hire rate table (net / holiday element / gross)
-    d_net: m(r.dailyNet),   d_hol: m(r.dailyHol),   d_gross: m(r.daily),
-    w_net: m(r.weeklyNet),  w_hol: m(r.weeklyHol),  w_gross: m(r.weekly),
-    h_net: m(r.hourlyNet),  h_hol: m(r.hourlyHol),  h_gross: m(r.hourly),
-    s6_net: m(net(r.sixth)),   s6_hol: m(hol(r.sixth)),   s6_gross: m(r.sixth),
-    s7_net: m(net(r.seventh)), s7_hol: m(hol(r.seventh)), s7_gross: m(r.seventh),
-    ot_net: m(net(r.ot)),      ot_hol: m(hol(r.ot)),      ot_gross: m(r.ot),
+    // Direct hire rate table (net / holiday element / gross). The 6th/7th/OT
+    // premium rows are gross-only — their net/holiday cells are literal "n/a"
+    // in the template, matching the executed memos.
+    d_net: d.n,  d_hol: d.h,  d_gross: d.g,
+    w_net: w.n,  w_hol: w.h,  w_gross: w.g,
+    h_net: h.n,  h_hol: h.h,  h_gross: h.g,
+    s6_gross: m(r.sixth),
+    s7_gross: m(r.seventh),
+    ot_gross: m(r.ot),
 
     // Loan out rate table (gross only)
     lo_daily: m(r.daily), lo_weekly: m(r.weekly), lo_hourly: m(r.hourly),
