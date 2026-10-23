@@ -1,6 +1,8 @@
 import PizZip from 'pizzip'
 import Docxtemplater from 'docxtemplater'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { getRateCalc, deriveRates } from './rateCalc'
+import pdfMap from './dealMemoPdfMap.json'
 
 // ─── Deal memo generation ─────────────────────────────────────────────────────
 // Fills the production's real Word templates (public/deal-memo/*.docx, tagged
@@ -146,6 +148,78 @@ export async function generateDealMemoBlob(resource, production) {
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     compression: 'DEFLATE',
   })
+}
+
+// ─── PDF generation ───────────────────────────────────────────────────────────
+// The two templates are pre-rendered to PDF once (public/deal-memo/*-base.pdf,
+// built with LibreOffice from the tagged Word docs) with every field marker's
+// coordinates extracted into dealMemoPdfMap.json. Filling = white-out the
+// marker, draw the value in place. Legal text is the untouched render; the
+// production-period block is baked into the base (regenerate the bases if the
+// production's dates ever change in Project Setup).
+
+export async function generateDealMemoPdfBlob(resource, production) {
+  const lo = isLoanOut(resource)
+  const map = lo ? pdfMap.lo : pdfMap.dh
+  const res = await fetch(`/deal-memo/${lo ? 'loan-out' : 'direct-hire'}-base.pdf`)
+  if (!res.ok) throw new Error('Deal memo PDF template could not be loaded.')
+  const pdf = await PDFDocument.load(await res.arrayBuffer())
+  const font = await pdf.embedFont(StandardFonts.Helvetica)
+  const pages = pdf.getPages()
+  const data = buildDealMemoData(resource, production)
+  const H = map.pageHeight
+
+  for (const [tag, f] of Object.entries(map.fields)) {
+    const value = data[tag]
+    if (value === undefined) continue
+    const page = pages[f.page - 1]
+    if (!page) continue
+    // Cover the marker (and its £ prefix), then draw prefix + value in place
+    page.drawRectangle({
+      x: f.x1 - 1, y: H - f.y2 - 1.5,
+      width: (f.x2 - f.x1) + 3, height: (f.y2 - f.y1) + 3,
+      color: rgb(1, 1, 1),
+    })
+    page.drawText(`${f.prefix ?? ''}${value}`, {
+      x: f.x1, y: H - f.y2 + 1.8, size: 8.5, font, color: rgb(0, 0, 0),
+    })
+  }
+
+  // Engagement checkboxes: draw an X over the chosen ☐ (first = Daily, second = Weekly)
+  const chosen = data.chk_weekly === '☒' ? map.checkboxes[1] : map.checkboxes[0]
+  if (chosen) {
+    const page = pages[chosen.page - 1]
+    page.drawText('X', {
+      x: chosen.x1 + 1.3, y: H - chosen.y2 + 1.6, size: 7.5, font, color: rgb(0, 0, 0),
+    })
+  }
+
+  const bytes = await pdf.save()
+  return new Blob([bytes], { type: 'application/pdf' })
+}
+
+export async function generateDealMemoPdfBase64(resource, production) {
+  const blob = await generateDealMemoPdfBlob(resource, production)
+  return blobToBase64(blob)
+}
+
+export function dealMemoPdfFilename(resource) {
+  return dealMemoFilename(resource).replace(/\.docx$/, '.pdf')
+}
+
+async function blobToBase64(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  let bin = ''
+  const CHUNK = 0x8000
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(bin)
+}
+
+// Base64 of the filled .docx — for emailing as an attachment.
+export async function generateDealMemoBase64(resource, production) {
+  return blobToBase64(await generateDealMemoBlob(resource, production))
 }
 
 export async function downloadDealMemo(resource, production) {

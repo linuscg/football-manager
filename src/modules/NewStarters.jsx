@@ -5,7 +5,10 @@ import { getCurrentProductionId } from '../lib/productionContext'
 // API key + from address live in the Edge Function (supabase/functions/send-welcome-email)
 import { useFullCrewList }        from '../store/useFullCrewList'
 import { useCrewStore }          from '../store/useCrewStore'
-import { downloadDealMemo, dealMemoFilename, isLoanOut } from '../lib/dealMemo'
+import {
+  downloadDealMemo, dealMemoFilename, isLoanOut,
+  generateDealMemoPdfBlob, generateDealMemoPdfBase64, dealMemoPdfFilename,
+} from '../lib/dealMemo'
 import { useNewStartersStore }   from '../store/useNewStartersStore'
 
 // ─── Date helpers ──────────────────────────────────────────────────────────────
@@ -321,26 +324,36 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
 }
 
 // ─── Deal memo send modal ──────────────────────────────────────────────────────
-// Sends a PDF of the (reviewed) deal memo via the send-welcome-email function.
-// The file picker doubles as the "upload a revised copy" path: whatever PDF is
-// chosen is what gets sent.
+// One-click: sends the freshly generated memo (Word doc) as-is. Optionally a
+// checked/revised copy (PDF preferred, or a revised .docx) can be attached and
+// is sent instead.
 
-function DealMemoSendModal({ person, onClose, onSent }) {
+function DealMemoSendModal({ person, resource, production, onClose, onSent }) {
   const [file,    setFile]    = useState(null)
   const [sending, setSending] = useState(false)
   const [error,   setError]   = useState(null)
 
   async function handleSend() {
-    if (!file || sending) return
+    if (sending) return
     setSending(true)
     setError(null)
     try {
-      const base64 = await new Promise((resolve, reject) => {
-        const fr = new FileReader()
-        fr.onload  = () => resolve(String(fr.result).split(',')[1])
-        fr.onerror = () => reject(new Error('Could not read the file.'))
-        fr.readAsDataURL(file)
-      })
+      let attachment
+      if (file) {
+        const base64 = await new Promise((resolve, reject) => {
+          const fr = new FileReader()
+          fr.onload  = () => resolve(String(fr.result).split(',')[1])
+          fr.onerror = () => reject(new Error('Could not read the file.'))
+          fr.readAsDataURL(file)
+        })
+        attachment = { filename: file.name, content: base64 }
+      } else {
+        if (!resource) throw new Error('Crew member not found in the tracker.')
+        attachment = {
+          filename: dealMemoPdfFilename(resource),
+          content:  await generateDealMemoPdfBase64(resource, production ?? {}),
+        }
+      }
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
         method: 'POST',
@@ -353,7 +366,7 @@ function DealMemoSendModal({ person, onClose, onSent }) {
           productionId: getCurrentProductionId(),
           subject:      'Your Crew Deal Memo',
           text:         `Hi ${person.name},\n\nPlease find your crew deal memo attached. Have a read through, complete any blank fields, then sign and return it to the production office.\n\nThanks,\nProduction`,
-          attachments:  [{ filename: file.name, content: base64 }],
+          attachments:  [attachment],
         }),
       })
       if (!res.ok) {
@@ -369,7 +382,7 @@ function DealMemoSendModal({ person, onClose, onSent }) {
 
   return (
     <div className="sched-import-backdrop" onClick={onClose}>
-      <div className="sched-import-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+      <div className="sched-import-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
         <div className="sched-import-head">
           <h3 className="sched-import-title">Send Deal Memo</h3>
           <button className="sched-import-close" onClick={onClose}>×</button>
@@ -379,13 +392,21 @@ function DealMemoSendModal({ person, onClose, onSent }) {
             Sending to <strong>{person.name}</strong> ({person.email}).
           </p>
           <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
-            Attach the deal memo as a <strong>PDF</strong> — open the generated
-            Word doc, check it (fill anything marked [●] that you know), then
-            File → Save As → PDF. If you've revised it, upload the revised PDF here.
+            {file
+              ? 'Your attached file will be sent instead of the auto-generated PDF.'
+              : <>Sends the auto-generated memo as a <strong>PDF</strong>{' '}
+                 (<a href="#preview" onClick={async e => {
+                    e.preventDefault()
+                    try {
+                      const blob = await generateDealMemoPdfBlob(resource, production ?? {})
+                      window.open(URL.createObjectURL(blob), '_blank')
+                    } catch (err) { setError(err.message) }
+                  }}>preview it</a>).
+                 If you've revised a copy, attach it below and that will be sent instead.</>}
           </p>
           <input
             type="file"
-            accept="application/pdf,.pdf"
+            accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={e => setFile(e.target.files?.[0] ?? null)}
           />
           {file && (
@@ -401,9 +422,9 @@ function DealMemoSendModal({ person, onClose, onSent }) {
             <button
               className="pm-btn pm-btn--primary pm-btn--sm"
               onClick={handleSend}
-              disabled={!file || sending}
+              disabled={sending}
             >
-              {sending ? 'Sending…' : 'Send PDF'}
+              {sending ? 'Sending…' : file ? 'Send attached file' : 'Send PDF'}
             </button>
           </div>
         </div>
@@ -739,6 +760,8 @@ export default function NewStarters() {
       {memoSendFor && (
         <DealMemoSendModal
           person={memoSendFor}
+          resource={resources.find(r => r.id === memoSendFor.id)}
+          production={memoProduction}
           onClose={() => setMemoSendFor(null)}
           onSent={() => {
             updateResource(memoSendFor.id, 'dealMemoSent', 'TRUE')
