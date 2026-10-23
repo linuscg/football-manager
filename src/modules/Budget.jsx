@@ -113,6 +113,18 @@ function countDays(resource, bookings, status) {
   return bookings.filter(b => b.resourceId === resource.id && b.status === status).length
 }
 
+// Weekly box rental + car allowance, prorated over booked days exactly like a
+// weekly rate (days ÷ 5-day/3-day week).
+function calcExtras(resource, bookings, status) {
+  const box = parseFloat(resource.boxPw) || 0
+  const car = parseFloat(resource.carAllowance) || 0
+  if (!box && !car) return { box: 0, car: 0 }
+  const days = bookings.filter(b => b.resourceId === resource.id && b.status === status).length
+  if (!days) return { box: 0, car: 0 }
+  const weeks = days / (resource.weekType === '3day' ? 3 : 5)
+  return { box: box * weeks, car: car * weeks }
+}
+
 function phaseForDate(date, production) {
   for (const p of PHASES) {
     const start = production[p.startKey]
@@ -260,14 +272,26 @@ export default function Budget({ store, onUpdate }) {
   const crewResources  = resources.filter(r => r.type === 'crew')
   const equipResources = resources.filter(r => r.type === 'equipment')
 
-  // Enrich each resource with its cost figures (in base currency)
-  const enriched = useMemo(() => resources.map(r => ({
-    ...r,
-    confirmedDays: countDays(r, bookings, 'booked'),
-    holdDays:      countDays(r, bookings, 'hold'),
-    confirmedCost: calcCost(r, bookings, 'booked'),
-    holdCost:      calcCost(r, bookings, 'hold'),
-  })), [resources, bookings])
+  // Enrich each resource with its cost figures (in base currency).
+  // totalConfirmed/totalHold = base rate cost + box + car; the Box/Car columns
+  // break the extras out, and all subtotals/cards/topsheet use the totals.
+  const enriched = useMemo(() => resources.map(r => {
+    const confirmedCost = calcCost(r, bookings, 'booked')
+    const holdCost      = calcCost(r, bookings, 'hold')
+    const confExtras    = calcExtras(r, bookings, 'booked')
+    const holdExtras    = calcExtras(r, bookings, 'hold')
+    return {
+      ...r,
+      confirmedDays: countDays(r, bookings, 'booked'),
+      holdDays:      countDays(r, bookings, 'hold'),
+      confirmedCost,
+      holdCost,
+      boxConfirmed:  confExtras.box,
+      carConfirmed:  confExtras.car,
+      totalConfirmed: confirmedCost + confExtras.box + confExtras.car,
+      totalHold:      holdCost + holdExtras.box + holdExtras.car,
+    }
+  }), [resources, bookings])
 
   const enrichedCrew  = enriched.filter(r => r.type === 'crew')
   const enrichedEquip = enriched.filter(r => r.type === 'equipment')
@@ -308,17 +332,17 @@ export default function Budget({ store, onUpdate }) {
   const rosByCat      = useMemo(() => groupByCat(enrichedRos),      [enriched])
   const addEquipByCat = useMemo(() => groupByCat(enrichedAddEquip), [enriched])
 
-  // Totals (in base currency)
-  const ftConfirmed    = enrichedFulltime.reduce((s, r)   => s + r.confirmedCost, 0)
-  const ftHold         = enrichedFulltime.reduce((s, r)   => s + r.holdCost,      0)
-  const addConfirmed   = enrichedAdditional.reduce((s, r) => s + r.confirmedCost, 0)
-  const addHold        = enrichedAdditional.reduce((s, r) => s + r.holdCost,      0)
+  // Totals (in base currency) — rate cost + box + car
+  const ftConfirmed    = enrichedFulltime.reduce((s, r)   => s + r.totalConfirmed, 0)
+  const ftHold         = enrichedFulltime.reduce((s, r)   => s + r.totalHold,      0)
+  const addConfirmed   = enrichedAdditional.reduce((s, r) => s + r.totalConfirmed, 0)
+  const addHold        = enrichedAdditional.reduce((s, r) => s + r.totalHold,      0)
   const crewConfirmed  = ftConfirmed + addConfirmed
   const crewHold       = ftHold + addHold
-  const rosConfirmed      = enrichedRos.reduce((s, r)      => s + r.confirmedCost, 0)
-  const rosHold           = enrichedRos.reduce((s, r)      => s + r.holdCost,      0)
-  const addEquipConfirmed = enrichedAddEquip.reduce((s, r) => s + r.confirmedCost, 0)
-  const addEquipHold      = enrichedAddEquip.reduce((s, r) => s + r.holdCost,      0)
+  const rosConfirmed      = enrichedRos.reduce((s, r)      => s + r.totalConfirmed, 0)
+  const rosHold           = enrichedRos.reduce((s, r)      => s + r.totalHold,      0)
+  const addEquipConfirmed = enrichedAddEquip.reduce((s, r) => s + r.totalConfirmed, 0)
+  const addEquipHold      = enrichedAddEquip.reduce((s, r) => s + r.totalHold,      0)
   const equipConfirmed    = rosConfirmed + addEquipConfirmed
   const equipHold         = rosHold + addEquipHold
   const otherTotal     = otherItems.reduce((s, i)    => s + (parseFloat(i.amount) || 0), 0)
@@ -331,14 +355,15 @@ export default function Budget({ store, onUpdate }) {
 
   // ── TSV builders for per-section copy (display currency, plain numbers) ──────
   function crewTSV(byDept) {
-    const headers = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
+    const headers = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Box', 'Car', 'Confirmed', 'On Hold']
     const rows = []
     for (const [dept, members] of byDept) {
       for (const r of members) {
         rows.push([
           dept, r.name, r.role || '', r.costCode || '', rateStr(r),
           r.confirmedDays || 0, r.holdDays || 0,
-          r2(cv(r.confirmedCost)), r2(cv(r.holdCost)),
+          r2(cv(r.boxConfirmed)), r2(cv(r.carConfirmed)),
+          r2(cv(r.totalConfirmed)), r2(cv(r.totalHold)),
         ])
       }
     }
@@ -378,8 +403,8 @@ export default function Budget({ store, onUpdate }) {
       buckets[key].confirmed += conf
       buckets[key].hold += hold
     }
-    for (const r of enrichedCrew)  bump(r.costCode, cv(r.confirmedCost), cv(r.holdCost))
-    for (const r of enrichedEquip) bump(r.costCode, cv(r.confirmedCost), cv(r.holdCost))
+    for (const r of enrichedCrew)  bump(r.costCode, cv(r.totalConfirmed), cv(r.totalHold))
+    for (const r of enrichedEquip) bump(r.costCode, cv(r.totalConfirmed), cv(r.totalHold))
     for (const i of otherItems)    bump(i.costCode, cv(parseFloat(i.amount) || 0), 0)
 
     const codeDesc = {}
@@ -435,20 +460,21 @@ export default function Budget({ store, onUpdate }) {
     XLSX.utils.book_append_sheet(wb, tsWs, 'Topsheet')
 
     // 2. Crew — one sheet per class
-    const crewHeader = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Confirmed', 'On Hold']
+    const crewHeader = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Box', 'Car', 'Confirmed', 'On Hold']
     for (const [sheetName, byDept] of [['Full-Time Crew', ftByDept], ['Additional Crew', addByDept]]) {
       const crewData = [crewHeader.map(h => ({ v: h, s: bold }))]
       let cConf = 0, cHold = 0
       for (const [dept, members] of byDept) {
         for (const r of members) {
-          const conf = r2(cv(r.confirmedCost)), hold = r2(cv(r.holdCost))
+          const conf = r2(cv(r.totalConfirmed)), hold = r2(cv(r.totalHold))
           cConf += conf; cHold += hold
-          crewData.push([dept, r.name, r.role || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0, conf, hold])
+          crewData.push([dept, r.name, r.role || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0,
+            r2(cv(r.boxConfirmed)), r2(cv(r.carConfirmed)), conf, hold])
         }
       }
-      crewData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', { v: r2(cConf), s: bold }, { v: r2(cHold), s: bold }])
+      crewData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', '', '', { v: r2(cConf), s: bold }, { v: r2(cHold), s: bold }])
       const crewWs = XLSX.utils.aoa_to_sheet(crewData)
-      crewWs['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }]
+      crewWs['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 14 }, { wch: 14 }]
       XLSX.utils.book_append_sheet(wb, crewWs, sheetName)
     }
 
@@ -495,10 +521,13 @@ export default function Budget({ store, onUpdate }) {
       const resource = enriched.find(r => r.id === b.resourceId)
       if (!resource) continue
       const amt = parseFloat(resource.costAmount) || 0
-      if (!amt) continue
+      const daysPerWeek = resource.weekType === '3day' ? 3 : 5
       let dayCost = (resource.costType === 'daily' || resource.costType === 'halfday')
         ? amt
-        : amt / (resource.weekType === '3day' ? 3 : 5)
+        : amt / daysPerWeek
+      // Weekly box + car allowances contribute per worked day too
+      dayCost += ((parseFloat(resource.boxPw) || 0) + (parseFloat(resource.carAllowance) || 0)) / daysPerWeek
+      if (!dayCost) continue
       const phase = phaseForDate(b.date, production)
       out[phase ?? 'other'] += dayCost
     }
@@ -631,8 +660,8 @@ export default function Budget({ store, onUpdate }) {
             <p className="budget-empty">{sec.empty}</p>
           ) : (
             sec.byDept.map(([dept, members]) => {
-              const deptConf = members.reduce((s, r) => s + r.confirmedCost, 0)
-              const deptHold = members.reduce((s, r) => s + r.holdCost, 0)
+              const deptConf = members.reduce((s, r) => s + r.totalConfirmed, 0)
+              const deptHold = members.reduce((s, r) => s + r.totalHold, 0)
               return (
                 <div key={dept} className="budget-group">
                   <div className="budget-group-header">
@@ -651,6 +680,8 @@ export default function Budget({ store, onUpdate }) {
                         <th className="budget-th budget-th-rate">Rate</th>
                         <th className="budget-th budget-th-num">Conf. days</th>
                         <th className="budget-th budget-th-num">Hold days</th>
+                        <th className="budget-th budget-th-cost">Box</th>
+                        <th className="budget-th budget-th-cost">Car</th>
                         <th className="budget-th budget-th-cost">Confirmed</th>
                         <th className="budget-th budget-th-cost">On Hold</th>
                       </tr>
@@ -676,12 +707,14 @@ export default function Budget({ store, onUpdate }) {
                             <td className="budget-td budget-td-rate">{rateStr(r)}</td>
                             <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
                             <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
-                            <td className="budget-td budget-td-cost">{fmt(cv(r.confirmedCost), displaySymbol)}</td>
-                            <td className="budget-td budget-td-hold">{fmt(cv(r.holdCost), displaySymbol)}</td>
+                            <td className="budget-td budget-td-cost">{fmt(cv(r.boxConfirmed), displaySymbol)}</td>
+                            <td className="budget-td budget-td-cost">{fmt(cv(r.carConfirmed), displaySymbol)}</td>
+                            <td className="budget-td budget-td-cost">{fmt(cv(r.totalConfirmed), displaySymbol)}</td>
+                            <td className="budget-td budget-td-hold">{fmt(cv(r.totalHold), displaySymbol)}</td>
                           </tr>
                           {expandedId === r.id && (
                             <tr className="budget-resource-detail">
-                              <td colSpan={8} className="budget-td-detail">
+                              <td colSpan={10} className="budget-td-detail">
                                 <div className="budget-detail-row">
                                   {r.poNumber && <div className="budget-detail-item"><span className="budget-detail-label">PO</span>{r.poNumber}</div>}
                                   {(r.hireStartDate || r.hireEndDate) && (
@@ -701,7 +734,7 @@ export default function Budget({ store, onUpdate }) {
                     </tbody>
                     <tfoot>
                       <tr className="budget-subtotal-row">
-                        <td colSpan={6} className="budget-td budget-subtotal-label">
+                        <td colSpan={8} className="budget-td budget-subtotal-label">
                           {dept} subtotal
                         </td>
                         <td className="budget-td budget-td-cost budget-subtotal-value">
