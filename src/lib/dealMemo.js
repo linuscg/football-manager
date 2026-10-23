@@ -95,9 +95,11 @@ export function buildDealMemoData(resource, production) {
     lo_daily: m(r.daily), lo_weekly: m(r.weekly), lo_hourly: m(r.hourly),
     lo_sixth: m(r.sixth), lo_seventh: m(r.seventh), lo_ot: m(r.ot),
 
-    // Allowances (stored weekly in the tracker)
-    car_allowance: num(resource.carAllowance) != null ? `${m(num(resource.carAllowance))} per week` : PLACEHOLDER,
-    box_rental:    num(resource.boxPw) != null ? `${m(num(resource.boxPw))} per week` : PLACEHOLDER,
+    // Allowances (stored weekly in the tracker). The template keeps its own
+    // "per week/day" suffix after the tag, so the value is just the amount —
+    // tracker amounts are weekly, so the reviewer strikes "/day".
+    car_allowance: m(num(resource.carAllowance)),
+    box_rental:    m(num(resource.boxPw)),
 
     agent: (resource.agent ?? '').trim() || 'N/A',
   }
