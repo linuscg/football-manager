@@ -51,6 +51,7 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .maybeSingle()
     if (!membership || !['owner', 'admin'].includes(membership.role)) {
+      console.error('send-welcome-email: caller is not owner/admin', user.id, productionId, membership?.role)
       return new Response(JSON.stringify({ error: 'You do not have permission to send emails for this production.' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -58,15 +59,18 @@ serve(async (req) => {
     }
 
     // ── Recipients must be crew contact emails of that production ──────────
+    // Compared case/whitespace-insensitively in JS — stored emails may carry
+    // capitals or stray spaces, which a SQL equality match would reject.
     const recipients = (Array.isArray(to) ? to : [to]).map(e => String(e).toLowerCase().trim())
-    const { data: crewEmails } = await adminClient
+    const { data: crewRows } = await adminClient
       .from('resources')
       .select('contact_email')
       .eq('production_id', productionId)
-      .in('contact_email', recipients)
-    const known = new Set((crewEmails ?? []).map(r => (r.contact_email ?? '').toLowerCase()))
+      .neq('contact_email', '')
+    const known = new Set((crewRows ?? []).map(r => String(r.contact_email ?? '').toLowerCase().trim()))
     const unknown = recipients.filter(e => !known.has(e))
     if (unknown.length) {
+      console.error('send-welcome-email: recipient not in production crew', unknown)
       return new Response(JSON.stringify({ error: `Not crew emails on this production: ${unknown.join(', ')}` }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -97,6 +101,7 @@ serve(async (req) => {
     })
 
     const data = await res.json()
+    if (!res.ok) console.error('send-welcome-email: resend error', res.status, JSON.stringify(data))
 
     return new Response(JSON.stringify(data), {
       status:  res.status,
