@@ -2134,6 +2134,9 @@ textarea.field-input {
 .budget-table {
   width: 100%;
   border-collapse: collapse;
+  /* Fixed layout: every department renders its own table, so without this
+     the columns size to each department's content and drift out of line. */
+  table-layout: fixed;
 }
 
 .budget-th {
@@ -2147,9 +2150,9 @@ textarea.field-input {
   border-bottom: 1px solid #f3f4f6;
   white-space: nowrap;
 }
-.budget-th-rate   { width: 110px; }
-.budget-th-num    { width: 80px;  text-align: right; }
-.budget-th-cost   { width: 110px; text-align: right; }
+.budget-th-rate   { width: 104px; }
+.budget-th-num    { width: 62px;  text-align: right; white-space: normal; }
+.budget-th-cost   { width: 92px;  text-align: right; }
 .budget-th-cat    { width: 130px; }
 .budget-th-action { width: 36px;  }
 

@@ -378,7 +378,7 @@ export default function Budget({ store, onUpdate }) {
         rows.push([
           cat, r.name, r.vendor || '', r.costCode || '', rateStr(r),
           r.confirmedDays || 0, r.holdDays || 0,
-          r2(cv(r.confirmedCost)), r2(cv(r.holdCost)),
+          r2(cv(r.totalConfirmed)), r2(cv(r.totalHold)),
         ])
       }
     }
@@ -485,7 +485,7 @@ export default function Budget({ store, onUpdate }) {
       let eConf = 0, eHold = 0
       for (const [cat, items] of byCat) {
         for (const r of items) {
-          const conf = r2(cv(r.confirmedCost)), hold = r2(cv(r.holdCost))
+          const conf = r2(cv(r.totalConfirmed)), hold = r2(cv(r.totalHold))
           eConf += conf; eHold += hold
           equipData.push([cat, r.name, r.vendor || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0, conf, hold])
         }
@@ -763,8 +763,8 @@ export default function Budget({ store, onUpdate }) {
             <p className="budget-empty">{sec.empty}</p>
           ) : (
             sec.byCat.map(([cat, items]) => {
-              const catConf = items.reduce((s, r) => s + r.confirmedCost, 0)
-              const catHold = items.reduce((s, r) => s + r.holdCost, 0)
+              const catConf = items.reduce((s, r) => s + r.totalConfirmed, 0)
+              const catHold = items.reduce((s, r) => s + r.totalHold, 0)
               return (
                 <div key={cat} className="budget-group">
                   <div className="budget-group-header">
@@ -808,8 +808,8 @@ export default function Budget({ store, onUpdate }) {
                             <td className="budget-td budget-td-rate">{rateStr(r)}</td>
                             <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
                             <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
-                            <td className="budget-td budget-td-cost">{fmt(cv(r.confirmedCost), displaySymbol)}</td>
-                            <td className="budget-td budget-td-hold">{fmt(cv(r.holdCost), displaySymbol)}</td>
+                            <td className="budget-td budget-td-cost">{fmt(cv(r.totalConfirmed), displaySymbol)}</td>
+                            <td className="budget-td budget-td-hold">{fmt(cv(r.totalHold), displaySymbol)}</td>
                           </tr>
                           {expandedId === r.id && (
                             <tr className="budget-resource-detail">
