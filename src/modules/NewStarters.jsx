@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId } from '../lib/productionContext'
 
 // API key + from address live in the Edge Function (supabase/functions/send-welcome-email)
 import { useFullCrewList }        from '../store/useFullCrewList'
 import { useCrewStore }          from '../store/useCrewStore'
+import { downloadDealMemo, dealMemoFilename, isLoanOut } from '../lib/dealMemo'
 import { useNewStartersStore }   from '../store/useNewStartersStore'
 
 // ─── Date helpers ──────────────────────────────────────────────────────────────
@@ -205,7 +206,7 @@ function EmailConfigModal({ onClose, onSaved }) {
 
 // ─── Starter row ───────────────────────────────────────────────────────────────
 
-function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sendingId }) {
+function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds }) {
   const [lNotes, setLNotes] = useState(status?.notes ?? '')
 
   function toggle(field) {
@@ -243,6 +244,25 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
           title={!person.email ? 'No email address on file' : undefined}
         >
           {isSending ? 'Sending…' : status?.emailSent ? 'Resend' : 'Send'}
+        </button>
+      </td>
+      {/* Deal memo: generate docx / send PDF */}
+      <td className="ns-cell ns-cell--action" style={{ whiteSpace: 'nowrap' }}>
+        <button
+          className="pm-btn pm-btn--ghost pm-btn--sm"
+          onClick={() => onGenerateMemo(person)}
+          disabled={memoBusyId === person.id}
+          title="Generate the deal memo as a Word doc to check"
+        >
+          {memoBusyId === person.id ? '…' : '⇣ Memo'}
+        </button>{' '}
+        <button
+          className={`pm-btn pm-btn--sm ${memoSentIds?.has(person.id) ? 'pm-btn--ghost' : 'pm-btn--primary'}`}
+          onClick={() => onSendMemo(person)}
+          disabled={!person.email}
+          title={!person.email ? 'No email address on file' : 'Send the checked deal memo as a PDF'}
+        >
+          {memoSentIds?.has(person.id) ? 'Resend' : 'Send'}
         </button>
       </td>
       {/* Sent */}
@@ -285,9 +305,101 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
   )
 }
 
+// ─── Deal memo send modal ──────────────────────────────────────────────────────
+// Sends a PDF of the (reviewed) deal memo via the send-welcome-email function.
+// The file picker doubles as the "upload a revised copy" path: whatever PDF is
+// chosen is what gets sent.
+
+function DealMemoSendModal({ person, onClose, onSent }) {
+  const [file,    setFile]    = useState(null)
+  const [sending, setSending] = useState(false)
+  const [error,   setError]   = useState(null)
+
+  async function handleSend() {
+    if (!file || sending) return
+    setSending(true)
+    setError(null)
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const fr = new FileReader()
+        fr.onload  = () => resolve(String(fr.result).split(',')[1])
+        fr.onerror = () => reject(new Error('Could not read the file.'))
+        fr.readAsDataURL(file)
+      })
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          to:           [person.email],
+          productionId: getCurrentProductionId(),
+          subject:      'Your Crew Deal Memo',
+          text:         `Hi ${person.name},\n\nPlease find your crew deal memo attached. Have a read through, complete any blank fields, then sign and return it to the production office.\n\nThanks,\nProduction`,
+          attachments:  [{ filename: file.name, content: base64 }],
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? err.message ?? res.statusText)
+      }
+      onSent()
+    } catch (err) {
+      setError(err.message)
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="sched-import-backdrop" onClick={onClose}>
+      <div className="sched-import-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+        <div className="sched-import-head">
+          <h3 className="sched-import-title">Send Deal Memo</h3>
+          <button className="sched-import-close" onClick={onClose}>×</button>
+        </div>
+        <div className="sched-import-body">
+          <p style={{ fontSize: 13, color: '#374151', marginBottom: 12 }}>
+            Sending to <strong>{person.name}</strong> ({person.email}).
+          </p>
+          <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
+            Attach the deal memo as a <strong>PDF</strong> — open the generated
+            Word doc, check it (fill anything marked [●] that you know), then
+            File → Save As → PDF. If you've revised it, upload the revised PDF here.
+          </p>
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={e => setFile(e.target.files?.[0] ?? null)}
+          />
+          {file && (
+            <p style={{ fontSize: 12, color: '#374151', marginTop: 8 }}>
+              {file.name} · {(file.size / 1024).toFixed(0)} KB
+            </p>
+          )}
+          {error && (
+            <div className="admin-send-result admin-send-result--err" style={{ marginTop: 10 }}>{error}</div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+            <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={onClose}>Cancel</button>
+            <button
+              className="pm-btn pm-btn--primary pm-btn--sm"
+              onClick={handleSend}
+              disabled={!file || sending}
+            >
+              {sending ? 'Sending…' : 'Send PDF'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Table section ─────────────────────────────────────────────────────────────
 
-function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusChange, onSendEmail, sendingId }) {
+function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusChange, onSendEmail, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds }) {
   if (!rows.length) return null
   return (
     <div className="ns-section">
@@ -303,6 +415,7 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
               <th className="ns-th ns-th--date">End</th>
               {crewType === 'additional' && <th className="ns-th ns-th--check" title="Returning crew member">Returning</th>}
               <th className="ns-th ns-th--action">Welcome email</th>
+              <th className="ns-th ns-th--action" title="Generate as Word doc, send as PDF">Deal memo</th>
               <th className="ns-th ns-th--check" title="Email sent">Sent</th>
               <th className="ns-th ns-th--check" title="Email delivered">Delivered</th>
               <th className="ns-th ns-th--check" title="Added to Scenechronize">Scenechr.</th>
@@ -320,6 +433,10 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
                 onStatusChange={onStatusChange}
                 onSendEmail={onSendEmail}
                 sendingId={sendingId}
+                onGenerateMemo={onGenerateMemo}
+                onSendMemo={onSendMemo}
+                memoBusyId={memoBusyId}
+                memoSentIds={memoSentIds}
               />
             ))}
           </tbody>
@@ -333,7 +450,7 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
 
 export default function NewStarters() {
   const { members }                            = useFullCrewList()
-  const { resources, bookings }                = useCrewStore()
+  const { resources, bookings, updateResource } = useCrewStore()
   const { statuses, updateStatus }             = useNewStartersStore()
 
   const [weekStart, setWeekStart] = useState(() => {
@@ -358,6 +475,54 @@ export default function NewStarters() {
   const [emailCfg,      setEmailCfg]      = useState(loadEmailConfig)
   const [sendingId,     setSendingId]     = useState(null)
   const [sendMsg,       setSendMsg]       = useState(null) // { type: 'ok'|'err', text }
+
+  // ── Deal memos ──────────────────────────────────────────────────────────────
+  // The memo needs the production's phase dates + rate settings; fetched here
+  // because this page otherwise never loads the production row.
+  const [memoProduction, setMemoProduction] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const prodId = getCurrentProductionId()
+      if (!prodId) return
+      const { data } = await supabase
+        .from('production')
+        .select('prep_start_date, prep_end_date, shoot_start_date, shoot_end_date, wrap_start_date, rate_calc')
+        .eq('id', prodId)
+        .single()
+      if (!cancelled && data) {
+        setMemoProduction({
+          prepStartDate:  data.prep_start_date,
+          prepEndDate:    data.prep_end_date,
+          shootStartDate: data.shoot_start_date,
+          shootEndDate:   data.shoot_end_date,
+          wrapStartDate:  data.wrap_start_date,
+          rateCalc:       data.rate_calc ?? {},
+        })
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const [memoBusyId,    setMemoBusyId]    = useState(null)
+  const [memoSendFor,   setMemoSendFor]   = useState(null)  // person being sent a memo
+  const memoSentIds = new Set(resources.filter(r => (r.dealMemoSent ?? '').toUpperCase() === 'TRUE').map(r => r.id))
+
+  async function handleGenerateMemo(person) {
+    const resource = resources.find(r => r.id === person.id)
+    if (!resource) { setSendMsg({ type: 'err', text: 'Crew member not found in the tracker.' }); return }
+    setMemoBusyId(person.id)
+    try {
+      await downloadDealMemo(resource, memoProduction ?? {})
+      setSendMsg({ type: 'ok', text: `${dealMemoFilename(resource)} generated (${isLoanOut(resource) ? 'loan out' : 'direct hire'} template) — check it in Word.` })
+    } catch (err) {
+      console.error('[deal memo]', err)
+      setSendMsg({ type: 'err', text: `Could not generate deal memo: ${err.message}` })
+    }
+    setMemoBusyId(null)
+    setTimeout(() => setSendMsg(null), 6000)
+  }
 
   const weekEndISO   = toISO(addDays(weekStart, 6))
   const weekStartISO = toISO(weekStart)
@@ -524,6 +689,10 @@ export default function NewStarters() {
             onStatusChange={handleStatusChange}
             onSendEmail={handleSendEmail}
             sendingId={sendingId}
+            onGenerateMemo={handleGenerateMemo}
+            onSendMemo={setMemoSendFor}
+            memoBusyId={memoBusyId}
+            memoSentIds={memoSentIds}
           />
           <StarterTable
             title="Additional Crew"
@@ -533,6 +702,10 @@ export default function NewStarters() {
             onStatusChange={handleStatusChange}
             onSendEmail={handleSendEmail}
             sendingId={sendingId}
+            onGenerateMemo={handleGenerateMemo}
+            onSendMemo={setMemoSendFor}
+            memoBusyId={memoBusyId}
+            memoSentIds={memoSentIds}
           />
         </div>
       )}
@@ -542,6 +715,20 @@ export default function NewStarters() {
         <EmailConfigModal
           onClose={() => setShowEmailCfg(false)}
           onSaved={cfg => setEmailCfg(cfg)}
+        />
+      )}
+
+      {/* ── Deal memo send modal ─────────────────────────────────────────────── */}
+      {memoSendFor && (
+        <DealMemoSendModal
+          person={memoSendFor}
+          onClose={() => setMemoSendFor(null)}
+          onSent={() => {
+            updateResource(memoSendFor.id, 'dealMemoSent', 'TRUE')
+            setSendMsg({ type: 'ok', text: `Deal memo sent to ${memoSendFor.name || memoSendFor.email}.` })
+            setMemoSendFor(null)
+            setTimeout(() => setSendMsg(null), 5000)
+          }}
         />
       )}
     </div>
