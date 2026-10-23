@@ -12,9 +12,9 @@ import pdfMap from './dealMemoPdfMap.json'
 // holiday factor). Fields the production doesn't track render as [●] for the
 // crew member to complete, matching the template's own placeholder style.
 
-// Blank write-in line for anything we can't fill (matches the template's own
-// crew-member fill-in blanks).
-const PLACEHOLDER = '__________'
+// Fields we can't fill render empty — clean space for the crew member to
+// complete, no placeholder marks.
+const PLACEHOLDER = ''
 
 // House money style (matches the executed memos): 2dp, trailing .00 stripped,
 // no thousands separators — 1300, 1159.99, 232, 23.64.
@@ -125,11 +125,9 @@ export function buildDealMemoData(resource, production) {
     lo_daily: m(r.daily), lo_weekly: m(r.weekly), lo_hourly: m(r.hourly),
     lo_sixth: m(r.sixth), lo_seventh: m(r.seventh), lo_ot: m(r.ot),
 
-    // Allowances (stored weekly in the tracker). The template keeps its own
-    // "per week/day" suffix after the tag, so the value is just the amount —
-    // tracker amounts are weekly, so the reviewer strikes "/day".
-    car_allowance: m(num(resource.carAllowance)),
-    box_rental:    m(num(resource.boxPw)),
+    // Allowances (stored weekly): full phrase, or n/a when not applicable
+    car_allowance: num(resource.carAllowance) != null ? `£${money(num(resource.carAllowance))} per week` : 'n/a',
+    box_rental:    num(resource.boxPw) != null ? `£${money(num(resource.boxPw))} per week` : 'n/a',
 
     agent: (resource.agent ?? '').trim() || 'N/A',
   }
@@ -171,18 +169,28 @@ export async function generateDealMemoPdfBlob(resource, production) {
 
   for (const [tag, f] of Object.entries(map.fields)) {
     const value = data[tag]
-    if (value === undefined) continue
     const page = pages[f.page - 1]
     if (!page) continue
-    // Cover the marker (and its £ prefix), then draw prefix + value in place
+    // Cover marker + its unit suffix exactly within the text line (so no
+    // visible white patches over borders), then draw the whole phrase with
+    // natural spacing on the template's baseline.
+    const endX = f.endX ?? f.x2
+    // 1.2pt below the measured box: the markers' brace descenders dip under
+    // it; the dotted row borders sit several points lower, so they're safe.
     page.drawRectangle({
-      x: f.x1 - 1, y: H - f.y2 - 1.5,
-      width: (f.x2 - f.x1) + 3, height: (f.y2 - f.y1) + 3,
+      x: f.x1 - 0.5, y: H - f.y2 - 1.2,
+      width: (endX - f.x1) + 1, height: (f.y2 - f.y1) + 1.5,
       color: rgb(1, 1, 1),
     })
-    page.drawText(`${f.prefix ?? ''}${value}`, {
-      x: f.x1, y: H - f.y2 + 1.8, size: 8.5, font, color: rgb(0, 0, 0),
-    })
+    const v = value ?? ''
+    // car/box values are already full phrases (or n/a); other money fields get
+    // the template's £ prefix and unit suffix re-drawn around the amount.
+    const text = (tag === 'car_allowance' || tag === 'box_rental')
+      ? v
+      : v === '' ? '' : `${f.prefix ?? ''}${v}${f.suffix ? ` ${f.suffix}` : ''}`
+    if (text) {
+      page.drawText(text, { x: f.x1, y: H - f.y2 + 2.0, size: 9, font, color: rgb(0, 0, 0) })
+    }
   }
 
   // Engagement checkboxes: draw an X over the chosen ☐ (first = Daily, second = Weekly)
