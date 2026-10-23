@@ -658,7 +658,13 @@ export default function Budget({ store, onUpdate }) {
         <BudgetSection key={sec.key} title={sec.title} total={cv(sec.total)} symbol={displaySymbol} action={<CopyBtn getText={() => crewTSV(sec.byDept)} />}>
           {sec.byDept.length === 0 ? (
             <p className="budget-empty">{sec.empty}</p>
-          ) : (
+          ) : (<>
+            <p className="budget-note">
+              Confirmed / On Hold are all-in: rate cost + box + car (allowances
+              prorated over booked days). Box and Car columns break out what's
+              already inside those totals.
+            </p>
+            {
             sec.byDept.map(([dept, members]) => {
               const deptConf = members.reduce((s, r) => s + r.totalConfirmed, 0)
               const deptHold = members.reduce((s, r) => s + r.totalHold, 0)
@@ -680,10 +686,10 @@ export default function Budget({ store, onUpdate }) {
                         <th className="budget-th budget-th-rate">Rate</th>
                         <th className="budget-th budget-th-num">Conf. days</th>
                         <th className="budget-th budget-th-num">Hold days</th>
-                        <th className="budget-th budget-th-cost">Box</th>
-                        <th className="budget-th budget-th-cost">Car</th>
-                        <th className="budget-th budget-th-cost">Confirmed</th>
-                        <th className="budget-th budget-th-cost">On Hold</th>
+                        <th className="budget-th budget-th-cost" title="Box rental prorated over booked days — already included in Confirmed">Box</th>
+                        <th className="budget-th budget-th-cost" title="Car allowance prorated over booked days — already included in Confirmed">Car</th>
+                        <th className="budget-th budget-th-cost" title="Rate cost + box + car">Confirmed</th>
+                        <th className="budget-th budget-th-cost" title="Rate cost + box + car for days on hold">On Hold</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -749,7 +755,7 @@ export default function Budget({ store, onUpdate }) {
                 </div>
               )
             })
-          )}
+          }</>)}
         </BudgetSection>
         ))}
 

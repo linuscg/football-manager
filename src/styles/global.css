@@ -2156,6 +2156,12 @@ textarea.field-input {
 .budget-th-cat    { width: 130px; }
 .budget-th-action { width: 36px;  }
 
+.budget-note {
+  font-size: 11px;
+  color: #9ca3af;
+  margin: 2px 0 8px;
+}
+
 .budget-resource-row:nth-child(even) { background: #fafafa; }
 
 .budget-td {
