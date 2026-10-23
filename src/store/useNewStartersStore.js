@@ -12,6 +12,8 @@ function mapStatus(row) {
     sentContract:          row.sent_contract          ?? false,
     emailSent:             row.email_sent             ?? false,
     emailDelivered:        row.email_delivered        ?? false,
+    memoSent:              row.memo_sent              ?? false,
+    memoDelivered:         row.memo_delivered         ?? false,
     notes:                 row.notes                  ?? '',
   }
 }
@@ -68,7 +70,8 @@ export function useNewStartersStore() {
       const placeholder = {
         id: crypto.randomUUID(), productionId: prodId, crewType, crewId,
         addedToScenechronize: false, sentContract: false,
-        emailSent: false, emailDelivered: false, notes: '',
+        emailSent: false, emailDelivered: false,
+        memoSent: false, memoDelivered: false, notes: '',
         [field]: value,
       }
       setStatuses(ss => [...ss, placeholder])
@@ -79,6 +82,8 @@ export function useNewStartersStore() {
       sentContract:         'sent_contract',
       emailSent:            'email_sent',
       emailDelivered:       'email_delivered',
+      memoSent:             'memo_sent',
+      memoDelivered:        'memo_delivered',
       notes:                'notes',
     }
     const col = colMap[field] ?? field

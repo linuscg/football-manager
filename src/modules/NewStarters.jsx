@@ -220,6 +220,7 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
   }
 
   const isSending = sendingId === person.id
+  const memoSent  = (status?.memoSent ?? false) || memoSentIds?.has(person.id)
 
   return (
     <tr className="ns-row">
@@ -246,6 +247,17 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
           {isSending ? 'Sending…' : status?.emailSent ? 'Resend' : 'Send'}
         </button>
       </td>
+      {/* Welcome email: sent / delivered (delivered toggles on click) */}
+      <td className="ns-cell ns-cell--check">
+        <span className={`ns-status-dot${status?.emailSent ? ' ns-status-dot--on' : ''}`} title="Welcome email sent" />
+      </td>
+      <td className="ns-cell ns-cell--check">
+        <span
+          className={`ns-status-dot ns-status-dot--toggle${status?.emailDelivered ? ' ns-status-dot--on ns-status-dot--delivered' : ''}`}
+          title="Welcome email delivered — click to toggle"
+          onClick={() => toggle('emailDelivered')}
+        />
+      </td>
       {/* Deal memo: generate docx / send PDF */}
       <td className="ns-cell ns-cell--action" style={{ whiteSpace: 'nowrap' }}>
         <button
@@ -257,21 +269,24 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
           {memoBusyId === person.id ? '…' : '⇣ Memo'}
         </button>{' '}
         <button
-          className={`pm-btn pm-btn--sm ${memoSentIds?.has(person.id) ? 'pm-btn--ghost' : 'pm-btn--primary'}`}
+          className={`pm-btn pm-btn--sm ${memoSent ? 'pm-btn--ghost' : 'pm-btn--primary'}`}
           onClick={() => onSendMemo(person)}
           disabled={!person.email}
           title={!person.email ? 'No email address on file' : 'Send the checked deal memo as a PDF'}
         >
-          {memoSentIds?.has(person.id) ? 'Resend' : 'Send'}
+          {memoSent ? 'Resend' : 'Send'}
         </button>
       </td>
-      {/* Sent */}
+      {/* Deal memo: sent / delivered (delivered toggles on click) */}
       <td className="ns-cell ns-cell--check">
-        <span className={`ns-status-dot${status?.emailSent ? ' ns-status-dot--on' : ''}`} title="Email sent" />
+        <span className={`ns-status-dot${memoSent ? ' ns-status-dot--on' : ''}`} title="Deal memo sent" />
       </td>
-      {/* Delivered */}
       <td className="ns-cell ns-cell--check">
-        <span className={`ns-status-dot${status?.emailDelivered ? ' ns-status-dot--on ns-status-dot--delivered' : ''}`} title="Email delivered" />
+        <span
+          className={`ns-status-dot ns-status-dot--toggle${status?.memoDelivered ? ' ns-status-dot--on ns-status-dot--delivered' : ''}`}
+          title="Deal memo delivered — click to toggle"
+          onClick={() => toggle('memoDelivered')}
+        />
       </td>
       {/* Scenechronize */}
       <td className="ns-cell ns-cell--check">
@@ -415,9 +430,11 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
               <th className="ns-th ns-th--date">End</th>
               {crewType === 'additional' && <th className="ns-th ns-th--check" title="Returning crew member">Returning</th>}
               <th className="ns-th ns-th--action">Welcome email</th>
-              <th className="ns-th ns-th--action" title="Generate as Word doc, send as PDF">Deal memo</th>
-              <th className="ns-th ns-th--check" title="Email sent">Sent</th>
-              <th className="ns-th ns-th--check" title="Email delivered">Delivered</th>
+              <th className="ns-th ns-th--check" title="Welcome email sent">Sent</th>
+              <th className="ns-th ns-th--check" title="Welcome email delivered — click the dot to toggle">Delivered</th>
+              <th className="ns-th ns-th--action ns-th--memo" title="Generate as Word doc, send as PDF">Deal memo</th>
+              <th className="ns-th ns-th--check" title="Deal memo sent">Sent</th>
+              <th className="ns-th ns-th--check" title="Deal memo delivered — click the dot to toggle">Delivered</th>
               <th className="ns-th ns-th--check" title="Added to Scenechronize">Scenechr.</th>
               <th className="ns-th ns-th--check" title="Contract sent">Contract</th>
               <th className="ns-th ns-th--notes">Notes</th>
@@ -725,6 +742,7 @@ export default function NewStarters() {
           onClose={() => setMemoSendFor(null)}
           onSent={() => {
             updateResource(memoSendFor.id, 'dealMemoSent', 'TRUE')
+            updateStatus(memoSendFor.id, memoSendFor._crewType ?? 'additional', 'memoSent', true)
             setSendMsg({ type: 'ok', text: `Deal memo sent to ${memoSendFor.name || memoSendFor.email}.` })
             setMemoSendFor(null)
             setTimeout(() => setSendMsg(null), 5000)

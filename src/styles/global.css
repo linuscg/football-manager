@@ -4589,6 +4589,9 @@ select.pm-input { cursor: pointer; }
 }
 .ns-table {
   width: 100%;
+  /* The row carries 15 columns now — keep every column readable and let the
+     wrap scroll horizontally instead of squishing. */
+  min-width: 1480px;
   border-collapse: collapse;
   font-size: 12.5px;
   table-layout: fixed;
@@ -4605,8 +4608,9 @@ select.pm-input { cursor: pointer; }
 }
 .ns-th--name   { width: 160px; }
 .ns-th--date   { width: 90px; }
-.ns-th--check  { width: 76px; text-align: center; }
-.ns-th--action { width: 100px; }
+.ns-th--check  { width: 70px; text-align: center; }
+.ns-th--action { width: 110px; }
+.ns-th--memo   { width: 150px; }
 .ns-th--notes  { min-width: 160px; }
 
 .ns-row:nth-child(even) { background: #fafafa; }
@@ -4647,6 +4651,8 @@ select.pm-input { cursor: pointer; }
 }
 .ns-status-dot--on          { background: #6366f1; border-color: #4f46e5; }
 .ns-status-dot--delivered   { background: #10b981; border-color: #059669; }
+.ns-status-dot--toggle          { cursor: pointer; }
+.ns-status-dot--toggle:hover    { border-color: #6366f1; }
 .ns-checkbox {
   width: 15px;
   height: 15px;
