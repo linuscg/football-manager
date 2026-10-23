@@ -355,14 +355,14 @@ export default function Budget({ store, onUpdate }) {
 
   // ── TSV builders for per-section copy (display currency, plain numbers) ──────
   function crewTSV(byDept) {
-    const headers = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Box', 'Car', 'Confirmed', 'On Hold']
+    const headers = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Salary', 'Box', 'Car', 'Confirmed', 'On Hold']
     const rows = []
     for (const [dept, members] of byDept) {
       for (const r of members) {
         rows.push([
           dept, r.name, r.role || '', r.costCode || '', rateStr(r),
           r.confirmedDays || 0, r.holdDays || 0,
-          r2(cv(r.boxConfirmed)), r2(cv(r.carConfirmed)),
+          r2(cv(r.confirmedCost)), r2(cv(r.boxConfirmed)), r2(cv(r.carConfirmed)),
           r2(cv(r.totalConfirmed)), r2(cv(r.totalHold)),
         ])
       }
@@ -460,7 +460,7 @@ export default function Budget({ store, onUpdate }) {
     XLSX.utils.book_append_sheet(wb, tsWs, 'Topsheet')
 
     // 2. Crew — one sheet per class
-    const crewHeader = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Box', 'Car', 'Confirmed', 'On Hold']
+    const crewHeader = ['Department', 'Name', 'Role', 'Cost Code', 'Rate', 'Conf. Days', 'Hold Days', 'Salary', 'Box', 'Car', 'Confirmed', 'On Hold']
     for (const [sheetName, byDept] of [['Full-Time Crew', ftByDept], ['Additional Crew', addByDept]]) {
       const crewData = [crewHeader.map(h => ({ v: h, s: bold }))]
       let cConf = 0, cHold = 0
@@ -469,12 +469,12 @@ export default function Budget({ store, onUpdate }) {
           const conf = r2(cv(r.totalConfirmed)), hold = r2(cv(r.totalHold))
           cConf += conf; cHold += hold
           crewData.push([dept, r.name, r.role || '', r.costCode || '', rateStr(r), r.confirmedDays || 0, r.holdDays || 0,
-            r2(cv(r.boxConfirmed)), r2(cv(r.carConfirmed)), conf, hold])
+            r2(cv(r.confirmedCost)), r2(cv(r.boxConfirmed)), r2(cv(r.carConfirmed)), conf, hold])
         }
       }
-      crewData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', '', '', { v: r2(cConf), s: bold }, { v: r2(cHold), s: bold }])
+      crewData.push([{ v: 'TOTAL', s: bold }, '', '', '', '', '', '', '', '', '', { v: r2(cConf), s: bold }, { v: r2(cHold), s: bold }])
       const crewWs = XLSX.utils.aoa_to_sheet(crewData)
-      crewWs['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 14 }, { wch: 14 }]
+      crewWs['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 11 }, { wch: 11 }, { wch: 14 }, { wch: 14 }]
       XLSX.utils.book_append_sheet(wb, crewWs, sheetName)
     }
 
@@ -659,11 +659,6 @@ export default function Budget({ store, onUpdate }) {
           {sec.byDept.length === 0 ? (
             <p className="budget-empty">{sec.empty}</p>
           ) : (<>
-            <p className="budget-note">
-              Confirmed / On Hold are all-in: rate cost + box + car (allowances
-              prorated over booked days). Box and Car columns break out what's
-              already inside those totals.
-            </p>
             {
             sec.byDept.map(([dept, members]) => {
               const deptConf = members.reduce((s, r) => s + r.totalConfirmed, 0)
@@ -686,10 +681,11 @@ export default function Budget({ store, onUpdate }) {
                         <th className="budget-th budget-th-rate">Rate</th>
                         <th className="budget-th budget-th-num">Conf. days</th>
                         <th className="budget-th budget-th-num">Hold days</th>
-                        <th className="budget-th budget-th-cost" title="Box rental prorated over booked days — already included in Confirmed">Box</th>
-                        <th className="budget-th budget-th-cost" title="Car allowance prorated over booked days — already included in Confirmed">Car</th>
-                        <th className="budget-th budget-th-cost" title="Rate cost + box + car">Confirmed</th>
-                        <th className="budget-th budget-th-cost" title="Rate cost + box + car for days on hold">On Hold</th>
+                        <th className="budget-th budget-th-cost" title="Rate × booked days (before allowances)">Salary</th>
+                        <th className="budget-th budget-th-cost" title="Box rental prorated over booked days">Box</th>
+                        <th className="budget-th budget-th-cost" title="Car allowance prorated over booked days">Car</th>
+                        <th className="budget-th budget-th-cost" title="Salary + box + car">Confirmed</th>
+                        <th className="budget-th budget-th-cost" title="Salary + box + car for days on hold">On Hold</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -713,6 +709,7 @@ export default function Budget({ store, onUpdate }) {
                             <td className="budget-td budget-td-rate">{rateStr(r)}</td>
                             <td className="budget-td budget-td-num">{r.confirmedDays || '—'}</td>
                             <td className="budget-td budget-td-num">{r.holdDays || '—'}</td>
+                            <td className="budget-td budget-td-cost">{fmt(cv(r.confirmedCost), displaySymbol)}</td>
                             <td className="budget-td budget-td-cost">{fmt(cv(r.boxConfirmed), displaySymbol)}</td>
                             <td className="budget-td budget-td-cost">{fmt(cv(r.carConfirmed), displaySymbol)}</td>
                             <td className="budget-td budget-td-cost">{fmt(cv(r.totalConfirmed), displaySymbol)}</td>
@@ -720,7 +717,7 @@ export default function Budget({ store, onUpdate }) {
                           </tr>
                           {expandedId === r.id && (
                             <tr className="budget-resource-detail">
-                              <td colSpan={10} className="budget-td-detail">
+                              <td colSpan={11} className="budget-td-detail">
                                 <div className="budget-detail-row">
                                   {r.poNumber && <div className="budget-detail-item"><span className="budget-detail-label">PO</span>{r.poNumber}</div>}
                                   {(r.hireStartDate || r.hireEndDate) && (
@@ -740,8 +737,17 @@ export default function Budget({ store, onUpdate }) {
                     </tbody>
                     <tfoot>
                       <tr className="budget-subtotal-row">
-                        <td colSpan={8} className="budget-td budget-subtotal-label">
+                        <td colSpan={6} className="budget-td budget-subtotal-label">
                           {dept} subtotal
+                        </td>
+                        <td className="budget-td budget-td-cost budget-subtotal-value">
+                          {fmtZero(cv(members.reduce((s, r) => s + r.confirmedCost, 0)), displaySymbol)}
+                        </td>
+                        <td className="budget-td budget-td-cost budget-subtotal-value">
+                          {fmt(cv(members.reduce((s, r) => s + r.boxConfirmed, 0)), displaySymbol)}
+                        </td>
+                        <td className="budget-td budget-td-cost budget-subtotal-value">
+                          {fmt(cv(members.reduce((s, r) => s + r.carConfirmed, 0)), displaySymbol)}
                         </td>
                         <td className="budget-td budget-td-cost budget-subtotal-value">
                           {fmtZero(cv(deptConf), displaySymbol)}

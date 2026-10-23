@@ -2152,7 +2152,7 @@ textarea.field-input {
 }
 .budget-th-rate   { width: 104px; }
 .budget-th-num    { width: 62px;  text-align: right; white-space: normal; }
-.budget-th-cost   { width: 92px;  text-align: right; }
+.budget-th-cost   { width: 88px;  text-align: right; }
 .budget-th-cat    { width: 130px; }
 .budget-th-action { width: 36px;  }
 
