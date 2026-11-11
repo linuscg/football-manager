@@ -452,6 +452,7 @@ function AppShell({ session, signOut }) {
   const loading = schedLoading
 
   const scheduleActions = {
+    updateProduction,
     addShootDay, deleteShootDay, updateShootDay,
     addPrepDay, addSplinterDay,
     moveDayUp, moveDayDown, reorderDays,

@@ -94,6 +94,7 @@ function mapProduction(row) {
     episodeCount:   row.episode_count    ?? null,
     rateCalc:       row.rate_calc        ?? {},
     hiatuses:       row.hiatuses         ?? [],
+    omittedScenes:  row.omitted_scenes   ?? [],
   }
 }
 
@@ -159,6 +160,7 @@ const PRODUCTION_FIELD_MAP = {
   episodeCount:   'episode_count',
   rateCalc:       'rate_calc',
   hiatuses:       'hiatuses',
+  omittedScenes:  'omitted_scenes',
 }
 
 function dbVal(value) {
