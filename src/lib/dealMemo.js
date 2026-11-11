@@ -58,6 +58,19 @@ const num = v => {
   return Number.isFinite(n) ? n : null
 }
 
+// "(hiatus dates at least from X to and including Y)" — built from the
+// production's titled hiatuses (Project Setup → Shoot), matching the
+// template's original wording.
+function hiatusClause(production) {
+  const hx = (production?.hiatuses ?? [])
+    .filter(h => h.startDate && h.endDate && h.endDate >= h.startDate)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+  if (!hx.length) return ''
+  const parts = hx.map(h =>
+    `${h.title ? `${h.title}: ` : ''}from ${fmtDate(h.startDate)} to and including ${fmtDate(h.endDate)}`)
+  return ` (hiatus dates at least ${parts.join('; ')})`
+}
+
 export function isLoanOut(resource) {
   return (resource?.taxStatus ?? '').trim().toLowerCase() === 'loan out'
 }
@@ -106,7 +119,7 @@ export function buildDealMemoData(resource, production) {
     schedule_status:
       (resource.taxStatus ?? '').trim().toLowerCase() === 'schedule d' ? 'Schedule D' : 'PAYE',
     prep_period:       range(production?.prepStartDate, production?.prepEndDate),
-    production_period: range(production?.shootStartDate, production?.shootEndDate),
+    production_period: `${range(production?.shootStartDate, production?.shootEndDate)}${hiatusClause(production)}`,
     wrap_period:       fmtDate(production?.wrapStartDate)
       ? `${fmtDate(production?.wrapStartDate)} onwards`
       : PLACEHOLDER,
@@ -167,10 +180,42 @@ export async function generateDealMemoPdfBlob(resource, production) {
   const data = buildDealMemoData(resource, production)
   const H = map.pageHeight
 
+  // Wrap text to a width, breaking on spaces
+  const wrap = (text, maxW, size) => {
+    const words = String(text).split(' ')
+    const lines = []
+    let line = ''
+    for (const w of words) {
+      const cand = line ? `${line} ${w}` : w
+      if (font.widthOfTextAtSize(cand, size) <= maxW || !line) line = cand
+      else { lines.push(line); line = w }
+    }
+    if (line) lines.push(line)
+    return lines
+  }
+
   for (const [tag, f] of Object.entries(map.fields)) {
     const value = data[tag]
     const page = pages[f.page - 1]
     if (!page) continue
+
+    // Period blocks: whole-cell markers drawn as wrapped multi-line text
+    if (tag.endsWith('_block')) {
+      page.drawRectangle({
+        x: f.x1 - 0.5, y: H - f.y2 - 1.2,
+        width: (f.x2 - f.x1) + 2, height: (f.y2 - f.y1) + 1.5,
+        color: rgb(1, 1, 1),
+      })
+      const key = tag.replace('_block', '_period')
+      const label = tag === 'prep_block' ? 'Prep Period: '
+                  : tag === 'production_block' ? 'Production Period: '
+                  : 'Wrap Period: '
+      const lines = wrap(`${label}${data[key] ?? ''}`, f.maxW ?? 130, 9)
+      lines.forEach((line, i) => {
+        page.drawText(line, { x: f.x1, y: H - f.y2 + 2.0 - i * 10.3, size: 9, font, color: rgb(0, 0, 0) })
+      })
+      continue
+    }
     // Cover marker + its unit suffix exactly within the text line (so no
     // visible white patches over borders), then draw the whole phrase with
     // natural spacing on the template's baseline.

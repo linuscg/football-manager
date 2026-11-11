@@ -10899,3 +10899,11 @@ select.pm-input { cursor: pointer; }
   border-radius: 6px;
 }
 .setup-hiatus-delete:hover { color: #dc2626; background: #fee2e2; }
+
+/* ─── Gantt: hiatus day columns ────────────────────────────────────────────── */
+.pm-g-day.is-hiatus {
+  background: repeating-linear-gradient(135deg, #fef3c7, #fef3c7 5px, #fde68a 5px, #fde68a 10px);
+}
+.pm-g-cell.cell-hiatus {
+  background: repeating-linear-gradient(135deg, #fffbeb, #fffbeb 5px, #fef3c7 5px, #fef3c7 10px);
+}

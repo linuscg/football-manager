@@ -66,9 +66,15 @@ timesheets, accommodation, catering, DPRs, deal memos.
   docxtemplater from `public/deal-memo/*.docx`; the sent PDF fills
   `public/deal-memo/*-base.pdf` at coordinates in
   `src/lib/dealMemoPdfMap.json`. The bases are pre-rendered with LibreOffice
-  from the tagged Word docs — if the templates or the production's phase dates
-  change, the bases and map must be regenerated together. Templates are
-  production-specific (currently MOLEPEOPLE).
+  from the tagged Word docs — if the template WORDING changes, the bases and
+  map must be regenerated together (phase dates and hiatuses are dynamic:
+  the period cells are `{*_block}` markers drawn as wrapped text at fill
+  time). Templates are production-specific (currently MOLEPEOPLE).
+- **Hiatuses** (`production.hiatuses` jsonb, Project Setup → Shoot): titled
+  date ranges. The fulltime weekday auto-fill and the shoot-day generator
+  skip them, the gantt renders each as its own collapsible amber segment
+  (drag-paint skips hiatus days; single clicks still work), and the deal
+  memo's production-period clause is generated from them.
 
 ## Testing & safety
 

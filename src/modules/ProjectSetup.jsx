@@ -223,7 +223,16 @@ export default function ProjectSetup({
 
   const shootStart = production.shootStartDate
   const shootEnd   = production.shootEndDate
-  const wdCount    = weekdaysBetween(shootStart, shootEnd)
+  // Weekdays in the shoot range, excluding any that fall inside a hiatus —
+  // matches what generateShootDays will actually create.
+  const hiatusWeekdays = (production.hiatuses ?? []).reduce((sum, h) => {
+    if (!h.startDate || !h.endDate || h.endDate < h.startDate || !shootStart || !shootEnd) return sum
+    const s = h.startDate < shootStart ? shootStart : h.startDate
+    const e = h.endDate > shootEnd ? shootEnd : h.endDate
+    if (e < s) return sum
+    return sum + weekdaysBetween(s, e)
+  }, 0)
+  const wdCount = Math.max(0, weekdaysBetween(shootStart, shootEnd) - hiatusWeekdays)
 
   // Count actual shooting days (non-non-shoot days) within the shoot date range
   const actualShootDays = shootDays.filter(d =>
@@ -239,7 +248,7 @@ export default function ProjectSetup({
     if (!shootStart || !shootEnd) return
     const msg = wdCount === 0
       ? 'No weekdays found in the shoot range.'
-      : `Generate ${wdCount} weekday shooting day${wdCount !== 1 ? 's' : ''} (Mon–Fri) from ${shootStart} to ${shootEnd}?\n\nDays that already exist in the Schedule will be skipped.`
+      : `Generate ${wdCount} weekday shooting day${wdCount !== 1 ? 's' : ''} (Mon–Fri) from ${shootStart} to ${shootEnd}?${hiatusWeekdays > 0 ? `\n\n${hiatusWeekdays} hiatus weekday${hiatusWeekdays !== 1 ? 's are' : ' is'} excluded.` : ''}\n\nDays that already exist in the Schedule will be skipped.`
     if (!window.confirm(msg)) return
 
     setGenStatus('loading')

@@ -355,19 +355,27 @@ export function useScheduleStore() {
     }
     // The final shoot day doubles as the ESTIMATED end date for fulltime crew
     // with no real end date — moving it re-syncs their weekday auto-bookings.
-    if (field === 'shootEndDate' && value) {
+    // Hiatus changes re-sync every fulltime member (the auto-fill skips, and
+    // clears auto-booked days inside, any hiatus).
+    // Title edits don't affect bookings — only hiatus DATE changes resync.
+    const hiatusDatesChanged = field === 'hiatuses' &&
+      JSON.stringify((store.production.hiatuses ?? []).map(h => [h.startDate, h.endDate]).sort()) !==
+      JSON.stringify((value ?? []).map(h => [h.startDate, h.endDate]).sort())
+    if ((field === 'shootEndDate' && value) || hiatusDatesChanged) {
+      const estimateOnly = field === 'shootEndDate'
       Promise.resolve(write).then(async () => {
-        const { data, error } = await supabase
+        let q = supabase
           .from('resources')
-          .select('id, hire_start_date')
+          .select('id, hire_start_date, hire_end_date')
           .eq('production_id', prodId)
           .eq('type', 'crew')
           .eq('crew_class', 'fulltime')
-          .is('hire_end_date', null)
           .not('hire_start_date', 'is', null)
-        if (error) { console.error('[store] est-end resync:', error); return }
+        if (estimateOnly) q = q.is('hire_end_date', null)
+        const { data, error } = await q
+        if (error) { console.error('[store] fulltime resync:', error); return }
         for (const r of data ?? []) {
-          await syncFulltimeBookings(supabase, r.id, r.hire_start_date, null)
+          await syncFulltimeBookings(supabase, r.id, r.hire_start_date, r.hire_end_date || null)
         }
       })
     }
@@ -835,17 +843,24 @@ export function useScheduleStore() {
     if (!startDate || !endDate) return { count: 0 }
     const prodId = getCurrentProductionId()
 
+    // Hiatus days never become shooting days
+    const hiatusDates = new Set()
+    for (const h of store.production.hiatuses ?? []) {
+      if (!h.startDate || !h.endDate || h.endDate < h.startDate) continue
+      const he = new Date(h.endDate + 'T00:00:00')
+      for (let d = new Date(h.startDate + 'T00:00:00'); d <= he; d.setDate(d.getDate() + 1)) {
+        hiatusDates.add([d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-'))
+      }
+    }
+
     const weekdays = []
     const cur = new Date(startDate + 'T00:00:00')
     const end = new Date(endDate   + 'T00:00:00')
     while (cur <= end) {
       const dow = cur.getDay()
-      if (dow !== 0 && dow !== 6) {
-        weekdays.push([
-          cur.getFullYear(),
-          String(cur.getMonth() + 1).padStart(2, '0'),
-          String(cur.getDate()).padStart(2, '0'),
-        ].join('-'))
+      const iso = [cur.getFullYear(), String(cur.getMonth()+1).padStart(2,'0'), String(cur.getDate()).padStart(2,'0')].join('-')
+      if (dow !== 0 && dow !== 6 && !hiatusDates.has(iso)) {
+        weekdays.push(iso)
       }
       cur.setDate(cur.getDate() + 1)
     }

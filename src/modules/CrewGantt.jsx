@@ -67,14 +67,55 @@ function formatColHeader(dateStr) {
   }
 }
 
-// ─── Column spec builder ──────────────────────────────────────────────────────
+// ─── Timeline segments ────────────────────────────────────────────────────────
+// Prep / Shoot / Wrap, with the shoot phase split around any hiatuses — each
+// hiatus is its own collapsible segment (id `hiatus_<id>`), titled and
+// amber-coloured. The shoot pieces share the 'shoot' id so expanding/collapsing
+// Shoot acts on all of them together.
 
-function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDate = {}) {
-  const specs = []
+const HIATUS_COLOR = '#d97706'
+
+function dayShift(iso, delta) {
+  const d = new Date(`${iso}T00:00:00`)
+  d.setDate(d.getDate() + delta)
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+}
+
+function buildSegments(production) {
+  const segs = []
   for (const phase of PHASES) {
     const start = production[phase.startKey]
     const end   = production[phase.endKey]
     if (!start || !end) continue
+    if (phase.id !== 'shoot') {
+      segs.push({ id: phase.id, label: phase.label, color: phase.color, start, end, isHiatus: false })
+      continue
+    }
+    const hx = (production.hiatuses ?? [])
+      .filter(h => h.startDate && h.endDate && h.endDate >= h.startDate &&
+                   h.endDate >= start && h.startDate <= end)
+      .map(h => ({ ...h, s: h.startDate < start ? start : h.startDate, e: h.endDate > end ? end : h.endDate }))
+      .sort((a, b) => a.s.localeCompare(b.s))
+    let cur = start
+    for (const h of hx) {
+      if (cur > end) break
+      if (cur < h.s) segs.push({ id: 'shoot', label: phase.label, color: phase.color, start: cur, end: dayShift(h.s, -1), isHiatus: false })
+      if (h.s <= end) segs.push({ id: `hiatus_${h.id}`, label: h.title || 'Hiatus', color: HIATUS_COLOR, start: h.s, end: h.e, isHiatus: true })
+      cur = dayShift(h.e, 1)
+    }
+    if (cur <= end) segs.push({ id: 'shoot', label: phase.label, color: phase.color, start: cur, end, isHiatus: false })
+  }
+  return segs
+}
+
+// ─── Column spec builder ──────────────────────────────────────────────────────
+
+function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDate = {}) {
+  const specs = []
+  let segIdx = 0
+  for (const phase of buildSegments(production)) {
+    const { start, end } = phase
+    segIdx++
 
     if (expandedPhases[phase.id]) {
       for (const date of eachDay(start, end)) {
@@ -87,7 +128,8 @@ function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDat
         if (hasMainDay || subDays.length === 0) {
           specs.push({
             type: 'day', date,
-            phaseId: phase.id, phaseColor: phase.color,
+            phaseId: phase.id, phaseColor: phase.color, phaseLabel: phase.label,
+            isHiatus: phase.isHiatus,
             isToday: date === today, isWeekend,
             shootDay: dateMap[date] ?? null,
             dayId: null, subUnitCategory: null,
@@ -97,7 +139,8 @@ function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDat
         for (const subDay of subDays) {
           specs.push({
             type: 'day', date,
-            phaseId: phase.id, phaseColor: phase.color,
+            phaseId: phase.id, phaseColor: phase.color, phaseLabel: phase.label,
+            isHiatus: phase.isHiatus,
             isToday: date === today, isWeekend,
             shootDay: subDay,
             dayId: subDay.id, subUnitCategory: subDay.dayCategory,
@@ -106,8 +149,9 @@ function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDat
       }
     } else {
       specs.push({
-        type: 'summary',
+        type: 'summary', segKey: `seg-${segIdx}`,
         phaseId: phase.id, label: phase.label, color: phase.color,
+        isHiatus: phase.isHiatus,
         dayCount: eachDay(start, end).length,
       })
     }
@@ -126,7 +170,12 @@ function buildPhaseSpans(colSpecs) {
       last.count++
     } else {
       const phase = PHASES.find(p => p.id === spec.phaseId)
-      spans.push({ phaseId: spec.phaseId, label: phase.label, color: phase.color, count: 1 })
+      spans.push({
+        phaseId: spec.phaseId,
+        label: spec.phaseLabel ?? spec.label ?? phase?.label ?? 'Hiatus',
+        color: spec.phaseColor ?? spec.color ?? phase?.color ?? HIATUS_COLOR,
+        count: 1,
+      })
     }
   }
   return spans
@@ -777,7 +826,7 @@ const ResourceRow = memo(function ResourceRow({
         {colSpecs.map((spec, specIndex) => {
           if (spec.type === 'summary') {
             return (
-              <td key={`sum-${spec.phaseId}`}
+              <td key={spec.segKey ?? `sum-${spec.phaseId}`}
                   className="gantt-phase-sum-cell"
                   style={{ '--phase-color': spec.color }}
                   onClick={() => onPhaseToggle(spec.phaseId)}
@@ -801,6 +850,7 @@ const ResourceRow = memo(function ResourceRow({
             spec.subUnitCategory === 'rehearsal' ? 'cell-rehearsal' : '',
             spec.subUnitCategory === 'other'     ? 'cell-other'     : '',
             spec.shootDay?.isNonShootDay && !isSubUnit ? 'cell-nonshoot' : '',
+            spec.isHiatus  ? 'cell-hiatus'   : '',
             spec.isWeekend ? 'cell-weekend'  : '',
             spec.isToday   ? 'cell-today'    : '',
             !isShootDay && !isSubUnit ? 'cell-no-shoot' : '',
@@ -1343,7 +1393,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     // click (productions often have no generated shoot_days rows at all, so
     // the old shoot-days-only rule made drags paint nothing there).
     const dragPaintable = spec =>
-      spec && spec.type === 'day' && !spec.dayId &&
+      spec && spec.type === 'day' && !spec.dayId && !spec.isHiatus &&
       (shootDateSet.has(spec.date) || !spec.isWeekend)
     const last = lastPaintedRef.current
     const from = (last && last.resourceId === resourceId && specIndex >= 0 &&
@@ -1784,6 +1834,22 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                   </button>
                 )
               })}
+              {(production.hiatuses ?? [])
+                .filter(h => h.startDate && h.endDate && h.endDate >= h.startDate)
+                .map(h => {
+                  const segId = `hiatus_${h.id}`
+                  return (
+                    <button
+                      key={segId}
+                      className={`gantt-phase-btn${expandedPhases[segId] ? ' active' : ''}`}
+                      style={{ '--phase-color': HIATUS_COLOR }}
+                      onClick={() => togglePhase(segId)}
+                      title="Hiatus — collapsed by default"
+                    >
+                      {expandedPhases[segId] ? '▾' : '▸'} {h.title || 'Hiatus'}
+                    </button>
+                  )
+                })}
               <button
                 className={`pm-btn pm-btn--ghost pm-btn--sm${hidePastDays ? ' is-active' : ''}`}
                 onClick={() => {
@@ -1876,7 +1942,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                 {colSpecs.map(spec => {
                   if (spec.type === 'summary') {
                     return (
-                      <th key={`sum-${spec.phaseId}`}
+                      <th key={spec.segKey ?? `sum-${spec.phaseId}`}
                           className="gantt-phase-sum-th"
                           style={{ '--phase-color': spec.color }}
                           onClick={() => togglePhase(spec.phaseId)}
@@ -1922,12 +1988,13 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                         className={[
                           'pm-g-day',
                           sd?.isNonShootDay ? 'non-shoot'  : '',
+                          spec.isHiatus     ? 'is-hiatus'  : '',
                           spec.isToday      ? 'is-today'   : '',
                           spec.isWeekend    ? 'is-weekend' : '',
                           !isShoot          ? 'no-shoot'   : '',
                         ].filter(Boolean).join(' ')}
                         style={{ '--phase-color': spec.phaseColor }}
-                        title={spec.date}>
+                        title={spec.isHiatus ? `${spec.phaseLabel} (hiatus) — ${spec.date}` : spec.date}>
                       <span className="gantt-day-num">
                         {sd ? (sd.isNonShootDay ? '—' : `D${sd.dayNumber}`) : ''}
                       </span>
