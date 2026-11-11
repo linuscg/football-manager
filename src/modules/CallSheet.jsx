@@ -248,11 +248,20 @@ export default function CallSheet({ store, castMembers = [] }) {
   const allCrew  = crewGroups.flatMap(([, m]) => m)
   const allEquip = equipGroups.flatMap(([, m]) => m)
 
-  function crewTSV() {
-    return allCrew
+  // Additional crew split by set status (resource.setStatus, default on set)
+  const isOffSet = r => (r.setStatus ?? 'on') === 'off'
+  const splitCrewGroups = off => crewGroups
+    .map(([dept, members]) => [dept, members.filter(r => isOffSet(r) === off)])
+    .filter(([, m]) => m.length > 0)
+  const onSetGroups  = splitCrewGroups(false)
+  const offSetGroups = splitCrewGroups(true)
+
+  function crewListTSV(list) {
+    return list
       .map(r => [r.name, r.role, r.department, r.contactEmail, r.contactPhone, STATUS_LABEL[r.bookingStatus] ?? r.bookingStatus].join('\t'))
       .join('\n')
   }
+  function crewTSV() { return crewListTSV(allCrew) }
 
   function equipTSV() {
     return allEquip
@@ -538,15 +547,18 @@ export default function CallSheet({ store, castMembers = [] }) {
               </div>
             )}
 
-            {/* ── Crew ────────────────────────────────────────────────────── */}
-            {crewGroups.length > 0 && (
-              <div className="pm-cs-section">
+            {/* ── Crew — split by on set / off set ────────────────────────── */}
+            {[
+              ['Additional Crew — On Set',  onSetGroups],
+              ['Additional Crew — Off Set', offSetGroups],
+            ].filter(([, groups]) => groups.length > 0).map(([title, groups]) => (
+              <div className="pm-cs-section" key={title}>
                 <div className="pm-cs-section-head">
-                  Additional Crew
-                  <span className="cs-section-count">{allCrew.length}</span>
-                  <CopyBtn getText={crewTSV} />
+                  {title}
+                  <span className="cs-section-count">{groups.reduce((n, [, m]) => n + m.length, 0)}</span>
+                  <CopyBtn getText={() => crewListTSV(groups.flatMap(([, m]) => m))} />
                 </div>
-                {crewGroups.map(([dept, members]) => (
+                {groups.map(([dept, members]) => (
                   <div key={dept} className="cs-group">
                     <div className="cs-group-header">{dept}</div>
                     <table className="pm-cs-tbl">
@@ -580,7 +592,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                   </div>
                 ))}
               </div>
-            )}
+            ))}
 
             {/* ── Equipment ───────────────────────────────────────────────── */}
             {equipGroups.length > 0 && (

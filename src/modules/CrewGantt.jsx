@@ -210,6 +210,7 @@ const DETAIL_COLS_FULL = [
   { label: 'Tax',      w: 94,  group: 'Extras' },
   { label: 'Start',    w: 108, group: 'Dates' },
   { label: 'End',      w: 108, group: 'Dates' },
+  { label: 'On/Off Set', w: 84, group: 'Other' },
   { label: 'Vendor',   w: 100, group: 'Other' },
   { label: 'Notes',    w: 170, group: 'Other' },
 ]
@@ -479,6 +480,17 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
       </td>
       <EndDateCell resource={resource} estEndDate={estEndDate} onUpdate={onUpdate} />
       {/* Other */}
+      <td className="crewd-td" style={{ width: 84, minWidth: 84 }}>
+        <select
+          className="crewd-select"
+          value={resource.setStatus ?? 'on'}
+          onChange={e => onUpdate(resource.id, 'setStatus', e.target.value)}
+          title="Works on set or off set (splits the Daily Info additional-crew list)"
+        >
+          <option value="on">On Set</option>
+          <option value="off">Off Set</option>
+        </select>
+      </td>
       <DetailTextCell value={resource.vendor} onCommit={u('vendor')} width={100} placeholder="vendor" title="Vendor / company supplying this crew member" />
       <DetailTextCell value={resource.notes}  onCommit={u('notes')}  width={170} placeholder="notes" title="Notes" />
     </Fragment>
