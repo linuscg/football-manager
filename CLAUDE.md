@@ -70,6 +70,12 @@ timesheets, accommodation, catering, DPRs, deal memos.
   map must be regenerated together (phase dates and hiatuses are dynamic:
   the period cells are `{*_block}` markers drawn as wrapped text at fill
   time). Templates are production-specific (currently MOLEPEOPLE).
+- **PDF parsers** (`parse-schedule-pdf` / `parse-cast-list-pdf` edge
+  functions): Gemini free tier — `gemini-2.5-flash` primary, `flash-lite`
+  only as an availability fallback (free flash pool overloads). Thinking must
+  stay **bounded** (`thinkingBudget: 8192`-ish): 0 drops scene numbers,
+  unlimited crashed the Supabase worker (WORKER_RESOURCE_LIMIT). An optional
+  paid Claude Opus path activates only if an ANTHROPIC_API_KEY secret is set.
 - **Hiatuses** (`production.hiatuses` jsonb, Project Setup → Shoot): titled
   date ranges. The fulltime weekday auto-fill and the shoot-day generator
   skip them, the gantt renders each as its own collapsible amber segment

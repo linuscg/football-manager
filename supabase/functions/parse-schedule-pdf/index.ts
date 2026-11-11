@@ -1,71 +1,63 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import Anthropic from 'npm:@anthropic-ai/sdk'
+import { zodOutputFormat } from 'npm:@anthropic-ai/sdk/helpers/zod'
+import { z } from 'npm:zod@3'
+
+// Default extractor: Gemini (free tier). History of this choice:
+//  - 2.5-flash is primary, flash-lite is the availability fallback (the free
+//    flash pool hit "high demand" overloads often enough to need one).
+//  - UNBOUNDED thinking on flash once crashed the Supabase worker
+//    (WORKER_RESOURCE_LIMIT), so thinking was fully disabled — which caused
+//    dropped scene numbers / misassigned scenes. The compromise now is a
+//    BOUNDED thinking budget: enough reasoning for accuracy, capped so the
+//    call can't run long enough to kill the worker.
+// If ANTHROPIC_API_KEY is ever set as an edge-function secret, Claude Opus 5.5
+// (native PDF input + strict structured outputs) is used instead — paid.
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+const CLAUDE_MODEL = 'claude-opus-5-5'
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? ''
-// Try the more capable model first; fall back to the lighter, higher-availability
-// model if the primary is overloaded / rate-limited.
-const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+const GEMINI_THINKING_BUDGET = 8192
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Structured output schema Gemini must return
-const responseSchema = {
-  type: 'object',
-  properties: {
-    cast: {
-      type: 'array',
-      description: 'The cast member legend, mapping cast numbers to character names.',
-      items: {
-        type: 'object',
-        properties: {
-          number:    { type: 'string', description: 'Cast number/code as printed, e.g. "1", "IC".' },
-          character: { type: 'string', description: 'Character name and any parenthetical note.' },
-        },
-        required: ['number', 'character'],
-      },
-    },
-    days: {
-      type: 'array',
-      description: 'Every shooting day, prep/pre-shoot day, and rest day, in document order.',
-      items: {
-        type: 'object',
-        properties: {
-          type:      { type: 'string', enum: ['main', 'prep', 'rest', 'splinter', 'unscheduled'], description: 'main = numbered shoot day; prep/pre-shoot = prep; rest = rest day; splinter = splinter unit; unscheduled = scenes listed as unscheduled / not yet assigned to a day (usually at the end of the document).' },
-          dayNumber: { type: 'integer', description: 'Shoot day number for main days, else null/0.', nullable: true },
-          date:      { type: 'string', description: 'ISO date YYYY-MM-DD if known, else empty string.' },
-          location:  { type: 'string', description: 'Location/venue header that applies to this day, e.g. "TRING PARK SCHOOL". Empty if unknown.' },
-          notes:     { type: 'string', description: 'Any day-level banner text or notes (e.g. "ALLOW TIME FOR VFX", free-text notes). Empty if none.' },
-          scenes: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                sceneNumber:   { type: 'string', description: 'Scene number exactly as printed, e.g. "13", "92 pt 1 of 2".' },
-                intExt:        { type: 'string', enum: ['INT', 'EXT'], description: 'INT or EXT. Default INT if unclear.' },
-                setName:       { type: 'string', description: 'The set/location name in bold, e.g. "THEATRE - STAGE".' },
-                description:   { type: 'string', description: 'The scene description line.' },
-                dayNight:      { type: 'string', enum: ['MORNING', 'DAY', 'DUSK', 'EVENING', 'NIGHT'], description: 'Time of day. Map the printed word; default DAY.' },
-                storyDay:      { type: 'string', description: 'The story-day number printed under the time of day, e.g. "3". Empty if none.' },
-                pages:         { type: 'string', description: 'Page count as printed, e.g. "4/8", "1 1/8". Empty if none.' },
-                castNumbers:   { type: 'array', items: { type: 'string' }, description: 'Cast numbers listed after "C:", e.g. ["1","8","10"].' },
-                saCount:       { type: 'string', description: 'Supporting artists count after "SA\'s:", e.g. "0", "100". Empty if none.' },
-                danceSequence: { type: 'string', description: 'The dance-sequence label printed under the scene number / INT-EXT (e.g. KNOCK, ANI, DANCE, BALLET). Empty if none.' },
-              },
-              required: ['sceneNumber', 'intExt', 'setName', 'description', 'dayNight'],
-            },
-          },
-        },
-        required: ['type', 'scenes'],
-      },
-    },
-  },
-  required: ['cast', 'days'],
-}
+// ── Output schema (shared shape; Zod for Claude, JSON schema for Gemini) ─────
+const SceneSchema = z.object({
+  sceneNumber:   z.string().describe('Scene number exactly as printed, e.g. "13", "92 pt 1 of 2". Empty string ONLY if the strip truly prints no scene number.'),
+  intExt:        z.enum(['INT', 'EXT']).describe('INT or EXT. Default INT if unclear.'),
+  setName:       z.string().describe('The set/location name in bold, e.g. "THEATRE - STAGE".'),
+  description:   z.string().describe('The scene description line.'),
+  dayNight:      z.enum(['MORNING', 'DAY', 'DUSK', 'EVENING', 'NIGHT']).describe('Time of day. Map the printed word; default DAY.'),
+  storyDay:      z.string().describe('The story-day number printed under the time of day, e.g. "3". Empty if none.'),
+  pages:         z.string().describe('Page count as printed, e.g. "4/8", "1 1/8". Empty if none.'),
+  castNumbers:   z.array(z.string()).describe('Cast numbers listed after "C:", e.g. ["1","8","10"].'),
+  saCount:       z.string().describe('Supporting artists count after "SA\'s:", e.g. "0", "100". Empty if none.'),
+  danceSequence: z.string().describe('The dance-sequence label printed under the scene number / INT-EXT (e.g. KNOCK, ANI, DANCE, BALLET). Empty if none.'),
+})
 
-const PROMPT = `You are parsing a film/TV "one-line" shooting schedule PDF into structured JSON. Work slowly and exactly. Accuracy of which scene belongs to which day matters most.
+const DaySchema = z.object({
+  type:      z.enum(['main', 'prep', 'rest', 'splinter', 'unscheduled']).describe('main = numbered shoot day; prep/pre-shoot = prep; rest = rest day; splinter = splinter unit; unscheduled = scenes not yet assigned to a day.'),
+  dayNumber: z.number().int().nullable().describe('Shoot day number from the "End of Day # N" banner for main days, else null.'),
+  date:      z.string().describe('ISO date YYYY-MM-DD if known, else empty string.'),
+  location:  z.string().describe('Location/venue header that applies to this day, e.g. "TRING PARK SCHOOL". Empty if unknown.'),
+  notes:     z.string().describe('Any day-level banner text or notes. Empty if none.'),
+  scenes:    z.array(SceneSchema),
+})
+
+const ScheduleSchema = z.object({
+  cast: z.array(z.object({
+    number:    z.string().describe('Cast number/code as printed, e.g. "1", "IC".'),
+    character: z.string().describe('Character name and any parenthetical note.'),
+  })).describe('The cast member legend, mapping cast numbers to character names.'),
+  days: z.array(DaySchema).describe('Every shooting day, prep/pre-shoot day, and rest day, in document order.'),
+})
+
+const PROMPT = `You are parsing a film/TV "one-line" shooting schedule PDF into structured JSON. Work slowly and exactly. Accuracy of which scene belongs to which day matters most, and every scene's printed scene number must be captured exactly.
 
 WHAT THE DOCUMENT LOOKS LIKE:
 - It is a bordered TABLE. Each row is a full-width horizontal "strip".
@@ -82,6 +74,11 @@ A SCENE strip has these columns, left → right:
   5) Page count, e.g. "4/8" then "Pgs".
   6) CAST column, prefixed "C:" e.g. "C: 1, 3, 4" → put each number in "castNumbers" (["1","3","4"]).
   7) "SA's:" count (supporting artists/extras) → put in "saCount".
+
+SCENE NUMBERS — NEVER DROP THEM:
+- Every scene strip has its scene number printed in bold at the far LEFT edge of the strip. Read that cell for EVERY scene strip. Copy it character-for-character, including part suffixes like "pt 1 of 2", "A", "B".
+- Leave "sceneNumber" empty ONLY when the far-left cell is genuinely blank in the PDF. A hard-to-read or small number is still a number — read it, don't skip it.
+- Do not renumber, merge, or invent scenes. Each printed scene strip = exactly one scene object in the output.
 
 ⚠ CRITICAL — TWO DIFFERENT "DAY" NUMBERS, DO NOT CONFUSE THEM:
 - The number under the time-of-day word (column 4) is the STORY DAY. It is fiction's internal day. Put it in "storyDay". It has NOTHING to do with which shoot day the scene is on. A scene with "Evening / 20" is NOT shoot day 20.
@@ -126,28 +123,221 @@ OTHER RULES:
 - An "End of Day" banner is NEVER a scene and NEVER a note — never put its text in notes, never skip one.
 - A page break / repeated column header / page footer does NOT end a day. Only "End of Day" banners do. Keep going across page breaks.
 - UNSCHEDULED: at an "Unscheduled"/"Scenes Not Scheduled" header, close the current day and open ONE day with type "unscheduled" (no dayNumber, no date). ALL scenes after that header go there even with no End-of-Day banner. Do not drop them.
-- Scene number exactly as printed; if none, leave "sceneNumber" empty — never invent one.
 - Location headers (e.g. "TRING PARK SCHOOL - Shoot 22 days") apply to following days until the next location header → put the venue in each day's "location".
 - Ignore "WEEK 1/2" banners and sunrise/sunset lines.
 - "PRE-SHOOT DURING PREP WEEKS" → type "prep". Splinter unit → "splinter". Normal numbered days → "main".
 - "REST DAY" → type "rest" (no scenes), but ONLY if it is a WEEKDAY (Mon–Fri). Skip Saturday/Sunday rest days entirely.
 - Missing value → empty string (or empty array for castNumbers). Never invent data.
-- Return ONLY the structured JSON matching the schema.`
+- Before finishing, re-check: every scene strip in the PDF appears exactly once, with its printed scene number, under the correct day.`
 
+// ── Claude extraction (opt-in, paid — only runs if ANTHROPIC_API_KEY is set) ──
+async function parseWithClaude(pdfBase64: string) {
+  const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
+
+  // Stream to avoid HTTP timeouts on a long structured output, then collect
+  // the final message. Server-side refusal fallback is enabled so a safety
+  // false-positive re-runs on a fallback model inside the same call.
+  const stream = client.beta.messages.stream({
+    model: CLAUDE_MODEL,
+    max_tokens: 64000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: {
+      effort: 'high',
+      format: zodOutputFormat(ScheduleSchema),
+    },
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
+        { type: 'text', text: PROMPT },
+      ],
+    }],
+  })
+
+  const message = await stream.finalMessage()
+
+  if (message.stop_reason === 'refusal') {
+    throw new Error('The model declined to process this document. Please try again or contact support.')
+  }
+  if (message.stop_reason === 'max_tokens') {
+    throw new Error('The schedule is too large to parse in one pass — try splitting the PDF and importing in parts.')
+  }
+
+  const text = message.content
+    .filter((b: { type: string }) => b.type === 'text')
+    .map((b: { text?: string }) => b.text ?? '')
+    .join('')
+  if (!text) throw new Error('The model returned no content.')
+
+  let parsed
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new Error('Could not parse the model JSON output.')
+  }
+
+  // Validate against the schema; structured outputs should guarantee this,
+  // but a truncated stream could slip through — fail loudly rather than
+  // import a half-read schedule.
+  const check = ScheduleSchema.safeParse(parsed)
+  if (!check.success) {
+    throw new Error('Model output did not match the expected schedule shape.')
+  }
+
+  return { result: check.data, model: message.model }
+}
+
+// ── Gemini extraction (default, free tier; used when no ANTHROPIC_API_KEY) ───
+const geminiResponseSchema = {
+  type: 'object',
+  properties: {
+    cast: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          number:    { type: 'string' },
+          character: { type: 'string' },
+        },
+        required: ['number', 'character'],
+      },
+    },
+    days: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          type:      { type: 'string', enum: ['main', 'prep', 'rest', 'splinter', 'unscheduled'] },
+          dayNumber: { type: 'integer', nullable: true },
+          date:      { type: 'string' },
+          location:  { type: 'string' },
+          notes:     { type: 'string' },
+          scenes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                sceneNumber:   { type: 'string' },
+                intExt:        { type: 'string', enum: ['INT', 'EXT'] },
+                setName:       { type: 'string' },
+                description:   { type: 'string' },
+                dayNight:      { type: 'string', enum: ['MORNING', 'DAY', 'DUSK', 'EVENING', 'NIGHT'] },
+                storyDay:      { type: 'string' },
+                pages:         { type: 'string' },
+                castNumbers:   { type: 'array', items: { type: 'string' } },
+                saCount:       { type: 'string' },
+                danceSequence: { type: 'string' },
+              },
+              required: ['sceneNumber', 'intExt', 'setName', 'description', 'dayNight'],
+            },
+          },
+        },
+        required: ['type', 'scenes'],
+      },
+    },
+  },
+  required: ['cast', 'days'],
+}
+
+async function parseWithGemini(pdfBase64: string) {
+  const body = {
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: 'application/pdf', data: pdfBase64 } },
+        { text: PROMPT },
+      ],
+    }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: geminiResponseSchema,
+      temperature: 0,
+      maxOutputTokens: 65536,
+      // Bounded thinking: 0 caused the accuracy bugs (dropped scene numbers),
+      // unlimited caused WORKER_RESOURCE_LIMIT crashes. A fixed budget gives
+      // the reasoning the task needs with a hard cap on time/compute. If
+      // WORKER_RESOURCE_LIMIT ever reappears, lower this before disabling it.
+      thinkingConfig: { thinkingBudget: GEMINI_THINKING_BUDGET },
+    },
+  }
+  const bodyStr = JSON.stringify(body)
+
+  let res: Response | undefined
+  let data: { error?: { message?: string; details?: Array<{ '@type'?: string; retryDelay?: string }> }; candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> } | undefined
+  let usedModel = ''
+  const MAX_ATTEMPTS = 3
+
+  for (let m = 0; m < GEMINI_MODELS.length; m++) {
+    const model = GEMINI_MODELS[m]
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
+    let modelUnavailable = false
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: bodyStr,
+      })
+      data = await res.json()
+
+      if (res.ok) { usedModel = model; break }
+
+      const retryable = res.status === 429 || res.status === 503
+      if (retryable && attempt < MAX_ATTEMPTS) {
+        let waitMs = 0
+        const details = data?.error?.details ?? []
+        const retryInfo = details.find(d => d['@type']?.includes('RetryInfo'))
+        if (retryInfo?.retryDelay) {
+          waitMs = (parseFloat(String(retryInfo.retryDelay).replace('s', '')) || 0) * 1000
+        }
+        if (!waitMs) waitMs = 1200 * Math.pow(2, attempt - 1)
+        await new Promise(r => setTimeout(r, waitMs))
+        continue
+      }
+      if (retryable) { modelUnavailable = true }
+      break
+    }
+
+    if (res!.ok) break
+    if (!modelUnavailable) break
+  }
+
+  if (!res!.ok) {
+    const msg = data?.error?.message ?? 'Gemini request failed.'
+    const friendly = (res!.status === 429 || res!.status === 503)
+      ? `All schedule-parsing models are busy right now. ${msg} — please wait a minute and try again.`
+      : msg
+    throw new Error(friendly)
+  }
+
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) throw new Error('Gemini returned no content.')
+
+  let parsed
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new Error('Could not parse Gemini JSON output.')
+  }
+
+  return { result: parsed, model: usedModel }
+}
+
+// ── HTTP handler ──────────────────────────────────────────────────────────────
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    if (!GEMINI_API_KEY) {
-      return new Response(JSON.stringify({ error: 'GEMINI_API_KEY is not set as an Edge Function secret.' }), {
+    if (!ANTHROPIC_API_KEY && !GEMINI_API_KEY) {
+      return new Response(JSON.stringify({ error: 'No AI provider key is configured (ANTHROPIC_API_KEY or GEMINI_API_KEY).' }), {
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     // Require a signed-in user — without this the function is an open proxy
-    // for the Gemini API key (the anon key alone passes the gateway).
+    // for the provider API key (the anon key alone passes the gateway).
     const authClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
@@ -167,104 +357,17 @@ serve(async (req) => {
       })
     }
 
-    const body = {
-      contents: [{
-        parts: [
-          { inline_data: { mime_type: 'application/pdf', data: pdfBase64 } },
-          { text: PROMPT },
-        ],
-      }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema,
-        temperature: 0,
-        maxOutputTokens: 65536,
-        // Disable "thinking" — 2.5 models think by default, which burns far more
-        // time/compute (and can blow the edge-function resource limit). For
-        // structured extraction we don't need it.
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    }
-    const bodyStr = JSON.stringify(body)   // stringify once, reuse across attempts
+    const { result, model } = ANTHROPIC_API_KEY
+      ? await parseWithClaude(pdfBase64)
+      : await parseWithGemini(pdfBase64)
 
-    // Try each model in order. Within a model, retry/backoff on 429 (rate limit)
-    // and 503 (overload). If a model stays unavailable after its retries, fall
-    // back to the next model. A non-retryable error (e.g. 400) returns immediately.
-    let res
-    let data
-    let usedModel = ''
-    const MAX_ATTEMPTS = 3
-
-    for (let m = 0; m < MODELS.length; m++) {
-      const model = MODELS[m]
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
-      let modelUnavailable = false
-
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: bodyStr,
-        })
-        data = await res.json()
-
-        if (res.ok) { usedModel = model; break }
-
-        const retryable = res.status === 429 || res.status === 503
-        if (retryable && attempt < MAX_ATTEMPTS) {
-          // Respect Gemini's RetryInfo if present, else exponential backoff.
-          let waitMs = 0
-          const details = data?.error?.details ?? []
-          const retryInfo = details.find((d: { '@type'?: string; retryDelay?: string }) =>
-            d['@type']?.includes('RetryInfo'))
-          if (retryInfo?.retryDelay) {
-            waitMs = (parseFloat(String(retryInfo.retryDelay).replace('s', '')) || 0) * 1000
-          }
-          if (!waitMs) waitMs = 1200 * Math.pow(2, attempt - 1) // 1.2s, 2.4s
-          await new Promise(r => setTimeout(r, waitMs))
-          continue
-        }
-        // Retries exhausted (still 429/503) → try the next model.
-        if (retryable) { modelUnavailable = true }
-        break
-      }
-
-      if (res!.ok) break              // success
-      if (!modelUnavailable) break    // non-retryable error — don't fall back
-      // else: loop to the next (fallback) model
-    }
-
-    if (!res!.ok) {
-      const msg = data?.error?.message ?? 'Gemini request failed.'
-      const friendly = (res!.status === 429 || res!.status === 503)
-        ? `All schedule-parsing models are busy right now. ${msg} — please wait a minute and try again.`
-        : msg
-      return new Response(JSON.stringify({ error: friendly, status: res!.status, detail: data }), {
-        status: res!.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!text) {
-      return new Response(JSON.stringify({ error: 'Gemini returned no content.', detail: data }), {
-        status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    let parsed
-    try {
-      parsed = JSON.parse(text)
-    } catch {
-      return new Response(JSON.stringify({ error: 'Could not parse Gemini JSON output.', raw: text }), {
-        status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    return new Response(JSON.stringify({ ok: true, result: parsed, model: usedModel }), {
+    return new Response(JSON.stringify({ ok: true, result, model }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('parse-schedule-pdf failed:', msg)
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }

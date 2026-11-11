@@ -691,6 +691,48 @@ export function useScheduleStore() {
     dbWrite(supabase.from('scenes').update({ [col]: dbVal(value) }).eq('id', sceneId))
   }
 
+  // Move one scene onto another day (calendar drag-drop). Appends at the end
+  // of the target day's scene list.
+  function moveSceneToDay(sceneId, fromDayId, toDayId) {
+    if (fromDayId === toDayId) return
+    const from  = store.shootDays.find(d => d.id === fromDayId)
+    const to    = store.shootDays.find(d => d.id === toDayId)
+    const scene = from?.scenes.find(sc => sc.id === sceneId)
+    if (!from || !to || !scene) return
+    const sortOrder = to.scenes.length
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d => {
+        if (d.id === fromDayId) return { ...d, scenes: d.scenes.filter(sc => sc.id !== sceneId) }
+        if (d.id === toDayId)   return { ...d, scenes: [...d.scenes, { ...scene, sortOrder }] }
+        return d
+      }),
+    }))
+    dbWrite(supabase.from('scenes').update({ day_id: toDayId, sort_order: sortOrder }).eq('id', sceneId))
+  }
+
+  // Move every scene from one day onto another (dragging a day title onto a
+  // day). Order is preserved; scenes land after the target's existing scenes.
+  function moveAllScenes(fromDayId, toDayId) {
+    if (fromDayId === toDayId) return
+    const from = store.shootDays.find(d => d.id === fromDayId)
+    const to   = store.shootDays.find(d => d.id === toDayId)
+    if (!from || !to || from.scenes.length === 0) return
+    const base  = to.scenes.length
+    const moved = from.scenes.map((sc, i) => ({ ...sc, sortOrder: base + i }))
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d => {
+        if (d.id === fromDayId) return { ...d, scenes: [] }
+        if (d.id === toDayId)   return { ...d, scenes: [...d.scenes, ...moved] }
+        return d
+      }),
+    }))
+    for (const sc of moved) {
+      dbWrite(supabase.from('scenes').update({ day_id: toDayId, sort_order: sc.sortOrder }).eq('id', sc.id))
+    }
+  }
+
   function updateSceneCast(dayId, sceneId, castMemberIds) {
     optimistic(s => ({
       ...s,
@@ -1093,6 +1135,7 @@ export function useScheduleStore() {
     moveDayUp, moveDayDown, reorderDays,
     executeScheduleMove, resequenceDayNumbers,
     addScene, deleteScene, updateScene,
+    moveSceneToDay, moveAllScenes,
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,

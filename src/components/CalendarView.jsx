@@ -136,11 +136,12 @@ export function DayEditModal({
 function DayStrip({
   day, isSelected, onSelect, onClick,
   onDragStart, onDragEnd, inDrawer = false,
+  onSceneDragStart, onStripDragOver, onStripDragLeave, onStripDrop,
+  isDropTarget = false,
 }) {
   const style  = CATEGORY_STYLE[day.dayCategory] ?? CATEGORY_STYLE.other
   const isSub  = day.dayCategory !== 'main'
   const scenes = day.scenes ?? []
-  const sceneNums = scenes.map(s => s.sceneNumber).filter(Boolean)
 
   return (
     <div
@@ -149,16 +150,20 @@ function DayStrip({
         isSub     ? 'cal-strip--sub'      : '',
         isSelected ? 'cal-strip--selected' : '',
         inDrawer   ? 'cal-strip--drawer'   : '',
+        isDropTarget ? 'cal-strip--drop-target' : '',
       ].filter(Boolean).join(' ')}
       style={{ '--strip-bg': style.bg, '--strip-text': style.text }}
       draggable
       onDragStart={e => onDragStart(e, day.id)}
       onDragEnd={onDragEnd}
+      onDragOver={e => onStripDragOver(e, day.id)}
+      onDragLeave={() => onStripDragLeave(day.id)}
+      onDrop={e => onStripDrop(e, day.id)}
       onClick={e => {
         if (e.metaKey || e.ctrlKey || e.shiftKey) { e.stopPropagation(); onSelect(day.id) }
         else onClick(day.id)
       }}
-      title={`${dayLabel(day)}${day.date ? ' — ' + day.date : ''}${day._virtualDate ? '\n(Unscheduled — shown here at wrap+1; not actually dated)' : ''}\nCmd/Ctrl+click to select`}
+      title={`${dayLabel(day)}${day.date ? ' — ' + day.date : ''}${day._virtualDate ? '\n(Unscheduled — shown here at wrap+1; not actually dated)' : ''}\nCmd/Ctrl+click to select · drag the title to move the whole day's scenes`}
     >
       <span
         className="cal-strip-check"
@@ -169,8 +174,21 @@ function DayStrip({
       </span>
       <div className="cal-strip-body">
         <span className="cal-strip-label">{dayLabel(day)}</span>
-        {inDrawer && sceneNums.length > 0 && (
-          <span className="cal-strip-scenes">Sc {sceneNums.join(', ')}</span>
+        {scenes.length > 0 && (
+          <div className="cal-strip-chips">
+            {scenes.map(sc => (
+              <span
+                key={sc.id}
+                className="cal-scene-chip"
+                draggable
+                onDragStart={e => { e.stopPropagation(); onSceneDragStart(e, sc.id, day.id) }}
+                onDragEnd={onDragEnd}
+                title={`Scene ${sc.sceneNumber || '—'}${sc.location ? ' — ' + sc.location : ''}\nDrag onto another day to move it`}
+              >
+                {sc.sceneNumber || '—'}
+              </span>
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -256,9 +274,13 @@ export default function CalendarView({
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   // ── Drag state ─────────────────────────────────────────────────────────────
-  const draggingIdRef    = useRef(null)
+  // dragRef holds what's being dragged:
+  //   { type: 'day',   dayId }                  — a day strip (its title)
+  //   { type: 'scene', sceneId, fromDayId }     — a single scene chip
+  const dragRef          = useRef(null)
   const [dragOverDate,   setDragOverDate]   = useState(null)
   const [dragOverDrawer, setDragOverDrawer] = useState(false)
+  const [dragOverStrip,  setDragOverStrip]  = useState(null)
 
   // ── Build date → days map ──────────────────────────────────────────────────
   // Unscheduled days (scenes not yet assigned to a shoot day) have no real date.
@@ -327,7 +349,7 @@ export default function CalendarView({
 
   // ── Drag handlers ──────────────────────────────────────────────────────────
   function onStripDragStart(e, dayId) {
-    draggingIdRef.current = dayId
+    dragRef.current = { type: 'day', dayId }
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', dayId)
     const day = shootDays.find(d => d.id === dayId)
@@ -336,11 +358,50 @@ export default function CalendarView({
     setDrawerOpen(true)
   }
 
+  function onSceneDragStart(e, sceneId, fromDayId) {
+    dragRef.current = { type: 'scene', sceneId, fromDayId }
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', sceneId)
+  }
+
   function onStripDragEnd() {
-    draggingIdRef.current = null
+    dragRef.current = null
     setDragOverDate(null)
     setDragOverDrawer(false)
+    setDragOverStrip(null)
     // Leave drawer open so user can see what landed there
+  }
+
+  // ── Strip-level drop targets (scene → day, day title → merge scenes) ───────
+  function onStripDragOver(e, dayId) {
+    const drag = dragRef.current
+    if (!drag) return
+    const sourceId = drag.type === 'scene' ? drag.fromDayId : drag.dayId
+    if (sourceId === dayId) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'move'
+    if (dragOverStrip !== dayId) setDragOverStrip(dayId)
+  }
+
+  function onStripDragLeave(dayId) {
+    setDragOverStrip(s => (s === dayId ? null : s))
+  }
+
+  function onStripDrop(e, dayId) {
+    const drag = dragRef.current
+    if (!drag) return
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverStrip(null)
+    setDragOverDate(null)
+    dragRef.current = null
+    if (drag.type === 'scene') {
+      if (drag.fromDayId !== dayId) actions.moveSceneToDay(drag.sceneId, drag.fromDayId, dayId)
+    } else if (drag.dayId !== dayId) {
+      // A day title dropped onto another day: move all its scenes there
+      actions.moveAllScenes(drag.dayId, dayId)
+    }
   }
 
   function onCellDragOver(e, dateStr) {
@@ -356,8 +417,21 @@ export default function CalendarView({
   function onCellDrop(e, dropDate) {
     e.preventDefault()
     setDragOverDate(null)
-    const dayId = draggingIdRef.current
-    if (!dayId) return
+    const drag = dragRef.current
+    if (!drag) return
+
+    // A scene dropped on a cell lands on that date's main day (or first day).
+    if (drag.type === 'scene') {
+      dragRef.current = null
+      const daysOnDate = byDate[dropDate] ?? []
+      const targetDay = daysOnDate.find(d => d.dayCategory === 'main') ?? daysOnDate[0]
+      if (targetDay && targetDay.id !== drag.fromDayId) {
+        actions.moveSceneToDay(drag.sceneId, drag.fromDayId, targetDay.id)
+      }
+      return
+    }
+
+    const dayId = drag.dayId
     const day = shootDays.find(d => d.id === dayId)
     if (!day || day.date === dropDate) return
 
@@ -385,12 +459,16 @@ export default function CalendarView({
       }
       onMoveDaysTo(dayId, dropDate)
     } else {
-      // Single-day move: block if dragging a main day onto a date that already has one
+      // Single-day move: a main day dropped on a date that already has one
+      // merges its scenes into the existing day instead of moving the day.
       if (day.dayCategory === 'main') {
         const existingMain = shootDays.find(
           d => d.dayCategory === 'main' && d.date === dropDate && d.id !== day.id
         )
-        if (existingMain) return
+        if (existingMain) {
+          actions.moveAllScenes(day.id, existingMain.id)
+          return
+        }
       }
       onDateChange(day, dropDate)
     }
@@ -405,8 +483,9 @@ export default function CalendarView({
   function onDrawerDrop(e) {
     e.preventDefault()
     setDragOverDrawer(false)
-    const dayId = draggingIdRef.current
-    if (!dayId) return
+    const drag = dragRef.current
+    if (!drag || drag.type !== 'day') return
+    const dayId = drag.dayId
 
     if (selectedDayIds.has(dayId) && selectedDayIds.size > 1) {
       // Move the whole selection into the scratchpad
@@ -525,6 +604,11 @@ export default function CalendarView({
                             onClick={id => setEditingDayId(id)}
                             onDragStart={onStripDragStart}
                             onDragEnd={onStripDragEnd}
+                            onSceneDragStart={onSceneDragStart}
+                            onStripDragOver={onStripDragOver}
+                            onStripDragLeave={onStripDragLeave}
+                            onStripDrop={onStripDrop}
+                            isDropTarget={dragOverStrip === day.id}
                           />
                         ))}
                       </div>
@@ -566,6 +650,11 @@ export default function CalendarView({
                     onClick={id => setEditingDayId(id)}
                     onDragStart={onStripDragStart}
                     onDragEnd={onStripDragEnd}
+                    onSceneDragStart={onSceneDragStart}
+                    onStripDragOver={onStripDragOver}
+                    onStripDragLeave={onStripDragLeave}
+                    onStripDrop={onStripDrop}
+                    isDropTarget={dragOverStrip === day.id}
                     inDrawer={true}
                   />
                 ))}
