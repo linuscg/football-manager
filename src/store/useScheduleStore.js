@@ -93,6 +93,7 @@ function mapProduction(row) {
     format:         row.format           ?? 'film',
     episodeCount:   row.episode_count    ?? null,
     rateCalc:       row.rate_calc        ?? {},
+    hiatuses:       row.hiatuses         ?? [],
   }
 }
 
@@ -157,6 +158,7 @@ const PRODUCTION_FIELD_MAP = {
   format:         'format',
   episodeCount:   'episode_count',
   rateCalc:       'rate_calc',
+  hiatuses:       'hiatuses',
 }
 
 function dbVal(value) {

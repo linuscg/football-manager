@@ -331,6 +331,25 @@ export default function ProjectSetup({
     setTimeout(() => setCastImportMsg(null), 4000)
   }
 
+  // ── Shoot hiatuses (titled date ranges, stored as jsonb on production) ────
+
+  function addHiatus() {
+    onUpdate('hiatuses', [
+      ...(production.hiatuses ?? []),
+      { id: crypto.randomUUID(), title: '', startDate: '', endDate: '' },
+    ])
+  }
+
+  function updateHiatus(id, field, value) {
+    onUpdate('hiatuses', (production.hiatuses ?? []).map(h =>
+      h.id === id ? { ...h, [field]: value } : h
+    ))
+  }
+
+  function removeHiatus(id) {
+    onUpdate('hiatuses', (production.hiatuses ?? []).filter(h => h.id !== id))
+  }
+
   // ── Cast drag-and-drop ────────────────────────────────────────────────────
 
   function handleCastDrop(toIdx) {
@@ -416,6 +435,52 @@ export default function ProjectSetup({
                 />
               </div>
             </div>
+
+            {/* Hiatuses — only on the Shoot phase card */}
+            {phase.id === 'shoot' && (
+              <div className="setup-hiatus-block">
+                {(production.hiatuses ?? []).map(hx => (
+                  <div key={hx.id} className="setup-hiatus-row">
+                    <input
+                      className="pm-input setup-hiatus-title"
+                      value={hx.title}
+                      placeholder="Hiatus title (e.g. Christmas break)"
+                      onChange={e => updateHiatus(hx.id, 'title', e.target.value)}
+                    />
+                    <input
+                      className="pm-input"
+                      type="date"
+                      value={hx.startDate}
+                      min={start || undefined}
+                      max={end || undefined}
+                      onChange={e => updateHiatus(hx.id, 'startDate', e.target.value)}
+                    />
+                    <div className="setup-date-arrow">→</div>
+                    <input
+                      className="pm-input"
+                      type="date"
+                      value={hx.endDate}
+                      min={hx.startDate || start || undefined}
+                      max={end || undefined}
+                      onChange={e => updateHiatus(hx.id, 'endDate', e.target.value)}
+                    />
+                    {hx.startDate && hx.endDate && (
+                      <span className="setup-hiatus-days">
+                        {daysBetween(hx.startDate, hx.endDate)} day{daysBetween(hx.startDate, hx.endDate) !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    <button
+                      className="setup-hiatus-delete"
+                      title="Remove hiatus"
+                      onClick={() => removeHiatus(hx.id)}
+                    >✕</button>
+                  </div>
+                ))}
+                <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={addHiatus}>
+                  + Add hiatus
+                </button>
+              </div>
+            )}
 
             {/* Generate button — only on the Shoot phase card */}
             {phase.id === 'shoot' && (
