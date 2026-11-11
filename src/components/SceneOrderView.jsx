@@ -26,18 +26,7 @@ export default function SceneOrderView({ shootDays, production, actions }) {
   )
 
   // Day options for the "Scheduled" dropdown, in schedule order.
-  const dayOptions = useMemo(() => {
-    const sorted = [...shootDays].sort((a, b) => {
-      if (a.date && b.date) return a.date.localeCompare(b.date)
-      if (a.date) return -1
-      if (b.date) return 1
-      return a.sortOrder - b.sortOrder
-    })
-    return sorted.map(d => ({
-      id: d.id,
-      label: `${dayLabel(d).split(' — ')[0]}${d.date ? ' · ' + fmtShort(d.date) : ''}`,
-    }))
-  }, [shootDays])
+  const dayOptions = useMemo(() => buildDayOptions(shootDays), [shootDays])
 
   // All scenes with their day, sorted into script order; plus gap rows.
   const { rows, unnumbered } = useMemo(() => {
@@ -158,7 +147,22 @@ export default function SceneOrderView({ shootDays, production, actions }) {
   )
 }
 
-function SceneRow({ r, dayOptions, upd, actions }) {
+export function buildDayOptions(shootDays) {
+  const sorted = [...shootDays].sort((a, b) => {
+    if (a.date && b.date) return a.date.localeCompare(b.date)
+    if (a.date) return -1
+    if (b.date) return 1
+    return a.sortOrder - b.sortOrder
+  })
+  return sorted.map(d => ({
+    id: d.id,
+    label: `${dayLabel(d).split(' — ')[0]}${d.date ? ' · ' + fmtShort(d.date) : ''}`,
+  }))
+}
+
+export { parseSceneNum, fmtShort }
+
+export function SceneRow({ r, dayOptions, upd, actions }) {
   const { scene, day } = r
   return (
     <div className="sceneorder-row">

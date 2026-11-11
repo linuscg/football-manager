@@ -3,6 +3,7 @@ import ShootDayCard from '../components/ShootDayCard'
 import CalendarView from '../components/CalendarView'
 import WeekView from '../components/WeekView'
 import SceneOrderView from '../components/SceneOrderView'
+import LocationOrderView from '../components/LocationOrderView'
 import { useCrewStore } from '../store/useCrewStore'
 import { useAccommodationStore } from '../store/useAccommodationStore'
 import { exportScheduleListPDF, exportScheduleCalendarPDF } from '../lib/exportSchedulePDF'
@@ -291,6 +292,10 @@ export default function Schedule({ store, actions }) {
               className={`schedule-view-btn${viewMode === 'sceneorder' ? ' active' : ''}`}
               onClick={() => switchView('sceneorder')} title="All scenes in script order"
             >№ Scene Order</button>
+            <button
+              className={`schedule-view-btn${viewMode === 'location' ? ' active' : ''}`}
+              onClick={() => switchView('location')} title="All scenes grouped by set/location"
+            >⚲ Location</button>
           </div>
           <button
             className="pm-btn pm-btn--ghost"
@@ -313,6 +318,12 @@ export default function Schedule({ store, actions }) {
           <div className="empty-state-text">No shoot days yet.</div>
           <div className="empty-state-sub">Click &ldquo;Add shoot day&rdquo; to get started.</div>
         </div>
+
+      ) : viewMode === 'location' ? (
+        <LocationOrderView
+          shootDays={shootDays}
+          actions={actions}
+        />
 
       ) : viewMode === 'sceneorder' ? (
         <SceneOrderView
