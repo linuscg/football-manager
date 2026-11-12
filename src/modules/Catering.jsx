@@ -35,6 +35,7 @@ const TYPE_LABEL = {
   fulltime:   'Fulltime',
   additional: 'Additional',
   cast:       'Cast',
+  sa:         'SA',
   adhoc:      'Ad-hoc',
 }
 
@@ -42,7 +43,15 @@ const TYPE_CLS = {
   fulltime:   'cat-badge--ft',
   additional: 'cat-badge--add',
   cast:       'cat-badge--cast',
+  sa:         'cat-badge--sa',
   adhoc:      'cat-badge--adhoc',
+}
+
+// Deterministic per-SA person uuid: the SA group row's uuid with its last 4 hex
+// digits replaced by the SA's index, so collection records stay stable across
+// reloads and devices (catering_collections.person_id is a uuid column).
+function saPersonId(groupId, i) {
+  return groupId.slice(0, 32) + i.toString(16).padStart(4, '0')
 }
 
 // ─── PersonRow ────────────────────────────────────────────────────────────────
@@ -246,6 +255,38 @@ export default function Catering({ store }) {
       })
     }
 
+    // 3.5 Supporting artists — one row per person, expanded from the day's SA
+    // groups in the Schedule (category 'extras'; legacy rows may use 'Extras').
+    // Unnamed groups become "SA 1", "SA 2", … numbered across the day; the
+    // group's name/description and scene go in the role column.
+    const saGroups = Object.entries(day.extras ?? {})
+      .filter(([k]) => k.toLowerCase() === 'extras')
+      .flatMap(([, l]) => l)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    let saN = 0
+    for (const g of saGroups) {
+      const count = Number(g.totalNumber) || 0
+      const label = (g.saName || g.description || '').trim()
+      for (let i = 1; i <= count; i++) {
+        saN++
+        const pid = saPersonId(g.id, i)
+        const rec = getRecord(day.id, pid)
+        list.push({
+          key:         `sa-${pid}`,
+          id:          pid,
+          name:        label ? (count > 1 ? `${label} ${i}` : label) : `SA ${saN}`,
+          role:        g.scene ? `Sc. ${g.scene}` : 'Supporting Artist',
+          dept:        'SAs',
+          type:        'sa',
+          entitled:    true,
+          collected:   rec?.collected   ?? false,
+          collectedAt: rec?.collectedAt ?? null,
+          note:        rec?.note        ?? '',
+          recId:       rec?.id          ?? null,
+        })
+      }
+    }
+
     // 4. Ad-hoc entries — not counted as entitled (walk-ins)
     for (const rec of getAdhoc(day.id)) {
       list.push({
@@ -263,7 +304,12 @@ export default function Catering({ store }) {
       })
     }
 
-    list.sort((a, b) => a.name.localeCompare(b.name))
+    // Crew/cast alphabetical first, SAs grouped at the end in schedule order
+    // (numeric compare keeps "SA 2" before "SA 10").
+    list.sort((a, b) =>
+      (a.type === 'sa') - (b.type === 'sa') ||
+      (a.type === 'sa' ? 0 : a.name.localeCompare(b.name, undefined, { numeric: true }))
+    )
     return list
   }, [day, ftcMembers, resources, bookings, castMembers, getRecord, getAdhoc, getMemberOverride])
 
@@ -302,12 +348,16 @@ export default function Catering({ store }) {
     ).size
     const sceneCastIds = new Set((day.scenes ?? []).flatMap(s => s.castMemberIds ?? []))
     const castCount = castMembers.filter(c => sceneCastIds.has(c.id)).length
+    const saCount = Object.entries(day.extras ?? {})
+      .filter(([k]) => k.toLowerCase() === 'extras')
+      .flatMap(([, l]) => l)
+      .reduce((s, e) => s + (Number(e.totalNumber) || 0), 0)
     try {
       const stored  = JSON.parse(localStorage.getItem(CAT_ADDITIONALS_KEY) ?? '{}')
       const addl    = Number(stored[day.id] ?? 0)
-      return roundUp5((ftCount + addCount + castCount + addl) * 1.12)
+      return roundUp5((ftCount + addCount + castCount + saCount + addl) * 1.12)
     } catch {
-      return roundUp5((ftCount + addCount + castCount) * 1.12)
+      return roundUp5((ftCount + addCount + castCount + saCount) * 1.12)
     }
   }, [day, ftcMembers, bookings, resources, castMembers, getMemberOverride])
 

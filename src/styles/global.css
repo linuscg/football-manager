@@ -6010,6 +6010,7 @@ select.pm-input { cursor: pointer; }
 .cat-badge--add   { background: #dbeafe; color: #1d4ed8; }
 .cat-badge--cast  { background: #fef3c7; color: #92400e; }
 .cat-badge--adhoc { background: #fce7f3; color: #9d174d; }
+.cat-badge--sa    { background: #e0e7ff; color: #3730a3; }
 
 /* ── Note input ─────────────────────────────────────────────────────────── */
 .cat-note-input {
