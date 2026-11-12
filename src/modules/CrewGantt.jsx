@@ -230,10 +230,28 @@ function buildDetailGroups(cols) {
 const DETAIL_GROUPS_FULL     = buildDetailGroups(DETAIL_COLS_FULL)
 const DETAIL_GROUPS_NO_RATES = buildDetailGroups(DETAIL_COLS_NO_RATES)
 
-// Active variants for a given rates permission
-const detailCols      = canViewRates => (canViewRates ? DETAIL_COLS_FULL : DETAIL_COLS_NO_RATES)
-const detailGroups    = canViewRates => (canViewRates ? DETAIL_GROUPS_FULL : DETAIL_GROUPS_NO_RATES)
-const detailColCount  = canViewRates => detailCols(canViewRates).length
+// Equipment detail columns — the fields that used to live in each row's
+// expandable dropdown panel, now a spreadsheet panel like the crew one.
+const EQUIP_DETAIL_COLS = [
+  { label: 'Rate',     w: 76,  group: 'Cost' },
+  { label: 'Per',      w: 84,  group: 'Cost' },
+  { label: 'Week',     w: 90,  group: 'Cost' },
+  { label: 'Supplier', w: 130, group: 'Supplier' },
+  { label: 'PO #',     w: 90,  group: 'Supplier' },
+  { label: 'From',     w: 108, group: 'Hire' },
+  { label: 'To',       w: 108, group: 'Hire' },
+  { label: 'Notes',    w: 170, group: 'Other' },
+]
+const EQUIP_DETAIL_GROUPS = buildDetailGroups(EQUIP_DETAIL_COLS)
+
+// Active variants for a given tab + rates permission
+const detailCols      = (tab, canViewRates) =>
+  tab === 'equipment' ? EQUIP_DETAIL_COLS
+    : (canViewRates ? DETAIL_COLS_FULL : DETAIL_COLS_NO_RATES)
+const detailGroups    = (tab, canViewRates) =>
+  tab === 'equipment' ? EQUIP_DETAIL_GROUPS
+    : (canViewRates ? DETAIL_GROUPS_FULL : DETAIL_GROUPS_NO_RATES)
+const detailColCount  = (tab, canViewRates) => detailCols(tab, canViewRates).length
 
 const OVERRIDE_TOOLTIP = 'Calculated — type to override / clear to revert'
 
@@ -403,6 +421,86 @@ function EndDateCell({ resource, estEndDate, onUpdate }) {
   )
 }
 
+// The full run of detail <td>s for one equipment row (Cost · Supplier · Hire · Notes)
+function EquipDetailCells({ resource, onUpdate, vendorSuggestions }) {
+  const u = field => value => onUpdate(resource.id, field, value)
+  return (
+    <Fragment>
+      <DetailNumCell value={resource.costAmount} width={76} onCommit={u('costAmount')} title="Hire rate" />
+      <td className="crewd-td" style={{ width: 84, minWidth: 84 }}>
+        <select
+          className="crewd-select"
+          value={resource.costType ?? 'daily'}
+          onChange={e => onUpdate(resource.id, 'costType', e.target.value)}
+        >
+          <option value="daily">Day</option>
+          <option value="halfday">Half Day</option>
+          <option value="weekly">Week</option>
+        </select>
+      </td>
+      <td className="crewd-td" style={{ width: 90, minWidth: 90 }}>
+        {resource.costType === 'weekly' ? (
+          <select
+            className="crewd-select"
+            value={resource.weekType ?? '5day'}
+            onChange={e => onUpdate(resource.id, 'weekType', e.target.value)}
+          >
+            <option value="5day">5-day</option>
+            <option value="3day">3-day</option>
+          </select>
+        ) : (
+          <span className="crewd-derived" title="Week type — only for weekly rates">—</span>
+        )}
+      </td>
+      <td className="crewd-td" style={{ width: 130, minWidth: 130 }}>
+        <SupplierInput resource={resource} onUpdate={onUpdate} vendorSuggestions={vendorSuggestions} />
+      </td>
+      <DetailTextCell value={resource.poNumber} width={90} placeholder="PO #" onCommit={u('poNumber')} />
+      <td className="crewd-td" style={{ width: 108, minWidth: 108 }}>
+        <input
+          className="crewd-input crewd-date"
+          type="date"
+          value={resource.hireStartDate ?? ''}
+          onChange={e => onUpdate(resource.id, 'hireStartDate', e.target.value)}
+          title="Hire from"
+        />
+      </td>
+      <td className="crewd-td" style={{ width: 108, minWidth: 108 }}>
+        <input
+          className="crewd-input crewd-date"
+          type="date"
+          value={resource.hireEndDate ?? ''}
+          min={resource.hireStartDate || undefined}
+          onChange={e => onUpdate(resource.id, 'hireEndDate', e.target.value)}
+          title="Hire to"
+        />
+      </td>
+      <DetailTextCell value={resource.notes} width={170} placeholder="Notes…" onCommit={u('notes')} />
+    </Fragment>
+  )
+}
+
+// Supplier text cell with a datalist of the other equipment rows' vendors
+function SupplierInput({ resource, onUpdate, vendorSuggestions }) {
+  const [v, setV] = useState(resource.vendor ?? '')
+  useEffect(() => setV(resource.vendor ?? ''), [resource.vendor])
+  return (
+    <>
+      <input
+        className="crewd-input"
+        value={v}
+        placeholder="Supplier"
+        list={`vendor-d-${resource.id}`}
+        onChange={e => setV(e.target.value)}
+        onBlur={() => { if (v !== (resource.vendor ?? '')) onUpdate(resource.id, 'vendor', v) }}
+      />
+      <datalist id={`vendor-d-${resource.id}`}>
+        {vendorSuggestions.map(s => <option key={s} value={s} />)}
+      </datalist>
+    </>
+  )
+}
+
 function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPhone, estEndDate = '', canViewRates = true }) {
   const u = field => value => onUpdate(resource.id, field, value)
   return (
@@ -559,21 +657,14 @@ const ResourceRow = memo(function ResourceRow({
   const catSuggestions    = uniq(others.map(r => r.category))
   const vendorSuggestions = uniq(others.map(r => r.vendor))
 
-  const [expanded,       setExpanded]       = useState(false)
   const autoCreatedPersonRef = useRef(null) // person record this row's name-blur created
   const [lName,          setLName]          = useState(resource.name)
   const [lPersonId,      setLPersonId]      = useState(resource.personId)
   const [lRole,          setLRole]          = useState(resource.role)
   const [lCat,           setLCat]           = useState(resource.category)
   const [lDept,          setLDept]          = useState(resource.department)
-  const [lCostAmount,    setLCostAmount]    = useState(resource.costAmount)
   const [lContactEmail,  setLContactEmail]  = useState(resource.contactEmail)
   const [lContactPhone,  setLContactPhone]  = useState(resource.contactPhone)
-  const [lVendor,        setLVendor]        = useState(resource.vendor)
-  const [lPoNumber,      setLPoNumber]      = useState(resource.poNumber)
-  const [lNotes,         setLNotes]         = useState(resource.notes)
-  const [lHireStart,     setLHireStart]     = useState(resource.hireStartDate)
-  const [lHireEnd,       setLHireEnd]       = useState(resource.hireEndDate)
 
   // People-search dropdown
   const [showPeopleDrop, setShowPeopleDrop] = useState(false)
@@ -583,14 +674,8 @@ const ResourceRow = memo(function ResourceRow({
   useEffect(() => setLRole(resource.role),                   [resource.role])
   useEffect(() => setLCat(resource.category),                [resource.category])
   useEffect(() => setLDept(resource.department),             [resource.department])
-  useEffect(() => setLCostAmount(resource.costAmount),       [resource.costAmount])
   useEffect(() => setLContactEmail(resource.contactEmail),   [resource.contactEmail])
   useEffect(() => setLContactPhone(resource.contactPhone),   [resource.contactPhone])
-  useEffect(() => setLVendor(resource.vendor),               [resource.vendor])
-  useEffect(() => setLPoNumber(resource.poNumber),           [resource.poNumber])
-  useEffect(() => setLNotes(resource.notes),                 [resource.notes])
-  useEffect(() => setLHireStart(resource.hireStartDate),     [resource.hireStartDate])
-  useEffect(() => setLHireEnd(resource.hireEndDate),         [resource.hireEndDate])
 
   function commit(field, local, original) {
     if (local !== original) onUpdate(resource.id, field, local)
@@ -700,10 +785,9 @@ const ResourceRow = memo(function ResourceRow({
     if (lPersonId) onUpdatePerson(lPersonId, 'phone', v)
   }
 
-  const detailRates = showDetails && rateCalcSettings
+  const detailRates = showDetails && activeTab === 'crew' && rateCalcSettings
     ? deriveRates(resource, rateCalcSettings)
     : null
-  const totalColSpan = colSpecs.length + 1 + (showDetails ? detailColCount(canViewRates) : 0)
 
   return (
     <Fragment>
@@ -722,15 +806,6 @@ const ResourceRow = memo(function ResourceRow({
           }}
         >
           <div className="gantt-name-cell">
-            {activeTab === 'equipment' && (
-              <button
-                className={`gantt-row-expand${expanded ? ' open' : ''}`}
-                onClick={() => setExpanded(e => !e)}
-                title={expanded ? 'Hide details' : 'Show cost / hire details'}
-              >
-                {expanded ? '▾' : '▸'}
-              </button>
-            )}
             <div className="gantt-name-fields">
               <div className="gantt-name-input-wrap">
                 <input
@@ -821,7 +896,7 @@ const ResourceRow = memo(function ResourceRow({
           </div>
         </td>
 
-        {/* ── Crew detail columns (spreadsheet panel) ──────────────────────────── */}
+        {/* ── Detail columns (spreadsheet panel) ───────────────────────────────── */}
         {showDetails && detailRates && (
           <CrewDetailCells
             resource={resource}
@@ -831,6 +906,13 @@ const ResourceRow = memo(function ResourceRow({
             onCommitPhone={commitPhoneValue}
             estEndDate={estEndDate}
             canViewRates={canViewRates}
+          />
+        )}
+        {showDetails && activeTab === 'equipment' && (
+          <EquipDetailCells
+            resource={resource}
+            onUpdate={onUpdate}
+            vendorSuggestions={vendorSuggestions}
           />
         )}
 
@@ -899,123 +981,6 @@ const ResourceRow = memo(function ResourceRow({
         })}
       </tr>
 
-      {/* ── Details row — equipment only; crew fields live in the detail columns ── */}
-      {activeTab === 'equipment' && expanded && (
-        <tr className="gantt-details-row">
-          <td colSpan={totalColSpan}>
-            <div className="gantt-details-panel">
-
-              {/* Cost — equipment only; crew rates live in the detail columns */}
-              {activeTab === 'equipment' && (
-                <div className="details-group">
-                  <label className="details-label">Cost</label>
-                  <input
-                    className="details-input details-input-cost"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={lCostAmount}
-                    placeholder="0.00"
-                    onChange={e => setLCostAmount(e.target.value)}
-                    onBlur={() => commit('costAmount', lCostAmount, resource.costAmount)}
-                  />
-                  <span className="details-sep">per</span>
-                  <select
-                    className="details-select"
-                    value={resource.costType}
-                    onChange={e => onUpdate(resource.id, 'costType', e.target.value)}
-                  >
-                    <option value="daily">Day</option>
-                    <option value="halfday">Half Day</option>
-                    <option value="weekly">Week</option>
-                  </select>
-                  {resource.costType === 'weekly' && (
-                    <select
-                      className="details-select"
-                      value={resource.weekType}
-                      onChange={e => onUpdate(resource.id, 'weekType', e.target.value)}
-                    >
-                      <option value="5day">5-day week</option>
-                      <option value="3day">3-day week</option>
-                    </select>
-                  )}
-                </div>
-              )}
-
-              {/* Equipment: supplier + PO# */}
-              {activeTab === 'equipment' && (
-                <>
-                  <div className="details-group">
-                    <label className="details-label">Supplier</label>
-                    <input
-                      className="details-input"
-                      type="text"
-                      value={lVendor}
-                      placeholder="Supplier name"
-                      list={`vendor-${resource.id}`}
-                      onChange={e => setLVendor(e.target.value)}
-                      onBlur={() => commit('vendor', lVendor, resource.vendor)}
-                    />
-                    <datalist id={`vendor-${resource.id}`}>
-                      {vendorSuggestions.map(s => <option key={s} value={s} />)}
-                    </datalist>
-                  </div>
-                  <div className="details-group">
-                    <label className="details-label">PO #</label>
-                    <input
-                      className="details-input details-input-po"
-                      type="text"
-                      value={lPoNumber}
-                      placeholder="PO number"
-                      onChange={e => setLPoNumber(e.target.value)}
-                      onBlur={() => commit('poNumber', lPoNumber, resource.poNumber)}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Hire period — equipment only; crew dates live in the detail columns */}
-              {activeTab === 'equipment' && (
-                <>
-                  <div className="details-group">
-                    <label className="details-label">Hire from</label>
-                    <input
-                      className="details-input details-input-date"
-                      type="date"
-                      value={lHireStart}
-                      onChange={e => { setLHireStart(e.target.value); onUpdate(resource.id, 'hireStartDate', e.target.value) }}
-                    />
-                  </div>
-                  <div className="details-group">
-                    <label className="details-label">Hire to</label>
-                    <input
-                      className="details-input details-input-date"
-                      type="date"
-                      value={lHireEnd}
-                      min={lHireStart || undefined}
-                      onChange={e => { setLHireEnd(e.target.value); onUpdate(resource.id, 'hireEndDate', e.target.value) }}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Notes — all resources */}
-              <div className="details-group">
-                <label className="details-label">Notes</label>
-                <textarea
-                  className="details-input details-textarea"
-                  value={lNotes}
-                  placeholder="Notes…"
-                  rows={2}
-                  onChange={e => setLNotes(e.target.value)}
-                  onBlur={() => commit('notes', lNotes, resource.notes)}
-                />
-              </div>
-
-            </div>
-          </td>
-        </tr>
-      )}
     </Fragment>
   )
 })
@@ -1050,11 +1015,12 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                     : mode === 'equipment' ? equipClassTab
                     : null
 
-  // Crew details panel — only in crew mode. The panel itself is open to everyone;
-  // canViewRates only controls whether the money columns / rate settings show.
-  const showDetails = mode === 'crew' && detailsOpen
+  // Details panel — crew and equipment modes. The panel itself is open to
+  // everyone; canViewRates only controls whether the crew money columns /
+  // rate settings show.
+  const showDetails = (mode === 'crew' || mode === 'equipment') && detailsOpen
   const rateCalcSettings = useMemo(() => getRateCalc(production), [production])
-  const extraCols = showDetails ? detailColCount(canViewRates) : 0
+  const extraCols = showDetails ? detailColCount(effTab, canViewRates) : 0
 
   function toggleDetails() {
     setDetailsOpen(open => {
@@ -1780,11 +1746,13 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
           <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={handleAddResource}>
             + Add {typeLabel}
           </button>
-          {mode === 'crew' && (
+          {(mode === 'crew' || mode === 'equipment') && (
             <button
               className={`pm-btn pm-btn--ghost pm-btn--sm${detailsOpen ? ' is-active' : ''}`}
               onClick={toggleDetails}
-              title="Show / hide deal memo, rate and contact detail columns"
+              title={mode === 'crew'
+                ? 'Show / hide deal memo, rate and contact detail columns'
+                : 'Show / hide cost, supplier and hire detail columns'}
             >
               {detailsOpen ? '▾ Details' : '▸ Details'}
             </button>
@@ -1889,7 +1857,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       </div>
 
       {/* ── Global rate-calc settings strip ──────────────────────────────────── */}
-      {showDetails && canViewRates && (
+      {showDetails && effTab === 'crew' && canViewRates && (
         <div className="crewd-settings">
           {RATE_SETTINGS.map(s => (
             <RateSettingInput
@@ -1927,7 +1895,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                 <th className="pm-g-corner pm-g-corner--tall" rowSpan={2}>
                   {effTab === 'crew' ? 'Name / Role / Dept' : 'Item / Category'}
                 </th>
-                {showDetails && detailGroups(canViewRates).map((g, i) => (
+                {showDetails && detailGroups(effTab, canViewRates).map((g, i) => (
                   <th key={`dgrp-${i}`} className="crewd-group-th" colSpan={g.span}>
                     {g.label}
                   </th>
@@ -1946,7 +1914,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
               {/* ── Date columns row ───────────────────────────────────────────── */}
               <tr>
-                {showDetails && detailCols(canViewRates).map((c, i) => (
+                {showDetails && detailCols(effTab, canViewRates).map((c, i) => (
                   <th key={`dcol-${i}`} className="crewd-label-th" style={{ width: c.w, minWidth: c.w }}>
                     {c.label}
                   </th>
