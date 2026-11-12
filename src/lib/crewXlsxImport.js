@@ -21,29 +21,49 @@
 // Department sections: a row with only column D set (and E empty) is a
 // department header; the rows beneath belong to it until the next header.
 
-// 0-based column indices
-const COL = {
-  dealMemoEmailed: 0,   // A
-  dealMemoDrafted: 1,   // B
-  dealMemoSent:    2,   // C
-  name:            3,   // D
-  role:            4,   // E
-  email:           6,   // G
-  phone:           7,   // H
-  agent:           8,   // I
-  weeklyRate:      10,  // K
-  sixthOverride:   19,  // T
-  seventhOverride: 20,  // U
-  otOverride:      21,  // V
-  boxPw:           22,  // W
-  carAllowance:    23,  // X
-  taxStatus:       24,  // Y
-  startDate:       25,  // Z
-  endDate:         26,  // AA
-}
+// Columns are found by HEADER TEXT, not fixed position — real trackers grow
+// extra columns ("Forwarded to payroll?", "RTW Check", …) and drop others, so
+// the parser scans the first rows for the header row (must contain Name, Role
+// and Weekly Rate) and maps each field to wherever its header sits. A field
+// whose header is absent simply never produces values (and the diff never
+// blanks existing data on empty values).
+const HEADER_MATCHERS = [
+  ['name',            h => h === 'name'],
+  ['role',            h => h === 'role'],
+  ['email',           h => h === 'email'],
+  ['phone',           h => h === 'number' || h === 'phone'],
+  ['agent',           h => h === 'agent'],
+  ['weeklyRate',      h => h === 'weekly rate'],
+  ['sixthOverride',   h => h === '6th day rate'],
+  ['seventhOverride', h => h === '7th day rate'],
+  ['otOverride',      h => h === 'ot rate'],
+  ['boxPw',           h => h.startsWith('box')],
+  ['carAllowance',    h => h === 'car' || h === 'car allowance'],
+  ['taxStatus',       h => h === 'tax status' || h === 'tax'],
+  ['startDate',       h => h === 'start date' || h === 'start'],
+  ['endDate',         h => h === 'end date' || h === 'end'],
+  ['dealMemoEmailed', h => h === 'email deal memo'],
+  ['dealMemoDrafted', h => h === 'deal memo drafted'],
+  ['dealMemoSent',    h => h.includes('docusign') && h.includes('sent')],
+]
 
-const HEADER_ROW = 2   // row 3 (0-based)
-const DATA_START = 3   // row 4 (0-based)
+// Scan the first 10 rows for the header; returns { headerRow, col } or null.
+function findHeader(cell, lastRow, lastCol) {
+  for (let r = 0; r <= Math.min(lastRow, 9); r++) {
+    const labels = []
+    for (let c = 0; c <= lastCol; c++) {
+      labels[c] = strVal(cell(r, c)).trim().toLowerCase().replace(/\?+$/, '').trim()
+    }
+    if (!labels.includes('name') || !labels.includes('role') || !labels.includes('weekly rate')) continue
+    const col = {}
+    for (const [key, match] of HEADER_MATCHERS) {
+      const idx = labels.findIndex(h => h && match(h))
+      if (idx >= 0) col[key] = idx
+    }
+    return { headerRow: r, col }
+  }
+  return null
+}
 
 function toISODate(d) {
   const y = d.getFullYear()
@@ -136,21 +156,22 @@ export class CrewTemplateError extends Error {
 // Shared grid walk: `cell(r, c)` returns { v, f? } or undefined. Checks the
 // template header then extracts person objects (department-header rows set
 // the department for the rows beneath).
-function parseGrid(cell, lastRow) {
-  const headOk = (c, expected) =>
-    strVal(cell(HEADER_ROW, c)).trim().toLowerCase() === expected
-  if (!headOk(COL.name, 'name') || !headOk(COL.role, 'role') || !headOk(COL.weeklyRate, 'weekly rate')) {
-    throw new CrewTemplateError('Header row does not match the crew tracker template')
+function parseGrid(cell, lastRow, lastCol) {
+  const head = findHeader(cell, lastRow, lastCol)
+  if (!head) {
+    throw new CrewTemplateError('Header row does not match the crew tracker template (need Name, Role and Weekly Rate columns)')
   }
+  const { headerRow, col } = head
+  const at = (r, key) => (col[key] === undefined ? undefined : cell(r, col[key]))
 
   const people = []
   let department = ''
 
-  for (let r = DATA_START; r <= lastRow; r++) {
-    const name = strVal(cell(r, COL.name))
-    if (!name) continue                       // no D value → skip
-    const role = strVal(cell(r, COL.role))
-    if (!role) {                              // D set, E empty → department header
+  for (let r = headerRow + 1; r <= lastRow; r++) {
+    const name = strVal(at(r, 'name'))
+    if (!name) continue                       // no Name value → skip
+    const role = strVal(at(r, 'role'))
+    if (!role) {                              // Name set, Role empty → department header
       department = name
       continue
     }
@@ -158,21 +179,21 @@ function parseGrid(cell, lastRow) {
       name,
       role,
       department,
-      email:           strVal(cell(r, COL.email)),
-      phone:           strVal(cell(r, COL.phone)),
-      agent:           strVal(cell(r, COL.agent)),
-      weeklyRate:      numVal(cell(r, COL.weeklyRate)),
-      sixthOverride:   overrideVal(cell(r, COL.sixthOverride)),
-      seventhOverride: overrideVal(cell(r, COL.seventhOverride)),
-      otOverride:      overrideVal(cell(r, COL.otOverride)),
-      boxPw:           numVal(cell(r, COL.boxPw)),
-      carAllowance:    numVal(cell(r, COL.carAllowance)),
-      taxStatus:       strVal(cell(r, COL.taxStatus)),
-      startDate:       dateVal(cell(r, COL.startDate)),
-      endDate:         dateVal(cell(r, COL.endDate)),
-      dealMemoEmailed: strVal(cell(r, COL.dealMemoEmailed)),
-      dealMemoDrafted: strVal(cell(r, COL.dealMemoDrafted)),
-      dealMemoSent:    strVal(cell(r, COL.dealMemoSent)),
+      email:           strVal(at(r, 'email')),
+      phone:           strVal(at(r, 'phone')),
+      agent:           strVal(at(r, 'agent')),
+      weeklyRate:      numVal(at(r, 'weeklyRate')),
+      sixthOverride:   overrideVal(at(r, 'sixthOverride')),
+      seventhOverride: overrideVal(at(r, 'seventhOverride')),
+      otOverride:      overrideVal(at(r, 'otOverride')),
+      boxPw:           numVal(at(r, 'boxPw')),
+      carAllowance:    numVal(at(r, 'carAllowance')),
+      taxStatus:       strVal(at(r, 'taxStatus')),
+      startDate:       dateVal(at(r, 'startDate')),
+      endDate:         dateVal(at(r, 'endDate')),
+      dealMemoEmailed: strVal(at(r, 'dealMemoEmailed')),
+      dealMemoDrafted: strVal(at(r, 'dealMemoDrafted')),
+      dealMemoSent:    strVal(at(r, 'dealMemoSent')),
     })
   }
 
@@ -193,7 +214,7 @@ export async function parseCrewXlsx(file) {
 
   const cell  = (r, c) => ws[XLSX.utils.encode_cell({ r, c })]
   const range = XLSX.utils.decode_range(ws['!ref'])
-  return parseGrid(cell, range.e.r)
+  return parseGrid(cell, range.e.r, range.e.c)
 }
 
 // Parse a Google Sheets grid of the same template. `values` is the
@@ -208,7 +229,8 @@ export function parseCrewSheetGrid(values, formulas) {
     const f = formulas?.[r]?.[c]
     return { v, f: typeof f === 'string' && f.startsWith('=') ? f : undefined }
   }
-  return parseGrid(cell, (values?.length ?? 0) - 1)
+  const lastCol = Math.max(0, ...(values ?? []).map(r => (r?.length ?? 0))) - 1
+  return parseGrid(cell, (values?.length ?? 0) - 1, lastCol)
 }
 
 // ─── Diff against existing crew resources ─────────────────────────────────────
