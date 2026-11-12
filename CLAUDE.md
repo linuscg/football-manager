@@ -61,6 +61,13 @@ timesheets, accommodation, catering, DPRs, deal memos.
 - **Email sending** goes through the `send-welcome-email` /`send-invite` edge
   functions (Resend, caller must be owner/admin, recipients must be crew
   contact emails of the production, matched case-insensitively).
+- **Crew sheet sync** (`crew-sheet-sync` edge function): "⟳ Google Sheet" on
+  the Crew Tracker reads the sheet linked in `production.crew_sheet_url`
+  server-side via a Google service account (`GOOGLE_SA_KEY` secret = the SA's
+  JSON key; the sheet must be shared with the SA's email), returns the grid in
+  UNFORMATTED_VALUE + FORMULA renders, and the client funnels it through the
+  same template parser and diff-approval modal as the Excel upload. Caller
+  must be production owner/admin (sheet holds rates).
 - **Off-hire reminders** (`offhire-reminder` edge function + pg_cron job
   `offhire-reminder-sweep`, 07:00 UTC): the bell in the Equipment gantt's
   Details panel stores the clicker's email in `resources.offhire_reminder_email`

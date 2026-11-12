@@ -133,32 +133,20 @@ export class CrewTemplateError extends Error {
   }
 }
 
-// Parse the uploaded .xlsx File into person objects. Throws CrewTemplateError
-// when the first sheet doesn't look like the crew tracker template.
-export async function parseCrewXlsx(file) {
-  // Official SheetJS 0.20.x (cdn.sheetjs.com) — the npm 'xlsx-js-style' fork
-  // tracks an old 0.18.x core with unpatched parse CVEs, so untrusted uploads
-  // are read with the patched build; styled EXPORTS still use xlsx-js-style.
-  const XLSX = await import('xlsx')
-  const buf  = await file.arrayBuffer()
-  const wb   = XLSX.read(buf, { cellDates: true })
-  const ws   = wb.Sheets[wb.SheetNames[0]]
-  if (!ws || !ws['!ref']) throw new CrewTemplateError('Empty workbook')
-
-  const cell = (r, c) => ws[XLSX.utils.encode_cell({ r, c })]
-
-  // Template detection: header row 3 must have D='Name', E='Role', K='Weekly Rate'
+// Shared grid walk: `cell(r, c)` returns { v, f? } or undefined. Checks the
+// template header then extracts person objects (department-header rows set
+// the department for the rows beneath).
+function parseGrid(cell, lastRow) {
   const headOk = (c, expected) =>
     strVal(cell(HEADER_ROW, c)).trim().toLowerCase() === expected
   if (!headOk(COL.name, 'name') || !headOk(COL.role, 'role') || !headOk(COL.weeklyRate, 'weekly rate')) {
     throw new CrewTemplateError('Header row does not match the crew tracker template')
   }
 
-  const range = XLSX.utils.decode_range(ws['!ref'])
   const people = []
   let department = ''
 
-  for (let r = DATA_START; r <= range.e.r; r++) {
+  for (let r = DATA_START; r <= lastRow; r++) {
     const name = strVal(cell(r, COL.name))
     if (!name) continue                       // no D value → skip
     const role = strVal(cell(r, COL.role))
@@ -189,6 +177,38 @@ export async function parseCrewXlsx(file) {
   }
 
   return people
+}
+
+// Parse the uploaded .xlsx File into person objects. Throws CrewTemplateError
+// when the first sheet doesn't look like the crew tracker template.
+export async function parseCrewXlsx(file) {
+  // Official SheetJS 0.20.x (cdn.sheetjs.com) — the npm 'xlsx-js-style' fork
+  // tracks an old 0.18.x core with unpatched parse CVEs, so untrusted uploads
+  // are read with the patched build; styled EXPORTS still use xlsx-js-style.
+  const XLSX = await import('xlsx')
+  const buf  = await file.arrayBuffer()
+  const wb   = XLSX.read(buf, { cellDates: true })
+  const ws   = wb.Sheets[wb.SheetNames[0]]
+  if (!ws || !ws['!ref']) throw new CrewTemplateError('Empty workbook')
+
+  const cell  = (r, c) => ws[XLSX.utils.encode_cell({ r, c })]
+  const range = XLSX.utils.decode_range(ws['!ref'])
+  return parseGrid(cell, range.e.r)
+}
+
+// Parse a Google Sheets grid of the same template. `values` is the
+// UNFORMATTED_VALUE render (dates arrive as serial numbers, which dateVal
+// handles), `formulas` the FORMULA render — a cell whose formula render starts
+// with '=' is a calculated value, so the override columns ignore it, exactly
+// like formula cells in the Excel file.
+export function parseCrewSheetGrid(values, formulas) {
+  const cell = (r, c) => {
+    const v = values?.[r]?.[c]
+    if (v === undefined || v === null || v === '') return undefined
+    const f = formulas?.[r]?.[c]
+    return { v, f: typeof f === 'string' && f.startsWith('=') ? f : undefined }
+  }
+  return parseGrid(cell, (values?.length ?? 0) - 1)
 }
 
 // ─── Diff against existing crew resources ─────────────────────────────────────

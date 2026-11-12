@@ -95,6 +95,7 @@ function mapProduction(row) {
     rateCalc:       row.rate_calc        ?? {},
     hiatuses:       row.hiatuses         ?? [],
     omittedScenes:  row.omitted_scenes   ?? [],
+    crewSheetUrl:   row.crew_sheet_url   ?? '',
   }
 }
 
@@ -161,6 +162,7 @@ const PRODUCTION_FIELD_MAP = {
   rateCalc:       'rate_calc',
   hiatuses:       'hiatuses',
   omittedScenes:  'omitted_scenes',
+  crewSheetUrl:   'crew_sheet_url',
 }
 
 function dbVal(value) {

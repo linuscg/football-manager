@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, Fragment, memo } fro
 import { useCrewStore } from '../store/useCrewStore'
 import { useCrewPeopleStore } from '../store/useCrewPeopleStore'
 import { getRateCalc, deriveRates } from '../lib/rateCalc'
-import { parseCrewXlsx, buildCrewImportDiff } from '../lib/crewXlsxImport'
+import { parseCrewXlsx, parseCrewSheetGrid, buildCrewImportDiff } from '../lib/crewXlsxImport'
 import { parseCSV } from '../lib/csv'
 import { syncFulltimeBookings } from '../lib/fulltimeBookingSync'
 import { supabase } from '../lib/supabase'
@@ -1114,6 +1114,56 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const importFileRef = useRef(null)
   const [importMsg, setImportMsg] = useState(null)  // null | { count, type }
   const [xlsxDiff, setXlsxDiff]   = useState(null)  // null | { newPeople, changed, unchangedCount }
+  const [sheetBusy, setSheetBusy] = useState(false)
+
+  // Pull the crew tracker Google Sheet (read server-side via the service
+  // account) and run it through the same diff-approval flow as an Excel upload.
+  async function handleSheetSync() {
+    if (sheetBusy) return
+    let url = production.crewSheetUrl
+    if (!url) {
+      url = window.prompt(
+        'Paste the Google Sheet link for this production’s crew tracker.\n' +
+        'It will be saved so next time is one click. The sheet must be shared ' +
+        'with the service account email (Viewer is enough).'
+      )
+      if (!url?.trim()) return
+      url = url.trim()
+      onUpdateProduction?.('crewSheetUrl', url)
+      // Give the optimistic DB write a moment — the edge function reads the
+      // saved link from the production row.
+      await new Promise(r => setTimeout(r, 600))
+    }
+    setSheetBusy(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('crew-sheet-sync', {
+        body: { productionId: production.id },
+      })
+      if (error || data?.error) {
+        let detail = data?.error ?? null
+        if (!detail && error?.context && typeof error.context.json === 'function') {
+          try { detail = (await error.context.json())?.error ?? null } catch { /* ignore */ }
+        }
+        window.alert(detail ?? error?.message ?? 'Sheet sync failed.')
+        return
+      }
+      const people = parseCrewSheetGrid(data.values, data.formulas)
+      if (!people.length) {
+        window.alert('No crew rows found in the sheet.')
+        return
+      }
+      setXlsxDiff(buildCrewImportDiff(people, resources.filter(r => r.type === 'crew')))
+    } catch (err) {
+      if (err?.code === 'TEMPLATE_MISMATCH') {
+        window.alert("The sheet doesn't match the crew tracker template (header row 3 needs Name / Role / Weekly Rate in the usual columns).")
+      } else {
+        console.error('[crew sheet sync]', err)
+        window.alert(`Sheet sync failed: ${err?.message ?? err}`)
+      }
+    } finally {
+      setSheetBusy(false)
+    }
+  }
 
   const today = todayStr()
 
@@ -1803,6 +1853,18 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
           <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => importFileRef.current?.click()} title="Import from CSV (crew tracker Excel also accepted)">
             ↑ Import CSV
           </button>
+          {mode === 'crew' && (
+            <button
+              className="pm-btn pm-btn--ghost pm-btn--sm"
+              onClick={handleSheetSync}
+              disabled={sheetBusy}
+              title={production.crewSheetUrl
+                ? 'Pull the latest crew tracker from the saved Google Sheet'
+                : 'Link a Google Sheet and pull the crew tracker from it'}
+            >
+              {sheetBusy ? '⟳ Syncing…' : '⟳ Google Sheet'}
+            </button>
+          )}
           <input
             ref={importFileRef}
             type="file"
