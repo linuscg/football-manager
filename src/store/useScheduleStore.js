@@ -693,6 +693,50 @@ export function useScheduleStore() {
     dbWrite(supabase.from('scenes').update({ [col]: dbVal(value) }).eq('id', sceneId))
   }
 
+  // SA groups are tied to their scene, not the day: when scenes change day,
+  // their SA rows (day_extras category 'extras', matched by the row's scene-
+  // number text) move with them. sceneNumbers is a Set of number strings, or
+  // null to move every SA row on the day (used when all scenes move).
+  function moveSaRowsForScenes(fromDay, toDayId, sceneNumbers) {
+    const moves = []  // { id, category, row }
+    for (const [cat, rows] of Object.entries(fromDay.extras ?? {})) {
+      if (cat.toLowerCase() !== 'extras') continue
+      for (const row of rows) {
+        const sc = String(row.scene ?? '').trim()
+        if (sceneNumbers === null || (sc && sceneNumbers.has(sc))) {
+          moves.push({ id: row.id, category: cat, row })
+        }
+      }
+    }
+    if (!moves.length) return
+    const moveIds = new Set(moves.map(m => m.id))
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d => {
+        if (d.id === fromDay.id) {
+          const next = {}
+          for (const [cat, rows] of Object.entries(d.extras ?? {})) {
+            const keep = rows.filter(r => !moveIds.has(r.id))
+            if (keep.length) next[cat] = keep
+          }
+          return { ...d, extras: next }
+        }
+        if (d.id === toDayId) {
+          const next = { ...(d.extras ?? {}) }
+          for (const m of moves) {
+            const key = Object.keys(next).find(k => k.toLowerCase() === m.category.toLowerCase()) ?? m.category
+            next[key] = [...(next[key] ?? []), m.row]
+          }
+          return { ...d, extras: next }
+        }
+        return d
+      }),
+    }))
+    for (const m of moves) {
+      dbWrite(supabase.from('day_extras').update({ day_id: toDayId }).eq('id', m.id))
+    }
+  }
+
   // Move one scene onto another day (calendar drag-drop). Appends at the end
   // of the target day's scene list.
   function moveSceneToDay(sceneId, fromDayId, toDayId) {
@@ -711,6 +755,8 @@ export function useScheduleStore() {
       }),
     }))
     dbWrite(supabase.from('scenes').update({ day_id: toDayId, sort_order: sortOrder }).eq('id', sceneId))
+    const num = String(scene.sceneNumber ?? '').trim()
+    if (num) moveSaRowsForScenes(from, toDayId, new Set([num]))
   }
 
   // Move every scene from one day onto another (dragging a day title onto a
@@ -733,6 +779,7 @@ export function useScheduleStore() {
     for (const sc of moved) {
       dbWrite(supabase.from('scenes').update({ day_id: toDayId, sort_order: sc.sortOrder }).eq('id', sc.id))
     }
+    moveSaRowsForScenes(from, toDayId, null)
   }
 
   function updateSceneCast(dayId, sceneId, castMemberIds) {
