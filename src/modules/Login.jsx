@@ -121,6 +121,7 @@ export default function Login({ onSignIn, loading, error, onBack }) {
               <button
                 type="button"
                 className="login-forgot"
+                tabIndex={-1}
                 onClick={() => { setResetEmail(email); setShowReset(true) }}
               >
                 Forgot password?
