@@ -487,7 +487,10 @@ function EquipDetailCells({ resource, onUpdate, vendorSuggestions }) {
 // the day before (machines sharing a date are grouped into one email).
 function OffhireBellCell({ resource }) {
   const [busy, setBusy] = useState(false)
-  const active = !!resource.offhireReminderEmail
+  // Optimistic flip until the store's realtime reload brings the real value.
+  const [override, setOverride] = useState(null)
+  useEffect(() => setOverride(null), [resource.offhireReminderEmail])
+  const active = override ?? !!resource.offhireReminderEmail
   async function toggle() {
     if (busy) return
     if (!active && !resource.hireEndDate) {
@@ -500,6 +503,7 @@ function OffhireBellCell({ resource }) {
         body: { action: 'subscribe', resourceId: resource.id, enable: !active },
       })
       if (error || data?.error) window.alert(data?.error ?? error?.message ?? 'Failed to update reminder.')
+      else setOverride(!active)
     } finally {
       setBusy(false)
     }
