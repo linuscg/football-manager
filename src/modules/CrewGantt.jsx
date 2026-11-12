@@ -664,6 +664,56 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
   )
 }
 
+// Popup shown when the Google Sheet auto-sync has added people since the page
+// was last open: a summary list with one-click "Allow sync for all".
+function SheetArrivalsModal({ pending, onAllowAll, onClose }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <div className="sched-import-backdrop" onClick={onClose}>
+      <div className="sched-import-modal" onClick={e => e.stopPropagation()}>
+        <div className="sched-import-head">
+          <h3 className="sched-import-title">New crew from the Google Sheet</h3>
+          <button className="sched-import-close" onClick={onClose}>×</button>
+        </div>
+        <div className="sched-import-body">
+          <div className="sched-import-summary">
+            <strong>{pending.length} {pending.length === 1 ? 'person' : 'people'}</strong> appeared in the
+            sheet and {pending.length === 1 ? 'was' : 'were'} auto-added to the tracker.
+            <span className="sched-import-day-meta">
+              Allow sync to keep them updated from the sheet (their sheet fields lock here).
+              Anyone added by mistake can be deleted from their row instead — their
+              "● Allow sync" button stays on the row until you decide.
+            </span>
+          </div>
+          <div className="sched-import-days">
+            {pending.map(p => (
+              <div key={p.id} className="sched-import-day sched-import-day--new">
+                <div className="sched-import-day-head crew-xlsx-row">
+                  <span className="sched-import-badge sched-import-badge--new">NEW</span>
+                  <span className="sched-import-day-title">{p.name}</span>
+                  <span className="sched-import-day-meta">
+                    {[p.role, p.department].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="sched-import-foot">
+          <button className="pm-btn pm-btn--ghost" onClick={onClose}>Decide per row</button>
+          <button
+            className="pm-btn pm-btn--primary"
+            disabled={busy}
+            onClick={async () => { setBusy(true); try { await onAllowAll(pending.map(p => p.id)) } finally { setBusy(false) } }}
+          >
+            {busy ? 'Allowing…' : 'Allow sync for all'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Global rate-calc settings strip (one input)
 function RateSettingInput({ label, value, onCommit }) {
   const valStr = String(value)
@@ -890,6 +940,18 @@ const ResourceRow = memo(function ResourceRow({
                   onFocus={() => { if (!sheetLocked && activeTab === 'crew') setShowPeopleDrop(true) }}
                   onBlur={sheetLocked ? undefined : handleNameBlur}
                 />
+                {activeTab === 'crew' && resource.sheetPending && (
+                  <button
+                    className="sheet-allow-btn"
+                    title="Auto-added from the Google Sheet. Allow sync to keep this row updated from the sheet (it becomes locked here); or just delete the row if they shouldn't be in the tracker."
+                    onClick={() => {
+                      onUpdate(resource.id, 'sheetSynced', true)
+                      onUpdate(resource.id, 'sheetPending', false)
+                    }}
+                  >
+                    ● Allow sync
+                  </button>
+                )}
                 {sheetLocked && (
                   <button
                     className="sheet-live-dot"
@@ -1164,6 +1226,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const [xlsxDiff, setXlsxDiff]   = useState(null)  // null | { newPeople, changed, unchangedCount }
   const [sheetBusy, setSheetBusy] = useState(false)
   const importSourceRef = useRef('xlsx')   // 'xlsx' | 'sheet' — which flow opened the diff modal
+  const [pendingDismissed, setPendingDismissed] = useState(false)
 
   // Pull the crew tracker Google Sheet (read server-side via the service
   // account) and run it through the same diff-approval flow as an Excel upload.
@@ -2252,6 +2315,21 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
             </div>
           )}
         </div>
+      )}
+
+      {mode === 'crew' && !pendingDismissed && resources.some(r => r.type === 'crew' && r.sheetPending) && (
+        <SheetArrivalsModal
+          pending={resources.filter(r => r.type === 'crew' && r.sheetPending)}
+          onAllowAll={async ids => {
+            const { error } = await supabase
+              .from('resources')
+              .update({ sheet_synced: true, sheet_pending: false })
+              .in('id', ids)
+            if (error) { window.alert(`Could not allow sync: ${error.message}`); return }
+            setPendingDismissed(true)
+          }}
+          onClose={() => setPendingDismissed(true)}
+        />
       )}
 
       {xlsxDiff && (

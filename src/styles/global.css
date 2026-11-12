@@ -6046,6 +6046,19 @@ select.pm-input { cursor: pointer; }
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.45; }
 }
+.sheet-allow-btn {
+  border: 1px solid rgba(217, 119, 6, 0.45);
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  animation: sheetLivePulse 2.4s ease-in-out infinite;
+}
+.sheet-allow-btn:hover { background: rgba(245, 158, 11, 0.25); }
 .crewd-input.is-sheet-locked,
 .gantt-input.is-sheet-locked {
   color: #15803d;

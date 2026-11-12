@@ -54,6 +54,7 @@ function mapResource(row) {
     shootCrew:       row.shoot_crew        ?? '',
     rtwCheck:        row.rtw_check         ?? '',
     sheetSynced:     row.sheet_synced      ?? false,
+    sheetPending:    row.sheet_pending     ?? false,
   }
 }
 
@@ -376,6 +377,7 @@ export function useCrewStore() {
     shootCrew:       'shoot_crew',
     rtwCheck:        'rtw_check',
     sheetSynced:     'sheet_synced',
+    sheetPending:    'sheet_pending',
   }
 
   // Numeric columns where an empty input must be written as NULL
