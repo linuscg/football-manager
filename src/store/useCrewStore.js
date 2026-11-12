@@ -48,6 +48,12 @@ function mapResource(row) {
     dealMemoEmailed: row.deal_memo_emailed ?? '',
     dealMemoDrafted: row.deal_memo_drafted ?? '',
     dealMemoSent:    row.deal_memo_sent    ?? '',
+    payrollForwarded: row.payroll_forwarded ?? '',
+    dealMemoExecuted: row.deal_memo_executed ?? '',
+    teamEngine:      row.team_engine       ?? '',
+    shootCrew:       row.shoot_crew        ?? '',
+    rtwCheck:        row.rtw_check         ?? '',
+    sheetSynced:     row.sheet_synced      ?? false,
   }
 }
 
@@ -364,6 +370,12 @@ export function useCrewStore() {
     dealMemoEmailed: 'deal_memo_emailed',
     dealMemoDrafted: 'deal_memo_drafted',
     dealMemoSent:    'deal_memo_sent',
+    payrollForwarded: 'payroll_forwarded',
+    dealMemoExecuted: 'deal_memo_executed',
+    teamEngine:      'team_engine',
+    shootCrew:       'shoot_crew',
+    rtwCheck:        'rtw_check',
+    sheetSynced:     'sheet_synced',
   }
 
   // Numeric columns where an empty input must be written as NULL
@@ -456,6 +468,12 @@ export function useCrewStore() {
       if (row.dealMemoEmailed !== undefined) rec.deal_memo_emailed = row.dealMemoEmailed || ''
       if (row.dealMemoDrafted !== undefined) rec.deal_memo_drafted = row.dealMemoDrafted || ''
       if (row.dealMemoSent    !== undefined) rec.deal_memo_sent    = row.dealMemoSent || ''
+      if (row.dealMemoExecuted !== undefined) rec.deal_memo_executed = row.dealMemoExecuted || ''
+      if (row.payrollForwarded !== undefined) rec.payroll_forwarded  = row.payrollForwarded || ''
+      if (row.teamEngine      !== undefined) rec.team_engine       = row.teamEngine || ''
+      if (row.shootCrew       !== undefined) rec.shoot_crew        = row.shootCrew || ''
+      if (row.rtwCheck        !== undefined) rec.rtw_check         = row.rtwCheck || ''
+      if (row.sheetSynced     !== undefined) rec.sheet_synced      = Boolean(row.sheetSynced)
       if (row.hireStartDate   !== undefined) rec.hire_start_date   = row.hireStartDate || null
       if (row.hireEndDate     !== undefined) rec.hire_end_date     = row.hireEndDate || null
       if (row.level           !== undefined) rec.level             = row.level ?? 5

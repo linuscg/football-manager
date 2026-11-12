@@ -6030,6 +6030,29 @@ select.pm-input { cursor: pointer; }
 .offhire-bell.is-active { opacity: 1; filter: none; }
 .offhire-bell:disabled { cursor: default; opacity: 0.4; }
 
+/* ── Google Sheet–synced crew rows ──────────────────────────────────────────── */
+.sheet-live-dot {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1;
+  color: #16a34a;
+  text-shadow: 0 0 6px rgba(22, 163, 74, 0.55);
+  animation: sheetLivePulse 2.4s ease-in-out infinite;
+}
+@keyframes sheetLivePulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+.crewd-input.is-sheet-locked,
+.gantt-input.is-sheet-locked {
+  color: #15803d;
+  background: rgba(22, 163, 74, 0.06);
+  cursor: default;
+}
+
 /* ── Note input ─────────────────────────────────────────────────────────── */
 .cat-note-input {
   height: 28px;

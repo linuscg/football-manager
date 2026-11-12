@@ -44,7 +44,12 @@ const HEADER_MATCHERS = [
   ['endDate',         h => h === 'end date' || h === 'end'],
   ['dealMemoEmailed', h => h === 'email deal memo'],
   ['dealMemoDrafted', h => h === 'deal memo drafted'],
-  ['dealMemoSent',    h => h.includes('docusign') && h.includes('sent')],
+  ['dealMemoSent',    h => (h.includes('docusign') && h.includes('sent')) || h === 'deal memo sent'],
+  ['dealMemoExecuted', h => h.includes('executed')],
+  ['payrollForwarded', h => h.includes('forwarded to payroll')],
+  ['teamEngine',      h => h === 'team engine'],
+  ['shootCrew',       h => h === 'shoot crew'],
+  ['rtwCheck',        h => h === 'rtw check' || h === 'rtw'],
 ]
 
 // Scan the first 10 rows for the header; returns { headerRow, col } or null.
@@ -194,6 +199,11 @@ function parseGrid(cell, lastRow, lastCol) {
       dealMemoEmailed: strVal(at(r, 'dealMemoEmailed')),
       dealMemoDrafted: strVal(at(r, 'dealMemoDrafted')),
       dealMemoSent:    strVal(at(r, 'dealMemoSent')),
+      dealMemoExecuted: strVal(at(r, 'dealMemoExecuted')),
+      payrollForwarded: strVal(at(r, 'payrollForwarded')),
+      teamEngine:      strVal(at(r, 'teamEngine')),
+      shootCrew:       strVal(at(r, 'shootCrew')),
+      rtwCheck:        strVal(at(r, 'rtwCheck')),
     })
   }
 
@@ -253,6 +263,11 @@ const DIFF_FIELDS = [
   { key: 'dealMemoEmailed', res: 'dealMemoEmailed', label: 'Deal Memo Emailed' },
   { key: 'dealMemoDrafted', res: 'dealMemoDrafted', label: 'Deal Memo Drafted' },
   { key: 'dealMemoSent',    res: 'dealMemoSent',    label: 'Deal Memo Sent' },
+  { key: 'dealMemoExecuted', res: 'dealMemoExecuted', label: 'Deal Memo Executed' },
+  { key: 'payrollForwarded', res: 'payrollForwarded', label: 'Forwarded to Payroll' },
+  { key: 'teamEngine',      res: 'teamEngine',      label: 'Team Engine' },
+  { key: 'shootCrew',       res: 'shootCrew',       label: 'Shoot Crew' },
+  { key: 'rtwCheck',        res: 'rtwCheck',        label: 'RTW Check' },
 ]
 
 const normName = s => String(s ?? '').trim().toLowerCase()
@@ -282,6 +297,7 @@ export function buildCrewImportDiff(people, crewResources) {
   const newPeople = []
   const changed = []
   const ambiguous = []
+  const matchedIds = []   // every safely-matched existing resource (changed or not)
   let unchangedCount = 0
 
   for (const person of people) {
@@ -292,6 +308,7 @@ export function buildCrewImportDiff(people, crewResources) {
     }
     const match = byName.get(key)
     if (!match) { newPeople.push(person); continue }
+    matchedIds.push(match.id)
 
     const changes = []
 
@@ -335,5 +352,5 @@ export function buildCrewImportDiff(people, crewResources) {
     else unchangedCount++
   }
 
-  return { newPeople, changed, unchangedCount, ambiguous }
+  return { newPeople, changed, unchangedCount, ambiguous, matchedIds }
 }

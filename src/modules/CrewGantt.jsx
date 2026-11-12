@@ -188,11 +188,16 @@ function buildPhaseSpans(colSpecs) {
 // permission (canViewRates === false) — contact / dates / deal memo stay visible.
 const DETAIL_COLS_FULL = [
   { label: 'Emailed',  w: 56,  group: 'Deal Memo' },
+  { label: 'Payroll',  w: 56,  group: 'Deal Memo' },
   { label: 'Drafted',  w: 56,  group: 'Deal Memo' },
   { label: 'Sent',     w: 56,  group: 'Deal Memo' },
+  { label: 'Executed', w: 62,  group: 'Deal Memo' },
   { label: 'Email',    w: 110, group: 'Contact' },
   { label: 'Phone',    w: 96,  group: 'Contact' },
   { label: 'Agent',    w: 90,  group: 'Contact' },
+  { label: 'Team Eng', w: 62,  group: 'Onboarding' },
+  { label: 'Shoot',    w: 50,  group: 'Onboarding' },
+  { label: 'RTW',      w: 50,  group: 'Onboarding' },
   { label: 'Rate',     w: 68,  group: 'Weekly',    money: true },
   { label: 'Net',      w: 68,  group: 'Weekly',    money: true },
   { label: 'Hol',      w: 68,  group: 'Weekly',    money: true },
@@ -255,36 +260,39 @@ const detailGroups    = (tab, canViewRates) =>
 const detailColCount  = (tab, canViewRates) => detailCols(tab, canViewRates).length
 
 const OVERRIDE_TOOLTIP = 'Calculated — type to override / clear to revert'
+const SHEET_LOCK_TOOLTIP = 'Synced from the Google Sheet — edit it in the sheet and re-sync. Click the green dot by the name to unlink this row.'
 
 function fmtMoney(v) {
   return v == null || !Number.isFinite(v) ? '' : v.toFixed(2)
 }
 
 // Free-text detail cell — local state, commit on blur
-function DetailTextCell({ value, onCommit, width, placeholder = '', type = 'text', title }) {
+function DetailTextCell({ value, onCommit, width, placeholder = '', type = 'text', title, readOnly = false }) {
   const [v, setV] = useState(value ?? '')
   useEffect(() => setV(value ?? ''), [value])
   return (
     <td className="crewd-td" style={{ width, minWidth: width }}>
       <input
-        className="crewd-input"
+        className={`crewd-input${readOnly ? ' is-sheet-locked' : ''}`}
         type={type}
         value={v}
         placeholder={placeholder}
-        title={title}
-        onChange={e => setV(e.target.value)}
-        onBlur={() => { if (v !== (value ?? '')) onCommit(v) }}
+        title={readOnly ? SHEET_LOCK_TOOLTIP : title}
+        readOnly={readOnly}
+        onChange={e => { if (!readOnly) setV(e.target.value) }}
+        onBlur={() => { if (!readOnly && v !== (value ?? '')) onCommit(v) }}
       />
     </td>
   )
 }
 
 // Plain numeric cell (Box pw / Car) — '' commits '' (store writes NULL)
-function DetailNumCell({ value, onCommit, width, title }) {
+function DetailNumCell({ value, onCommit, width, title, readOnly = false }) {
   const valStr = value == null || value === '' ? '' : String(value)
   const [v, setV] = useState(valStr)
   useEffect(() => setV(valStr), [valStr])
   function blur() {
+    if (readOnly) return
     const t = String(v).trim()
     if (t === valStr) return
     if (t === '') { onCommit(''); return }
@@ -295,11 +303,12 @@ function DetailNumCell({ value, onCommit, width, title }) {
   return (
     <td className="crewd-td" style={{ width, minWidth: width }}>
       <input
-        className="crewd-input crewd-num"
+        className={`crewd-input crewd-num${readOnly ? ' is-sheet-locked' : ''}`}
         type="number" min="0" step="0.01"
         value={v}
-        title={title}
-        onChange={e => setV(e.target.value)}
+        title={readOnly ? SHEET_LOCK_TOOLTIP : title}
+        readOnly={readOnly}
+        onChange={e => { if (!readOnly) setV(e.target.value) }}
         onBlur={blur}
       />
     </td>
@@ -318,11 +327,12 @@ function DerivedCell({ value, width, title }) {
 // Editable weekly/daily rate cell. The cell matching the row's costType shows
 // the stored number; the other shows the derived figure as a muted placeholder.
 // Typing in either commits costAmount AND flips costType to this cell's basis.
-function RateCell({ isSource, stored, derived, onCommitRate, width, title }) {
+function RateCell({ isSource, stored, derived, onCommitRate, width, title, readOnly = false }) {
   const sourceVal = isSource ? String(stored ?? '') : ''
   const [v, setV] = useState(sourceVal)
   useEffect(() => setV(sourceVal), [sourceVal])
   function blur() {
+    if (readOnly) return
     const t = String(v).trim()
     if (t === sourceVal) return
     if (t === '') {
@@ -336,12 +346,13 @@ function RateCell({ isSource, stored, derived, onCommitRate, width, title }) {
   return (
     <td className="crewd-td" style={{ width, minWidth: width }}>
       <input
-        className={`crewd-input crewd-num${!isSource ? ' is-derived' : ''}`}
+        className={`crewd-input crewd-num${!isSource ? ' is-derived' : ''}${readOnly ? ' is-sheet-locked' : ''}`}
         type="number" min="0" step="0.01"
         value={v}
         placeholder={fmtMoney(derived)}
-        title={title}
-        onChange={e => setV(e.target.value)}
+        title={readOnly ? SHEET_LOCK_TOOLTIP : title}
+        readOnly={readOnly}
+        onChange={e => { if (!readOnly) setV(e.target.value) }}
         onBlur={blur}
       />
     </td>
@@ -351,11 +362,12 @@ function RateCell({ isSource, stored, derived, onCommitRate, width, title }) {
 // 6th / 7th / OT cell — shows the per-row override when set (normal weight),
 // else the derived figure (muted italic placeholder). Typing commits the
 // override column; clearing commits null (back to the formula).
-function OverrideCell({ override, derived, onCommit, width }) {
+function OverrideCell({ override, derived, onCommit, width, readOnly = false }) {
   const ovStr = override == null || override === '' ? '' : String(override)
   const [v, setV] = useState(ovStr)
   useEffect(() => setV(ovStr), [ovStr])
   function blur() {
+    if (readOnly) return
     const t = String(v).trim()
     if (t === ovStr) return
     if (t === '') { onCommit(null); return }
@@ -366,12 +378,13 @@ function OverrideCell({ override, derived, onCommit, width }) {
   return (
     <td className="crewd-td" style={{ width, minWidth: width }}>
       <input
-        className={`crewd-input crewd-num${v === '' ? ' is-derived' : ''}`}
+        className={`crewd-input crewd-num${v === '' ? ' is-derived' : ''}${readOnly ? ' is-sheet-locked' : ''}`}
         type="number" min="0" step="0.01"
         value={v}
         placeholder={fmtMoney(derived)}
-        title={OVERRIDE_TOOLTIP}
-        onChange={e => setV(e.target.value)}
+        title={readOnly ? SHEET_LOCK_TOOLTIP : OVERRIDE_TOOLTIP}
+        readOnly={readOnly}
+        onChange={e => { if (!readOnly) setV(e.target.value) }}
         onBlur={blur}
       />
     </td>
@@ -547,16 +560,25 @@ function SupplierInput({ resource, onUpdate, vendorSuggestions }) {
 
 function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPhone, estEndDate = '', canViewRates = true }) {
   const u = field => value => onUpdate(resource.id, field, value)
+  // Rows managed by the Google Sheet: the fields the sheet supplies are
+  // read-only here (dates, on/off set, vendor, notes stay app-editable).
+  const lk = !!resource.sheetSynced
   return (
     <Fragment>
       {/* Deal memo */}
-      <DetailTextCell value={resource.dealMemoEmailed} onCommit={u('dealMemoEmailed')} width={56} title="Deal memo emailed (e.g. TRUE / NA / BUY OUT)" />
-      <DetailTextCell value={resource.dealMemoDrafted} onCommit={u('dealMemoDrafted')} width={56} title="Deal memo drafted" />
-      <DetailTextCell value={resource.dealMemoSent}    onCommit={u('dealMemoSent')}    width={56} title="Deal memo sent" />
+      <DetailTextCell value={resource.dealMemoEmailed} onCommit={u('dealMemoEmailed')} width={56} title="Deal memo emailed (e.g. TRUE / NA / BUY OUT)" readOnly={lk} />
+      <DetailTextCell value={resource.payrollForwarded} onCommit={u('payrollForwarded')} width={56} title="Forwarded to payroll?" readOnly={lk} />
+      <DetailTextCell value={resource.dealMemoDrafted} onCommit={u('dealMemoDrafted')} width={56} title="Deal memo drafted" readOnly={lk} />
+      <DetailTextCell value={resource.dealMemoSent}    onCommit={u('dealMemoSent')}    width={56} title="Deal memo sent" readOnly={lk} />
+      <DetailTextCell value={resource.dealMemoExecuted} onCommit={u('dealMemoExecuted')} width={62} title="Deal memo fully executed" readOnly={lk} />
       {/* Contact */}
-      <DetailTextCell value={resource.contactEmail} onCommit={onCommitEmail} width={110} type="email" placeholder="email" />
-      <DetailTextCell value={resource.contactPhone} onCommit={onCommitPhone} width={96} type="tel" placeholder="phone" />
-      <DetailTextCell value={resource.agent} onCommit={u('agent')} width={90} placeholder="agent" />
+      <DetailTextCell value={resource.contactEmail} onCommit={onCommitEmail} width={110} type="email" placeholder="email" readOnly={lk} />
+      <DetailTextCell value={resource.contactPhone} onCommit={onCommitPhone} width={96} type="tel" placeholder="phone" readOnly={lk} />
+      <DetailTextCell value={resource.agent} onCommit={u('agent')} width={90} placeholder="agent" readOnly={lk} />
+      {/* Onboarding */}
+      <DetailTextCell value={resource.teamEngine} onCommit={u('teamEngine')} width={62} title="Team Engine?" readOnly={lk} />
+      <DetailTextCell value={resource.shootCrew}  onCommit={u('shootCrew')}  width={50} title="Shoot crew (Y/N)" readOnly={lk} />
+      <DetailTextCell value={resource.rtwCheck}   onCommit={u('rtwCheck')}   width={50} title="Right-to-work check" readOnly={lk} />
       {canViewRates && (<>
       {/* Weekly */}
       <RateCell
@@ -569,6 +591,7 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
         }}
         width={68}
         title="Weekly rate — editing sets this row's rate basis to weekly"
+        readOnly={lk}
       />
       <DerivedCell value={rates.weeklyNet} width={68} title="Weekly net (gross ÷ holiday factor)" />
       <DerivedCell value={rates.weeklyHol} width={68} title="Weekly holiday element" />
@@ -583,6 +606,7 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
         }}
         width={68}
         title="Daily rate — editing sets this row's rate basis to daily"
+        readOnly={lk}
       />
       <DerivedCell value={rates.dailyNet} width={68} title="Daily net (gross ÷ holiday factor)" />
       <DerivedCell value={rates.dailyHol} width={68} title="Daily holiday element" />
@@ -591,19 +615,20 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
       <DerivedCell value={rates.hourlyNet} width={68} title="Hourly net" />
       <DerivedCell value={rates.hourlyHol} width={68} title="Hourly holiday element" />
       {/* Day rates (overridable) */}
-      <OverrideCell override={resource.sixthDayRate}   derived={rates.sixth}   onCommit={u('sixthDayRate')}   width={68} />
-      <OverrideCell override={resource.seventhDayRate} derived={rates.seventh} onCommit={u('seventhDayRate')} width={68} />
-      <OverrideCell override={resource.otRate}         derived={rates.ot}      onCommit={u('otRate')}         width={68} />
+      <OverrideCell override={resource.sixthDayRate}   derived={rates.sixth}   onCommit={u('sixthDayRate')}   width={68} readOnly={lk} />
+      <OverrideCell override={resource.seventhDayRate} derived={rates.seventh} onCommit={u('seventhDayRate')} width={68} readOnly={lk} />
+      <OverrideCell override={resource.otRate}         derived={rates.ot}      onCommit={u('otRate')}         width={68} readOnly={lk} />
       {/* Extras */}
-      <DetailNumCell value={resource.boxPw}        onCommit={u('boxPw')}        width={62} title="Box rental per week" />
-      <DetailNumCell value={resource.carAllowance} onCommit={u('carAllowance')} width={62} title="Car allowance" />
+      <DetailNumCell value={resource.boxPw}        onCommit={u('boxPw')}        width={62} title="Box rental per week" readOnly={lk} />
+      <DetailNumCell value={resource.carAllowance} onCommit={u('carAllowance')} width={62} title="Car allowance" readOnly={lk} />
       </>)}
       <td className="crewd-td" style={{ width: 94, minWidth: 94 }}>
         <select
           className="crewd-select"
           value={resource.taxStatus ?? ''}
+          disabled={lk}
           onChange={e => onUpdate(resource.id, 'taxStatus', e.target.value)}
-          title="Tax status"
+          title={lk ? SHEET_LOCK_TOOLTIP : 'Tax status'}
         >
           <option value=""></option>
           <option value="PAYE">PAYE</option>
@@ -709,6 +734,9 @@ const ResourceRow = memo(function ResourceRow({
   const [lDept,          setLDept]          = useState(resource.department)
   const [lContactEmail,  setLContactEmail]  = useState(resource.contactEmail)
   const [lContactPhone,  setLContactPhone]  = useState(resource.contactPhone)
+
+  // Rows managed by the Google Sheet are read-only for sheet-supplied fields.
+  const sheetLocked = activeTab === 'crew' && !!resource.sheetSynced
 
   // People-search dropdown
   const [showPeopleDrop, setShowPeopleDrop] = useState(false)
@@ -853,13 +881,25 @@ const ResourceRow = memo(function ResourceRow({
             <div className="gantt-name-fields">
               <div className="gantt-name-input-wrap">
                 <input
-                  className="gantt-input gantt-input-name"
+                  className={`gantt-input gantt-input-name${sheetLocked ? ' is-sheet-locked' : ''}`}
                   value={lName}
                   placeholder={activeTab === 'crew' ? 'Name' : 'Item name'}
-                  onChange={e => { setLName(e.target.value); if (activeTab === 'crew') setShowPeopleDrop(true) }}
-                  onFocus={() => { if (activeTab === 'crew') setShowPeopleDrop(true) }}
-                  onBlur={handleNameBlur}
+                  readOnly={sheetLocked}
+                  title={sheetLocked ? SHEET_LOCK_TOOLTIP : undefined}
+                  onChange={e => { if (sheetLocked) return; setLName(e.target.value); if (activeTab === 'crew') setShowPeopleDrop(true) }}
+                  onFocus={() => { if (!sheetLocked && activeTab === 'crew') setShowPeopleDrop(true) }}
+                  onBlur={sheetLocked ? undefined : handleNameBlur}
                 />
+                {sheetLocked && (
+                  <button
+                    className="sheet-live-dot"
+                    title="Live from the Google Sheet — fields update on each sync and are locked here. Click to unlink and make this row app-editable again."
+                    onClick={() => {
+                      if (window.confirm(`Unlink "${resource.name}" from the Google Sheet? The row becomes editable in the app, but the next sheet sync may flag it as changed again.`))
+                        onUpdate(resource.id, 'sheetSynced', false)
+                    }}
+                  >●</button>
+                )}
                 {lPersonId && (
                   <span className="gantt-person-linked" title="Linked to crew database">●</span>
                 )}
@@ -886,12 +926,14 @@ const ResourceRow = memo(function ResourceRow({
               {activeTab === 'crew' ? (
                 <>
                   <input
-                    className="gantt-input gantt-input-role"
+                    className={`gantt-input gantt-input-role${sheetLocked ? ' is-sheet-locked' : ''}`}
                     value={lRole}
                     placeholder="Role"
+                    readOnly={sheetLocked}
+                    title={sheetLocked ? SHEET_LOCK_TOOLTIP : undefined}
                     list={`role-${resource.id}`}
-                    onChange={e => setLRole(e.target.value)}
-                    onBlur={() => commit('role', lRole, resource.role)}
+                    onChange={e => { if (!sheetLocked) setLRole(e.target.value) }}
+                    onBlur={() => { if (!sheetLocked) commit('role', lRole, resource.role) }}
                   />
                   <datalist id={`role-${resource.id}`}>
                     {roleSuggestions.map(s => <option key={s} value={s} />)}
@@ -915,12 +957,14 @@ const ResourceRow = memo(function ResourceRow({
               {activeTab === 'crew' && (
                 <>
                   <input
-                    className="gantt-input gantt-input-dept"
+                    className={`gantt-input gantt-input-dept${sheetLocked ? ' is-sheet-locked' : ''}`}
                     value={lDept}
                     placeholder="Department"
+                    readOnly={sheetLocked}
+                    title={sheetLocked ? SHEET_LOCK_TOOLTIP : undefined}
                     list={`dept-${resource.id}`}
-                    onChange={e => setLDept(e.target.value)}
-                    onBlur={() => commit('department', lDept, resource.department)}
+                    onChange={e => { if (!sheetLocked) setLDept(e.target.value) }}
+                    onBlur={() => { if (!sheetLocked) commit('department', lDept, resource.department) }}
                   />
                   <datalist id={`dept-${resource.id}`}>
                     {deptSuggestions.map(s => <option key={s} value={s} />)}
@@ -1119,6 +1163,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const [importMsg, setImportMsg] = useState(null)  // null | { count, type }
   const [xlsxDiff, setXlsxDiff]   = useState(null)  // null | { newPeople, changed, unchangedCount }
   const [sheetBusy, setSheetBusy] = useState(false)
+  const importSourceRef = useRef('xlsx')   // 'xlsx' | 'sheet' — which flow opened the diff modal
 
   // Pull the crew tracker Google Sheet (read server-side via the service
   // account) and run it through the same diff-approval flow as an Excel upload.
@@ -1156,6 +1201,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
         window.alert('No crew rows found in the sheet.')
         return
       }
+      importSourceRef.current = 'sheet'
       setXlsxDiff(buildCrewImportDiff(people, resources.filter(r => r.type === 'crew')))
     } catch (err) {
       if (err?.code === 'TEMPLATE_MISMATCH') {
@@ -1616,6 +1662,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
           return
         }
         const crew = resources.filter(r => r.type === 'crew')
+        importSourceRef.current = 'xlsx'
         setXlsxDiff(buildCrewImportDiff(people, crew))
       } catch (err) {
         if (err?.code === 'TEMPLATE_MISMATCH') {
@@ -1678,6 +1725,9 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   // Apply an approved crew tracker Excel import: insert the checked NEW people
   // (into the active sub-tab's class) and write the checked CHANGED fields.
   async function applyXlsxImport(selectedNew, selectedChanged) {
+    const fromSheet  = importSourceRef.current === 'sheet'
+    const matchedIds = xlsxDiff?.matchedIds ?? []
+    const syncedIds  = []   // rows to flag sheet_synced after a sheet apply
     setXlsxDiff(null)
     let applied = 0
 
@@ -1732,6 +1782,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
       }))
       const inserted = await importResources('crew', rows, { crewClass })
       applied += inserted.length
+      syncedIds.push(...inserted.map(r => r.id))
 
       // Fulltime hires with both dates → auto-book their weekdays.
       if (crewClass === 'fulltime') {
@@ -1744,6 +1795,20 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
             }
           }
         }
+      }
+    }
+
+    // Sheet sync: every row the sheet covers (new, changed, or matched and
+    // unchanged) becomes sheet-managed — green dot, sheet-supplied fields
+    // locked until unlinked. The bulk update lands via the realtime reload.
+    if (fromSheet) {
+      syncedIds.push(...matchedIds)
+      if (syncedIds.length) {
+        const { error: syncErr } = await supabase
+          .from('resources')
+          .update({ sheet_synced: true })
+          .in('id', syncedIds)
+        if (syncErr) console.error('[sheet sync] flagging synced rows failed:', syncErr)
       }
     }
 
