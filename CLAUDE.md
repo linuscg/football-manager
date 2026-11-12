@@ -61,6 +61,13 @@ timesheets, accommodation, catering, DPRs, deal memos.
 - **Email sending** goes through the `send-welcome-email` /`send-invite` edge
   functions (Resend, caller must be owner/admin, recipients must be crew
   contact emails of the production, matched case-insensitively).
+- **Off-hire reminders** (`offhire-reminder` edge function + pg_cron job
+  `offhire-reminder-sweep`, 07:00 UTC): the bell in the Equipment gantt's
+  Details panel stores the clicker's email in `resources.offhire_reminder_email`
+  and emails them an .ics invite; the daily sweep (guarded by the CRON_SECRET
+  function secret, which must match the value baked into the cron job's body)
+  emails each subscriber once, covering all their machines off-hiring tomorrow
+  or in exactly one week.
 - **Deal memos** (`src/lib/dealMemo.js` + New Starters tab): Tax Status
   "Loan Out" → loan-out template, else direct hire. Word docs fill via
   docxtemplater from `public/deal-memo/*.docx`; the sent PDF fills

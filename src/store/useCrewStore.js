@@ -31,6 +31,7 @@ function mapResource(row) {
     poNumber:      row.po_number       ?? '',
     hireStartDate: row.hire_start_date ?? '',
     hireEndDate:   row.hire_end_date   ?? '',
+    offhireReminderEmail: row.offhire_reminder_email ?? null,
     personId:      row.person_id       ?? null,
     costCode:      row.cost_code        ?? '',
     crewClass:     row.crew_class      ?? 'additional',

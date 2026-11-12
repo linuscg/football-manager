@@ -240,6 +240,7 @@ const EQUIP_DETAIL_COLS = [
   { label: 'PO #',     w: 90,  group: 'Supplier' },
   { label: 'From',     w: 108, group: 'Hire' },
   { label: 'To',       w: 108, group: 'Hire' },
+  { label: 'Remind',   w: 64,  group: 'Hire' },
   { label: 'Notes',    w: 170, group: 'Other' },
 ]
 const EQUIP_DETAIL_GROUPS = buildDetailGroups(EQUIP_DETAIL_COLS)
@@ -475,8 +476,47 @@ function EquipDetailCells({ resource, onUpdate, vendorSuggestions }) {
           title="Hire to"
         />
       </td>
+      <OffhireBellCell resource={resource} />
       <DetailTextCell value={resource.notes} width={170} placeholder="Notes…" onCommit={u('notes')} />
     </Fragment>
+  )
+}
+
+// Off-hire reminder bell: enabling emails the current user a calendar invite
+// for the off-hire date, then the daily sweep emails them one week before and
+// the day before (machines sharing a date are grouped into one email).
+function OffhireBellCell({ resource }) {
+  const [busy, setBusy] = useState(false)
+  const active = !!resource.offhireReminderEmail
+  async function toggle() {
+    if (busy) return
+    if (!active && !resource.hireEndDate) {
+      window.alert('Set a hire end date first — reminders are based on it.')
+      return
+    }
+    setBusy(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('offhire-reminder', {
+        body: { action: 'subscribe', resourceId: resource.id, enable: !active },
+      })
+      if (error || data?.error) window.alert(data?.error ?? error?.message ?? 'Failed to update reminder.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <td className="crewd-td crewd-td--center" style={{ width: 64, minWidth: 64 }}>
+      <button
+        className={`offhire-bell${active ? ' is-active' : ''}`}
+        onClick={toggle}
+        disabled={busy}
+        title={active
+          ? `Off-hire reminders go to ${resource.offhireReminderEmail} — click to cancel`
+          : 'Email me a calendar invite now, plus reminders one week and one day before off-hire'}
+      >
+        {busy ? '…' : active ? '🔔' : '🔕'}
+      </button>
+    </td>
   )
 }
 

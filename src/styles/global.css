@@ -6012,6 +6012,24 @@ select.pm-input { cursor: pointer; }
 .cat-badge--adhoc { background: #fce7f3; color: #9d174d; }
 .cat-badge--sa    { background: #e0e7ff; color: #3730a3; }
 
+/* ── Equipment off-hire reminder bell ───────────────────────────────────────── */
+.crewd-td--center { text-align: center; }
+.offhire-bell {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  opacity: 0.45;
+  filter: grayscale(1);
+  transition: opacity 0.12s ease, filter 0.12s ease;
+}
+.offhire-bell:hover { opacity: 0.85; }
+.offhire-bell.is-active { opacity: 1; filter: none; }
+.offhire-bell:disabled { cursor: default; opacity: 0.4; }
+
 /* ── Note input ─────────────────────────────────────────────────────────── */
 .cat-note-input {
   height: 28px;
