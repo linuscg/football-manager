@@ -85,14 +85,21 @@ export default function CateringNumbers({ store }) {
     )
     const castCount = castMembers.filter(c => sceneCastIds.has(c.id)).length
 
-    // 4. Manual additionals
+    // 4. Supporting artists — sum of the day's SA group totals from the Schedule
+    // (category key is 'extras'; legacy/seeded rows may use 'Extras')
+    const saCount = Object.entries(day.extras ?? {})
+      .filter(([k]) => k.toLowerCase() === 'extras')
+      .flatMap(([, list]) => list)
+      .reduce((s, e) => s + (Number(e.totalNumber) || 0), 0)
+
+    // 5. Manual additionals
     const addl = Number(additionals[day.id] ?? 0)
 
-    const total     = ftCount + addCount + castCount + addl
+    const total     = ftCount + addCount + castCount + saCount + addl
     const adjusted  = roundUp5(total * 1.12)
     const collected = catRecords.filter(r => r.dayId === day.id && r.collected).length
 
-    return { day, ftCount, addCount, castCount, addl, total, adjusted, collected }
+    return { day, ftCount, addCount, castCount, saCount, addl, total, adjusted, collected }
   }), [allDays, ftcMembers, bookings, resources, castMembers, getMemberOverride, additionals, catRecords])
 
   // Column totals
@@ -100,11 +107,12 @@ export default function CateringNumbers({ store }) {
     ft:        acc.ft        + r.ftCount,
     add:       acc.add       + r.addCount,
     cast:      acc.cast      + r.castCount,
+    sa:        acc.sa        + r.saCount,
     addl:      acc.addl      + r.addl,
     total:     acc.total     + r.total,
     adjusted:  acc.adjusted  + r.adjusted,
     collected: acc.collected + r.collected,
-  }), { ft: 0, add: 0, cast: 0, addl: 0, total: 0, adjusted: 0, collected: 0 }), [rows])
+  }), { ft: 0, add: 0, cast: 0, sa: 0, addl: 0, total: 0, adjusted: 0, collected: 0 }), [rows])
 
   if (allDays.length === 0) {
     return (
@@ -126,14 +134,15 @@ export default function CateringNumbers({ store }) {
               <th className="catn-th catn-th--num" title="Fulltime crew (excluding those marked absent on this day)">Fulltime Crew</th>
               <th className="catn-th catn-th--num" title="Additional crew with active bookings on this day">Additional Crew</th>
               <th className="catn-th catn-th--num" title="Cast members with scenes on this day">Cast</th>
-              <th className="catn-th catn-th--num catn-th--addl" title="Manual additions (e.g. extras, visitors)">Catering Additionals</th>
+              <th className="catn-th catn-th--num" title="Supporting artists — sum of the day's SA group totals from the Schedule">SAs</th>
+              <th className="catn-th catn-th--num catn-th--addl" title="Manual additions (e.g. visitors)">Catering Additionals</th>
               <th className="catn-th catn-th--num catn-th--total">Total</th>
               <th className="catn-th catn-th--num catn-th--adj" title="Total × 112%, rounded up to nearest 5">Catering Estimate</th>
               <th className="catn-th catn-th--num catn-th--collected" title="Lunches collected on this day (from Catering List)">Total Collected</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ day, ftCount, addCount, castCount, addl, total, adjusted, collected }) => {
+            {rows.map(({ day, ftCount, addCount, castCount, saCount, addl, total, adjusted, collected }) => {
               const { primary, sub } = dayLabel(day)
               return (
                 <tr key={day.id} className={`catn-row catn-row--${day.dayCategory}`}>
@@ -144,6 +153,7 @@ export default function CateringNumbers({ store }) {
                   <td className="catn-td catn-td--num">{ftCount > 0 ? ftCount : <span className="catn-zero">—</span>}</td>
                   <td className="catn-td catn-td--num">{addCount > 0 ? addCount : <span className="catn-zero">—</span>}</td>
                   <td className="catn-td catn-td--num">{castCount > 0 ? castCount : <span className="catn-zero">—</span>}</td>
+                  <td className="catn-td catn-td--num">{saCount > 0 ? saCount : <span className="catn-zero">—</span>}</td>
                   <td className="catn-td catn-td--addl">
                     <input
                       className="catn-addl-input"
@@ -170,6 +180,7 @@ export default function CateringNumbers({ store }) {
               <td className="catn-td catn-td--num catn-td--foot">{totals.ft}</td>
               <td className="catn-td catn-td--num catn-td--foot">{totals.add}</td>
               <td className="catn-td catn-td--num catn-td--foot">{totals.cast}</td>
+              <td className="catn-td catn-td--num catn-td--foot">{totals.sa}</td>
               <td className="catn-td catn-td--num catn-td--foot">{totals.addl}</td>
               <td className="catn-td catn-td--num catn-td--foot catn-td--total">{totals.total}</td>
               <td className="catn-td catn-td--num catn-td--foot catn-td--adj">{totals.adjusted}</td>

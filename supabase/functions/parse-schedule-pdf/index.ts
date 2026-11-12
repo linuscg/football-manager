@@ -63,10 +63,12 @@ WHAT THE DOCUMENT LOOKS LIKE:
 - It is a bordered TABLE. Each row is a full-width horizontal "strip".
 - There are three kinds of strip:
   (A) SCENE strip — has the column layout below.
-  (B) END-OF-DAY banner — a full-width row reading like "End of Day # 1 -- Monday, 20 July 2026 -- Total Pgs: 5 3/8". This is the ONLY thing that ends a day.
+  (B) END-OF-DAY banner — a full-width row reading like "End of Day # 1 -- Monday, 20 July 2026 -- Total Pgs: 5 3/8" or "End of Shooting Day 1 -- Monday, 14 December 2026 -- 4 Pages". This is the ONLY thing that ends a day.
   (C) TEXT strip — anything else (headers, instructions, totals, location names). Never a scene, never a day delimiter.
 
-A SCENE strip has these columns, left → right:
+A SCENE strip comes in two common layouts — check which one THIS document uses before parsing:
+
+LAYOUT 1 — unlabelled columns, left → right:
   1) Scene number (bold, far left). May be blank.
   2) INT or EXT.
   3) Bold SET name, with a description line under it. (May have a small dance-sequence tag like KNOCK/ANI/DANCE under the scene number — put it in danceSequence.)
@@ -75,14 +77,24 @@ A SCENE strip has these columns, left → right:
   6) CAST column, prefixed "C:" e.g. "C: 1, 3, 4" → put each number in "castNumbers" (["1","3","4"]).
   7) "SA's:" count (supporting artists/extras) → put in "saCount".
 
+LAYOUT 2 — LABELLED cells. Each strip's cells carry their own label, e.g.:
+  "Day: 2" over "5 1/8 pgs" | "Scenes: 49" | INT over Night | SET NAME + right-aligned venue, description line under | "1, 8, 12" | "SA's: 0" | Shots: | Time:
+  Read by LABEL, not by position:
+  - "Scenes:" value → sceneNumber (here "49"). THIS is the scene number even though it is NOT the far-left cell.
+  - "Day:" value inside a strip → storyDay (here "2"). It is NEVER the scene number and NEVER the shoot day.
+  - "N/8 pgs" → pages. INT/EXT cell with the time-of-day word under it → intExt + dayNight.
+  - The bare comma-separated number list ("1, 8, 12", possibly with suffixes like "1st", "20bd") → castNumbers, each entry copied as printed.
+  - A right-aligned venue in the set-name cell (e.g. "Studio stage 6") belongs to the day's location, not the description.
+
 SCENE NUMBERS — NEVER DROP THEM:
-- Every scene strip has its scene number printed in bold at the far LEFT edge of the strip. Read that cell for EVERY scene strip. Copy it character-for-character, including part suffixes like "pt 1 of 2", "A", "B".
-- Leave "sceneNumber" empty ONLY when the far-left cell is genuinely blank in the PDF. A hard-to-read or small number is still a number — read it, don't skip it.
+- EVERY scene strip has a printed scene number: in Layout 1 it is the bold far-LEFT cell; in Layout 2 it is the value of the cell labelled "Scenes:". Read it for EVERY scene strip and copy it character-for-character, including suffixes like "pt 1 of 2", "A", "B", "cont", "pt".
+- Leave "sceneNumber" empty ONLY when that cell is genuinely blank in the PDF. A hard-to-read or small number is still a number — read it, don't skip it.
+- NEVER put a "Day:"-labelled value, a page count, or a cast number into sceneNumber.
 - Do not renumber, merge, or invent scenes. Each printed scene strip = exactly one scene object in the output.
 
 ⚠ CRITICAL — TWO DIFFERENT "DAY" NUMBERS, DO NOT CONFUSE THEM:
-- The number under the time-of-day word (column 4) is the STORY DAY. It is fiction's internal day. Put it in "storyDay". It has NOTHING to do with which shoot day the scene is on. A scene with "Evening / 20" is NOT shoot day 20.
-- The SHOOT DAY number comes ONLY from the "End of Day # N" banner. That N is the dayNumber for the day that just ended.
+- The STORY DAY (fiction's internal day) is: in Layout 1 the number under the time-of-day word; in Layout 2 the "Day:"-labelled value inside the strip. Put it in "storyDay". It has NOTHING to do with which shoot day the scene is on. A scene with "Evening / 20" is NOT shoot day 20.
+- The SHOOT DAY number comes ONLY from the day banners: an "End of Day # N" / "End of Shooting Day N" banner, or a day heading like "DAY N  call 08:00 - wrap 18:30  MON 14 DEC". That N is the dayNumber.
 - Never use a scene's story-day number, page count, or cast number as a shoot-day number.
 
 HOW TO ASSIGN SCENES TO DAYS — a strict top-to-bottom state machine:
