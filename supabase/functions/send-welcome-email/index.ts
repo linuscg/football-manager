@@ -77,8 +77,23 @@ serve(async (req) => {
       })
     }
 
+    // From display name = the production's name (address stays on the
+    // verified footballmanager.xyz domain). Quotes/newlines are stripped so a
+    // production name can't smuggle extra headers or a fake address in.
+    const { data: prodRow } = await adminClient
+      .from('production')
+      .select('name')
+      .eq('id', productionId)
+      .maybeSingle()
+    const prodName = String(prodRow?.name ?? '')
+      .replace(/[\r\n"<>]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80)
+    const fromAddress = prodName ? `${prodName} <noreply@footballmanager.xyz>` : FROM_ADDRESS
+
     const payload: Record<string, unknown> = {
-      from: FROM_ADDRESS,
+      from: fromAddress,
       to:   recipients,
       subject,
       text: text ?? '',
