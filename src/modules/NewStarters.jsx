@@ -272,11 +272,10 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
           onClick={() => toggle('emailDelivered')}
         />
       </td>
-      {/* Deal memo: generate docx / send PDF */}
+      {/* Deal memo: generate docx / send PDF (columns hidden when the owner
+          has disabled deal memo sending for this production) */}
+      {memoEnabled && (<>
       <td className="ns-cell ns-cell--action" style={{ whiteSpace: 'nowrap' }}>
-        {!memoEnabled ? (
-          <span className="ns-memo-off" title="Deal memo sending is turned off for this production (Settings → Feature Toggles, owner only).">Off</span>
-        ) : (<>
         <button
           className="pm-btn pm-btn--ghost pm-btn--sm"
           onClick={() => onGenerateMemo(person)}
@@ -293,7 +292,6 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
         >
           {memoSent ? 'Resend' : 'Send'}
         </button>
-        </>)}
       </td>
       {/* Deal memo: sent / delivered (delivered toggles on click) */}
       <td className="ns-cell ns-cell--check">
@@ -306,6 +304,7 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
           onClick={() => toggle('memoDelivered')}
         />
       </td>
+      </>)}
       {/* Scenechronize */}
       <td className="ns-cell ns-cell--check">
         <input
@@ -397,7 +396,8 @@ function DealMemoSendModal({ person, resource, production, onClose, onSent }) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error ?? err.message ?? res.statusText)
       }
-      onSent()
+      const sent = await res.json().catch(() => null)
+      onSent(sent?.id ?? null)
     } catch (err) {
       setError(err.message)
       setSending(false)
@@ -477,9 +477,11 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
               <th className="ns-th ns-th--action">Welcome email</th>
               <th className="ns-th ns-th--check" title="Welcome email sent">Sent</th>
               <th className="ns-th ns-th--check" title="Welcome email delivered — click the dot to toggle">Delivered</th>
+              {memoEnabled && (<>
               <th className="ns-th ns-th--action ns-th--memo" title="Generate as Word doc, send as PDF">Deal memo</th>
               <th className="ns-th ns-th--check" title="Deal memo sent">Sent</th>
               <th className="ns-th ns-th--check" title="Deal memo delivered — click the dot to toggle">Delivered</th>
+              </>)}
               <th className="ns-th ns-th--check" title="Added to Scenechronize">Scenechr.</th>
               <th className="ns-th ns-th--check" title="Contract sent">Contract</th>
               <th className="ns-th ns-th--check" title="Security pass issued">Sec. Pass</th>
@@ -691,7 +693,13 @@ export default function NewStarters({ featureFlags = {} }) {
         body: JSON.stringify(payload),
       })
       if (res.ok) {
+        const sent = await res.json().catch(() => null)
         await updateStatus(person.id, person._crewType ?? 'additional', 'emailSent', true)
+        if (sent?.id) {
+          await updateStatus(person.id, person._crewType ?? 'additional', 'welcomeEmailId', sent.id)
+          // Fresh send: delivery not yet confirmed — the webhook flips it.
+          await updateStatus(person.id, person._crewType ?? 'additional', 'emailDelivered', false)
+        }
         setSendMsg({
           type: 'ok',
           text: `Welcome email sent to ${person.name || person.email}` +
@@ -811,9 +819,13 @@ export default function NewStarters({ featureFlags = {} }) {
           resource={resources.find(r => r.id === memoSendFor.id)}
           production={memoProduction}
           onClose={() => setMemoSendFor(null)}
-          onSent={() => {
+          onSent={(resendId) => {
             updateResource(memoSendFor.id, 'dealMemoSent', 'TRUE')
             updateStatus(memoSendFor.id, memoSendFor._crewType ?? 'additional', 'memoSent', true)
+            if (resendId) {
+              updateStatus(memoSendFor.id, memoSendFor._crewType ?? 'additional', 'memoEmailId', resendId)
+              updateStatus(memoSendFor.id, memoSendFor._crewType ?? 'additional', 'memoDelivered', false)
+            }
             setSendMsg({ type: 'ok', text: `Deal memo sent to ${memoSendFor.name || memoSendFor.email}.` })
             setMemoSendFor(null)
             setTimeout(() => setSendMsg(null), 5000)

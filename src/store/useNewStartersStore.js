@@ -16,6 +16,8 @@ function mapStatus(row) {
     memoSent:              row.memo_sent              ?? false,
     memoDelivered:         row.memo_delivered         ?? false,
     notes:                 row.notes                  ?? '',
+    welcomeEmailId:        row.welcome_email_id       ?? null,
+    memoEmailId:           row.memo_email_id          ?? null,
   }
 }
 
@@ -87,6 +89,8 @@ export function useNewStartersStore() {
       memoSent:             'memo_sent',
       memoDelivered:        'memo_delivered',
       notes:                'notes',
+      welcomeEmailId:       'welcome_email_id',
+      memoEmailId:          'memo_email_id',
     }
     const col = colMap[field] ?? field
 
