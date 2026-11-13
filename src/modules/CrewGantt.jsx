@@ -246,6 +246,8 @@ const EQUIP_DETAIL_COLS = [
   { label: 'From',     w: 108, group: 'Hire' },
   { label: 'To',       w: 108, group: 'Hire' },
   { label: 'Remind',   w: 64,  group: 'Hire' },
+  { label: 'Weeks',    w: 64,  group: 'Total' },
+  { label: 'Cost',     w: 90,  group: 'Total' },
   { label: 'Notes',    w: 170, group: 'Other' },
 ]
 const EQUIP_DETAIL_GROUPS = buildDetailGroups(EQUIP_DETAIL_COLS)
@@ -435,8 +437,41 @@ function EndDateCell({ resource, estEndDate, onUpdate }) {
   )
 }
 
-// The full run of detail <td>s for one equipment row (Cost · Supplier · Hire · Notes)
-function EquipDetailCells({ resource, onUpdate, vendorSuggestions }) {
+// Hire totals for one equipment row. Chargeable days = the inclusive hire
+// span minus any production hiatus days inside it (kit is assumed off-hired
+// or suspended over a hiatus); weeks = chargeable days / 7.
+function equipHireTotals(resource, hiatuses) {
+  const s = resource.hireStartDate, e = resource.hireEndDate
+  if (!s || !e || e < s) return null
+  const DAY = 86400000
+  const days = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / DAY) + 1
+  const rawDays = days(s, e)
+  let hiatusDays = 0
+  const overlaps = []
+  for (const h of hiatuses ?? []) {
+    if (!h.startDate || !h.endDate || h.endDate < h.startDate) continue
+    const os = h.startDate > s ? h.startDate : s
+    const oe = h.endDate < e ? h.endDate : e
+    if (oe < os) continue
+    const n = days(os, oe)
+    hiatusDays += n
+    overlaps.push({ title: h.title || 'Hiatus', days: n })
+  }
+  const chargeDays = rawDays - hiatusDays
+  const weeks = chargeDays / 7
+  const rawWeeks = rawDays / 7
+  const rate = parseFloat(resource.costAmount)
+  const cost = Number.isFinite(rate)
+    ? (resource.costType === 'weekly' ? rate * weeks : rate * chargeDays)
+    : null
+  return { rawDays, hiatusDays, chargeDays, weeks, rawWeeks, cost, overlaps, rate }
+}
+
+const fmt1 = n => (Math.round(n * 10) / 10).toLocaleString('en-GB', { maximumFractionDigits: 1 })
+const fmtMoney0 = n => n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+// The full run of detail <td>s for one equipment row (Cost · Supplier · Hire · Totals · Notes)
+function EquipDetailCells({ resource, onUpdate, vendorSuggestions, hiatuses }) {
   const u = field => value => onUpdate(resource.id, field, value)
   return (
     <Fragment>
@@ -490,7 +525,43 @@ function EquipDetailCells({ resource, onUpdate, vendorSuggestions }) {
         />
       </td>
       <OffhireBellCell resource={resource} />
+      <EquipTotalsCells resource={resource} hiatuses={hiatuses} />
       <DetailTextCell value={resource.notes} width={170} placeholder="Notes…" onCommit={u('notes')} />
+    </Fragment>
+  )
+}
+
+// Derived Weeks / Cost cells with a hiatus-aware tooltip.
+function EquipTotalsCells({ resource, hiatuses }) {
+  const t = equipHireTotals(resource, hiatuses)
+  if (!t) {
+    return (
+      <Fragment>
+        <td className="crewd-td crewd-derived" style={{ width: 64, minWidth: 64 }} title="Set hire From and To dates to calculate weeks" />
+        <td className="crewd-td crewd-derived" style={{ width: 90, minWidth: 90 }} title="Set hire dates and a rate to calculate cost" />
+      </Fragment>
+    )
+  }
+  const weeksTip = t.hiatusDays > 0
+    ? `${fmt1(t.weeks)} weeks charged (${t.chargeDays} days).\n`
+      + `Hiatus removed: ${t.overlaps.map(o => `${o.title} (${o.days} day${o.days === 1 ? '' : 's'})`).join(', ')}.\n`
+      + `With hiatus included it would be ${fmt1(t.rawWeeks)} weeks (${t.rawDays} days).`
+    : `${fmt1(t.weeks)} weeks (${t.chargeDays} days), hire dates inclusive.\n`
+      + `No production hiatus falls inside this hire.`
+  const costTip = t.cost == null
+    ? 'Set a rate to calculate cost'
+    : resource.costType === 'weekly'
+      ? `${fmtMoney0(t.rate)}/week × ${fmt1(t.weeks)} weeks${t.hiatusDays > 0 ? ' (hiatus days excluded)' : ''}`
+      : `${fmtMoney0(t.rate)}/${resource.costType === 'halfday' ? 'half day' : 'day'} × ${t.chargeDays} days${t.hiatusDays > 0 ? ' (hiatus days excluded)' : ''}`
+  return (
+    <Fragment>
+      <td className={`crewd-td crewd-derived${t.hiatusDays > 0 ? ' equip-total--hiatus' : ''}`}
+          style={{ width: 64, minWidth: 64 }} title={weeksTip}>
+        {fmt1(t.weeks)}{t.hiatusDays > 0 ? '*' : ''}
+      </td>
+      <td className="crewd-td crewd-derived" style={{ width: 90, minWidth: 90 }} title={costTip}>
+        {t.cost == null ? '' : fmtMoney0(t.cost)}
+      </td>
     </Fragment>
   )
 }
@@ -755,6 +826,7 @@ function uniq(arr) { return [...new Set(arr.filter(Boolean))].sort() }
 
 // Shared empty booking map — stable identity for rows with no bookings
 const EMPTY_ROW_BOOKINGS = {}
+const EMPTY_HIATUSES = []
 
 const ResourceRow = memo(function ResourceRow({
   resource, activeTab, colSpecs, rowBookings = EMPTY_ROW_BOOKINGS,
@@ -768,6 +840,7 @@ const ResourceRow = memo(function ResourceRow({
   showDetails = false, rateCalcSettings = null, estEndDate = '',
   canViewRates = true,
   onRowContextMenu = null,
+  hiatuses = [],
 }) {
   // Build suggestions from all other resources (for role/dept/etc.)
   const others = typeResources.filter(r => r.id !== resource.id)
@@ -1063,6 +1136,7 @@ const ResourceRow = memo(function ResourceRow({
             resource={resource}
             onUpdate={onUpdate}
             vendorSuggestions={vendorSuggestions}
+            hiatuses={hiatuses}
           />
         )}
 
@@ -2263,6 +2337,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                         showDetails={showDetails}
                         rateCalcSettings={rateCalcSettings}
                         canViewRates={canViewRates}
+                        hiatuses={production?.hiatuses ?? EMPTY_HIATUSES}
                       />
                     ))}
                   </Fragment>

@@ -6059,6 +6059,7 @@ select.pm-input { cursor: pointer; }
   animation: sheetLivePulse 2.4s ease-in-out infinite;
 }
 .sheet-allow-btn:hover { background: rgba(245, 158, 11, 0.25); }
+.equip-total--hiatus { color: #b45309; font-weight: 600; }
 .crewd-input.is-sheet-locked,
 .gantt-input.is-sheet-locked {
   color: #15803d;
