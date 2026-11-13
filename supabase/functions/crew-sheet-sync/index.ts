@@ -48,7 +48,7 @@ async function googleAccessToken(saEmail: string, privateKeyPem: string): Promis
   const header  = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
   const payload = b64url(JSON.stringify({
     iss:   saEmail,
-    scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
     aud:   'https://oauth2.googleapis.com/token',
     iat:   now,
     exp:   now + 3600,
@@ -255,7 +255,7 @@ serve(async (req) => {
         if (!synced.length) continue   // auto-sync only runs once a manual sync has linked rows
 
         token ??= await googleAccessToken(sa.client_email, sa.private_key)
-        const range = 'A1:BZ3000'
+        const range = 'A1:ZZ3000'
         const grab = async (render: string) => {
           const res = await fetch(
             `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=${render}&dateTimeRenderOption=SERIAL_NUMBER`,
@@ -385,6 +385,42 @@ serve(async (req) => {
       return json({ error: 'Only production owners/admins can sync the crew sheet.' }, 403)
     }
 
+    // ── Fix-dates write action (owner/admin; used by assisted corrections) ──
+    // body.updates = [{ row, col, value }] with 1-based row/col; each value is
+    // written with USER_ENTERED so the sheet (now UK locale) parses it as a
+    // real date. The service account must have Editor access on the sheet.
+    if (body.action === 'fix-dates') {
+      const updates = Array.isArray(body.updates) ? body.updates.slice(0, 200) : []
+      if (!updates.length) return json({ error: 'No updates given.' }, 400)
+      const { data: prodW, error: prodWErr } = await adminClient
+        .from('production').select('crew_sheet_url').eq('id', productionId).maybeSingle()
+      if (prodWErr) throw prodWErr
+      const sheetIdW = extractSheetId(prodW?.crew_sheet_url ?? '')
+      if (!sheetIdW) return json({ error: 'No Google Sheet link saved.' }, 400)
+      const saW = JSON.parse(Deno.env.get('GOOGLE_SA_KEY') ?? '{}')
+      const tokenW = await googleAccessToken(saW.client_email, saW.private_key)
+      const colA1 = (n: number) => { let s2 = ''; while (n > 0) { const r2 = (n - 1) % 26; s2 = String.fromCharCode(65 + r2) + s2; n = Math.floor((n - 1) / 26) } return s2 }
+      const data = updates
+        .filter((u: { row: number; col: number; value: unknown }) =>
+          Number.isInteger(u.row) && u.row > 0 && Number.isInteger(u.col) && u.col > 0 && typeof u.value === 'string' && u.value.length < 20)
+        .map((u: { row: number; col: number; value: string }) => ({
+          range: `${colA1(u.col)}${u.row}`,
+          values: [[u.value]],
+        }))
+      const resW = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetIdW}/values:batchUpdate`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${tokenW}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }),
+        },
+      )
+      if (resW.status === 403) return json({ error: 'The service account needs Editor access on the sheet to write corrections.' }, 403)
+      if (!resW.ok) return json({ error: `Sheets write failed (${resW.status}): ${await resW.text()}` }, 500)
+      const body2 = await resW.json()
+      return json({ ok: true, updatedCells: body2.totalUpdatedCells ?? data.length })
+    }
+
     // ── Resolve the sheet ───────────────────────────────────────────────────
     const { data: prod, error: prodError } = await adminClient
       .from('production').select('crew_sheet_url').eq('id', productionId).maybeSingle()
@@ -407,7 +443,7 @@ serve(async (req) => {
 
     const token = await googleAccessToken(sa.client_email, sa.private_key)
 
-    const range = 'A1:BZ3000'   // first sheet; wide enough for trackers with extra columns
+    const range = 'A1:ZZ3000'   // first sheet; wide enough for trackers with extra columns
     const fetchRange = async (render: string) => {
       const res = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=${render}&dateTimeRenderOption=SERIAL_NUMBER`,
