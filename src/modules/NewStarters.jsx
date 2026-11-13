@@ -85,6 +85,36 @@ async function saveEmailConfig(cfg) {
   if (error) console.error('[welcome email] save failed:', error)
 }
 
+// ── Send-confirmation batching ────────────────────────────────────────────────
+// Each successful welcome send is queued; 30s after the LAST send in a burst,
+// one combined delivery report is emailed to the sender (via the edge
+// function's send-report action, which reads live statuses from Resend).
+let _reportQueue = []
+let _reportTimer = null
+function queueSendReport(productionId, item) {
+  _reportQueue.push(item)
+  if (_reportTimer) clearTimeout(_reportTimer)
+  _reportTimer = setTimeout(async () => {
+    const items = _reportQueue
+    _reportQueue = []
+    _reportTimer = null
+    if (!items.length) return
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ action: 'send-report', productionId, items }),
+      })
+    } catch (err) {
+      console.error('[welcome email] send report failed:', err)
+    }
+  }, 30000)
+}
+
 function applyPlaceholders(template, { name, startDate, endDate }) {
   return template
     .replace(/\{\{name\}\}/gi,       name      || '')
@@ -791,6 +821,8 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
           await updateStatus(person.id, person._crewType ?? 'additional', 'welcomeEmailId', sent.id)
           // Fresh send: delivery not yet confirmed — the webhook flips it.
           await updateStatus(person.id, person._crewType ?? 'additional', 'emailDelivered', false)
+          // Queue the combined 30s delivery-confirmation email to the sender.
+          queueSendReport(getCurrentProductionId(), { name: person.name || '', email: person.email, resendId: sent.id })
         }
         setSendMsg({
           type: 'ok',
