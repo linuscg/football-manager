@@ -17,10 +17,10 @@ export async function watermarkPdfBase64(base64, watermarkText, footerText) {
     // start it half its width down-left of the centre so its midpoint is the
     // page centre.
     const diag = Math.sqrt(width * width + height * height)
-    let size = 48
+    let size = 58
     let tw = font.widthOfTextAtSize(watermarkText, size)
-    if (tw > diag * 0.7) {
-      size = Math.max(18, size * (diag * 0.7) / tw)
+    if (tw > diag * 0.84) {
+      size = Math.max(18, size * (diag * 0.84) / tw)
       tw = font.widthOfTextAtSize(watermarkText, size)
     }
     const half = tw / 2 * Math.SQRT1_2
