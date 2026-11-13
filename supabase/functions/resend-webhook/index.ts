@@ -56,7 +56,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
-    const [a, b] = await Promise.all([
+    const [l, a, b] = await Promise.all([
+      adminClient.from('welcome_email_log')
+        .update({ delivered: true })
+        .eq('resend_id', emailId)
+        .select('id'),
       adminClient.from('new_starter_status')
         .update({ email_delivered: true })
         .eq('welcome_email_id', emailId)

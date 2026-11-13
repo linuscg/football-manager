@@ -122,6 +122,68 @@ function applyPlaceholders(template, { name, startDate, endDate }) {
     .replace(/\{\{end_date\}\}/gi,   endDate   ? fmtDate(endDate)   : '')
 }
 
+// ─── Email history modal ──────────────────────────────────────────────────────
+// Every welcome email sent on this production, by anyone (logged server-side).
+function EmailHistoryModal({ onClose }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    supabase
+      .from('welcome_email_log')
+      .select('*')
+      .eq('production_id', getCurrentProductionId())
+      .order('created_at', { ascending: false })
+      .limit(300)
+      .then(({ data, error }) => { if (!cancelled) setRows(error ? [] : (data ?? [])) })
+    return () => { cancelled = true }
+  }, [])
+  const fmt = ts => new Date(ts).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return (
+    <div className="ns-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="ns-modal" style={{ maxWidth: 820 }}>
+        <div className="ns-modal-head">
+          <h2 className="ns-modal-title">Welcome Email History</h2>
+          <button className="pm-icon-btn" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding: '0 20px 20px', maxHeight: '65vh', overflow: 'auto' }}>
+          {rows === null && <p className="admin-loading">Loading…</p>}
+          {rows?.length === 0 && (
+            <p className="admin-empty">No welcome emails logged yet — sends are recorded from today onwards.</p>
+          )}
+          {rows?.length > 0 && (
+            <table className="crew-db-table" style={{ fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th className="crew-db-th">When</th>
+                  <th className="crew-db-th">Sent by</th>
+                  <th className="crew-db-th">Person</th>
+                  <th className="crew-db-th">To</th>
+                  <th className="crew-db-th">Subject</th>
+                  <th className="crew-db-th">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.id} className="crew-db-row">
+                    <td className="crew-db-cell" style={{ whiteSpace: 'nowrap' }}>{fmt(r.created_at)}</td>
+                    <td className="crew-db-cell">{r.sent_by_email}</td>
+                    <td className="crew-db-cell">{r.person_name || '—'}{r.is_test && <span className="ns-history-test"> TEST</span>}</td>
+                    <td className="crew-db-cell">{r.recipient}</td>
+                    <td className="crew-db-cell">{r.subject}</td>
+                    <td className="crew-db-cell" style={{ whiteSpace: 'nowrap' }}>
+                      {r.delivered ? '✅ Delivered' : '📤 Sent'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Email config modal ────────────────────────────────────────────────────────
 
 const PLACEHOLDERS = [
@@ -601,6 +663,7 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
     })
   }
   const [showEmailCfg,  setShowEmailCfg]  = useState(false)
+  const [showHistory,   setShowHistory]   = useState(false)
   const [emailCfg,      setEmailCfg]      = useState(null)
   useEffect(() => {
     let cancelled = false
@@ -759,7 +822,7 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ to: [myEmail], productionId: getCurrentProductionId(), subject, text: body, attachments }),
+        body: JSON.stringify({ to: [myEmail], productionId: getCurrentProductionId(), subject, text: body, attachments, personName: person.name || '', isTest: true }),
       })
       if (res.ok) setSendMsg({ type: 'ok', text: `Test of ${person.name || 'this'}’s welcome email sent to YOU (${myEmail}).` })
       else { const err = await res.json().catch(() => ({})); setSendMsg({ type: 'err', text: `Test send failed: ${err.error ?? err.message ?? res.statusText}` }) }
@@ -812,6 +875,8 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
       subject,
       text:    body,
       attachments,
+      personName:   person.name || '',
+      isTest:       false,
     }
 
     try {
@@ -877,14 +942,19 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
           {sendMsg && (
             <div className={`ns-send-msg ns-send-msg--${sendMsg.type}`}>{sendMsg.text}</div>
           )}
-          {canEditWelcomeEmail && (
-            <button
-              className="pm-btn pm-btn--ghost pm-btn--sm"
-              onClick={async () => { setEmailCfg(await loadEmailConfig()); setShowEmailCfg(true) }}
-            >
-              ✉ Edit Welcome Email
+          <div className="ns-top-btn-stack">
+            {canEditWelcomeEmail && (
+              <button
+                className="pm-btn pm-btn--ghost pm-btn--sm"
+                onClick={async () => { setEmailCfg(await loadEmailConfig()); setShowEmailCfg(true) }}
+              >
+                ✉ Edit Welcome Email
+              </button>
+            )}
+            <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => setShowHistory(true)}>
+              🕘 Email History
             </button>
-          )}
+          </div>
         </div>
       </div>
 
@@ -956,6 +1026,8 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
       )}
 
       {/* ── Deal memo send modal ─────────────────────────────────────────────── */}
+      {showHistory && <EmailHistoryModal onClose={() => setShowHistory(false)} />}
+
       {testMenu && (
         <div className="ns-test-menu" style={{ left: testMenu.x, top: testMenu.y }}>
           <button className="ns-test-menu-item" onClick={() => handleSendTestEmail(testMenu.person)}>

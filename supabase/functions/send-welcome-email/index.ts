@@ -208,6 +208,25 @@ serve(async (req) => {
       body: JSON.stringify(payload),
     })
 
+    // History log (best effort — a logging failure never fails the send).
+    if (res.ok) {
+      try {
+        const sentBody = await res.clone().json()
+        await adminClient.from('welcome_email_log').insert({
+          production_id: productionId,
+          sent_by:       user.id,
+          sent_by_email: user.email ?? '',
+          person_name:   String(reqBody.personName ?? '').slice(0, 200),
+          recipient:     recipients.join(', '),
+          subject:       String(subject ?? '').slice(0, 300),
+          is_test:       reqBody.isTest === true,
+          resend_id:     sentBody?.id ?? null,
+        })
+      } catch (err) {
+        console.error('send-welcome-email: history log failed', err)
+      }
+    }
+
     const data = await res.json()
     if (!res.ok) console.error('send-welcome-email: resend error', res.status, JSON.stringify(data))
 
