@@ -48,16 +48,41 @@ function fmtWeekRange(weekStart) {
 
 // ─── Welcome email helpers ─────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'fm_welcome_email_config'
+const STORAGE_KEY = 'fm_welcome_email_config'   // legacy per-browser copy
 
-function loadEmailConfig() {
+// Template lives in the DB (welcome_email_config, one row per production) so
+// it's shared across devices and team members. A browser still holding the
+// old localStorage copy auto-uploads it the first time it loads a production
+// with no saved template.
+async function loadEmailConfig() {
+  const prodId = getCurrentProductionId()
+  if (!prodId) return {}
+  const { data } = await supabase
+    .from('welcome_email_config')
+    .select('config')
+    .eq('production_id', prodId)
+    .maybeSingle()
+  if (data?.config && Object.keys(data.config).length) return data.config
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? {}
-  } catch { return {} }
+    const local = JSON.parse(localStorage.getItem(STORAGE_KEY))
+    if (local && (local.body || local.subject || (local.attachments ?? []).length)) {
+      await saveEmailConfig(local)
+      return local
+    }
+  } catch { /* ignore */ }
+  return {}
 }
 
-function saveEmailConfig(cfg) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg))
+async function saveEmailConfig(cfg) {
+  const prodId = getCurrentProductionId()
+  if (!prodId) return
+  const { error } = await supabase
+    .from('welcome_email_config')
+    .upsert(
+      { production_id: prodId, config: cfg, updated_at: new Date().toISOString() },
+      { onConflict: 'production_id' },
+    )
+  if (error) console.error('[welcome email] save failed:', error)
 }
 
 function applyPlaceholders(template, { name, startDate, endDate }) {
@@ -75,8 +100,8 @@ const PLACEHOLDERS = [
   { label: '{{end_date}}',   value: '{{end_date}}'   },
 ]
 
-function EmailConfigModal({ onClose, onSaved }) {
-  const [cfg, setCfg] = useState(loadEmailConfig)
+function EmailConfigModal({ initial, onClose, onSaved }) {
+  const [cfg, setCfg] = useState(() => initial ?? {})
   const [dragging, setDragging] = useState(false)
   const bodyRef = useRef(null)
 
@@ -124,8 +149,8 @@ function EmailConfigModal({ onClose, onSaved }) {
     setCfg(c => ({ ...c, attachments: (c.attachments ?? []).filter((_, i) => i !== idx) }))
   }
 
-  function handleSave() {
-    saveEmailConfig(cfg)
+  async function handleSave() {
+    await saveEmailConfig(cfg)
     onSaved(cfg)
     onClose()
   }
@@ -539,7 +564,12 @@ export default function NewStarters({ featureFlags = {} }) {
     })
   }
   const [showEmailCfg,  setShowEmailCfg]  = useState(false)
-  const [emailCfg,      setEmailCfg]      = useState(loadEmailConfig)
+  const [emailCfg,      setEmailCfg]      = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    loadEmailConfig().then(cfg => { if (!cancelled) setEmailCfg(cfg) })
+    return () => { cancelled = true }
+  }, [])
   const [sendingId,     setSendingId]     = useState(null)
   const [sendMsg,       setSendMsg]       = useState(null) // { type: 'ok'|'err', text }
 
@@ -647,7 +677,7 @@ export default function NewStarters({ featureFlags = {} }) {
   // ── Send welcome email ────────────────────────────────────────────────────────
 
   async function handleSendEmail(person) {
-    const cfg = loadEmailConfig()
+    const cfg = emailCfg ?? await loadEmailConfig()
     if (!person.email) return
 
     setSendingId(person.id)
@@ -807,6 +837,7 @@ export default function NewStarters({ featureFlags = {} }) {
       {/* ── Email config modal ───────────────────────────────────────────────── */}
       {showEmailCfg && (
         <EmailConfigModal
+          initial={emailCfg ?? {}}
           onClose={() => setShowEmailCfg(false)}
           onSaved={cfg => setEmailCfg(cfg)}
         />
