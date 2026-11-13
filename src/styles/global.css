@@ -11151,3 +11151,7 @@ select.pm-input { cursor: pointer; }
 }
 .ns-test-menu-item:hover { background: #f3f4ff; }
 .ns-test-menu-sub { display: block; font-size: 11px; color: #9ca3af; }
+
+/* Disabled Send buttons must not swallow right-clicks — let them fall through
+   to the cell, whose contextmenu handler opens the test-send menu. */
+.ns-cell--action button:disabled { pointer-events: none; }

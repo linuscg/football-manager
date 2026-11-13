@@ -716,9 +716,18 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
   useEffect(() => {
     if (!testMenu) return
     const close = () => setTestMenu(null)
-    window.addEventListener('click', close)
-    window.addEventListener('contextmenu', close)
-    return () => { window.removeEventListener('click', close); window.removeEventListener('contextmenu', close) }
+    // Attach one tick late: React flushes this effect synchronously during the
+    // discrete right-click that OPENED the menu, so an immediate listener
+    // would catch that same event mid-bubble and close the menu instantly.
+    const id = setTimeout(() => {
+      window.addEventListener('click', close)
+      window.addEventListener('contextmenu', close)
+    }, 0)
+    return () => {
+      clearTimeout(id)
+      window.removeEventListener('click', close)
+      window.removeEventListener('contextmenu', close)
+    }
   }, [testMenu])
 
   // Test send: the email is rendered exactly as this person would get it
