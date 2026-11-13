@@ -11117,3 +11117,13 @@ select.pm-input { cursor: pointer; }
 .admin-member-block.is-copy-source { cursor: copy; outline: 2px dashed #c7d2fe; outline-offset: 2px; border-radius: 8px; }
 .admin-member-block.is-copy-source:hover { outline-color: #6366f1; background: #f5f6ff; }
 .admin-invite-block { display: flex; flex-direction: column; gap: 6px; }
+
+.ns-watermark-opt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #374151;
+  margin-top: 8px;
+  cursor: pointer;
+}

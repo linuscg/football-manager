@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { watermarkPdfBase64, isPdfAttachment } from '../lib/pdfWatermark'
 import { getCurrentProductionId } from '../lib/productionContext'
 
 // API key + from address live in the Edge Function (supabase/functions/send-welcome-email)
@@ -191,6 +192,16 @@ function EmailConfigModal({ onClose, onSaved }) {
                     </div>
                   ))
               }
+              {(cfg.attachments ?? []).length > 0 && (
+                <label className="ns-watermark-opt" title="Each recipient's PDFs are stamped with their name diagonally across every page, plus an 'Issued to' footer">
+                  <input
+                    type="checkbox"
+                    checked={cfg.watermarkPdfs !== false}
+                    onChange={e => setCfg(c => ({ ...c, watermarkPdfs: e.target.checked }))}
+                  />
+                  <span>Watermark PDF attachments with the recipient's name</span>
+                </label>
+              )}
               {(cfg.attachments ?? []).length > 0 && (
                 <div className="ns-drop-hint ns-drop-hint--small">Drop more files to add</div>
               )}
@@ -642,15 +653,30 @@ export default function NewStarters({ featureFlags = {} }) {
     const body    = applyPlaceholders(cfg.body    ?? '', person)
     const subject = applyPlaceholders(cfg.subject ?? 'Welcome to the team!', person)
 
+    // Personalise PDF attachments: each recipient's copy carries their name as
+    // a diagonal watermark plus an issued-to footer. Non-PDFs (and a PDF that
+    // won't re-save, e.g. encrypted) are sent unmodified.
+    let unmarked = 0
+    const watermarkOn = cfg.watermarkPdfs !== false
+    const attachments = await Promise.all((cfg.attachments ?? []).map(async att => {
+      if (!watermarkOn || !isPdfAttachment(att)) return { filename: att.name, content: att.data }
+      try {
+        const footer = `Issued to ${person.name || person.email} · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
+        const content = await watermarkPdfBase64(att.data, person.name || person.email, footer)
+        return { filename: att.name, content }
+      } catch (err) {
+        console.error('[welcome email] watermark failed for', att.name, err)
+        unmarked++
+        return { filename: att.name, content: att.data }
+      }
+    }))
+
     const payload = {
       to:           [person.email],
       productionId: getCurrentProductionId(),
       subject,
       text:    body,
-      attachments: (cfg.attachments ?? []).map(att => ({
-        filename: att.name,
-        content:  att.data,
-      })),
+      attachments,
     }
 
     try {
@@ -666,7 +692,11 @@ export default function NewStarters({ featureFlags = {} }) {
       })
       if (res.ok) {
         await updateStatus(person.id, person._crewType ?? 'additional', 'emailSent', true)
-        setSendMsg({ type: 'ok', text: `Welcome email sent to ${person.name || person.email}` })
+        setSendMsg({
+          type: 'ok',
+          text: `Welcome email sent to ${person.name || person.email}` +
+                (unmarked ? ` (${unmarked} PDF couldn't be watermarked and was sent as-is)` : ''),
+        })
       } else {
         const err = await res.json().catch(() => ({}))
         setSendMsg({ type: 'err', text: `Failed to send: ${err.message ?? res.statusText}` })
