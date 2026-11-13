@@ -799,7 +799,7 @@ function AppShell({ session, signOut }) {
               <Timesheets store={store} />
             )}
             {effTopTab === 'crew-times' && effModule === 'ct-starters' && (
-              <NewStarters featureFlags={store.production.featureFlags} />
+              <NewStarters featureFlags={store.production.featureFlags} canEditWelcomeEmail={isOwner || memberRole === 'admin' || permissions.allowWelcomeEmailEdit === true} />
             )}
 
             {/* ── Catering tab ──────────────────────────────────────────────── */}

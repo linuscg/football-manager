@@ -54,6 +54,7 @@ serve(async (req) => {
         out.deniedModules = src.deniedModules.filter(x => typeof x === 'string').slice(0, 100)
       }
       if (src.denyCrewRates === true) out.denyCrewRates = true
+      if (src.allowWelcomeEmailEdit === true) out.allowWelcomeEmailEdit = true
       return Object.keys(out).length ? out : null
     }
     const invitePermissions = sanePermissions(permissions)

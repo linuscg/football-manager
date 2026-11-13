@@ -90,6 +90,12 @@ export const FEATURE_FLAGS = [
     label: 'Can see rates (Crew Tracker)',
     hint: 'When off: money columns & rate settings hidden; contact, dates, deal memo stay visible.',
   },
+  {
+    id: 'allowWelcomeEmailEdit',
+    grant: true,   // grant flag: UNCHECKED by default, ticking writes true
+    label: 'Can edit the welcome email template',
+    hint: 'Lets this member change the New Starters welcome email (subject, body, attachments). Admins always can.',
+  },
 ]
 
 // Default (fully-permissive) shape for a missing / empty permissions value.
@@ -97,6 +103,7 @@ export const EMPTY_PERMISSIONS = Object.freeze({
   deniedTabs: Object.freeze([]),
   deniedModules: Object.freeze([]),
   denyCrewRates: false,
+  allowWelcomeEmailEdit: false,
 })
 
 // Normalise a raw jsonb value into the full shape with defaults.
@@ -106,6 +113,7 @@ export function normalizePermissions(raw) {
     deniedTabs:    Array.isArray(raw.deniedTabs)    ? raw.deniedTabs    : [],
     deniedModules: Array.isArray(raw.deniedModules) ? raw.deniedModules : [],
     denyCrewRates: raw.denyCrewRates === true,
+    allowWelcomeEmailEdit: raw.allowWelcomeEmailEdit === true,
   }
 }
 
@@ -115,5 +123,6 @@ export function cleanPermissions(perms) {
   if (perms.deniedTabs?.length)    out.deniedTabs    = perms.deniedTabs
   if (perms.deniedModules?.length) out.deniedModules = perms.deniedModules
   if (perms.denyCrewRates === true) out.denyCrewRates = true
+  if (perms.allowWelcomeEmailEdit === true) out.allowWelcomeEmailEdit = true
   return out
 }

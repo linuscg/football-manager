@@ -541,7 +541,7 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-export default function NewStarters({ featureFlags = {} }) {
+export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = true }) {
   const memoEnabled = featureFlags?.dealMemoSend !== false
   const { members }                            = useFullCrewList()
   const { resources, bookings, updateResource } = useCrewStore()
@@ -695,6 +695,11 @@ export default function NewStarters({ featureFlags = {} }) {
     const { data: { session } } = await supabase.auth.getSession()
     const myEmail = session?.user?.email
     if (!myEmail) { setSendMsg({ type: 'err', text: 'Could not determine your email address.' }); return }
+    if (!String(cfg.body ?? '').trim()) {
+      setSendMsg({ type: 'err', text: 'No welcome email template saved for this production yet — set one up in ✉ Edit Welcome Email first.' })
+      setTimeout(() => setSendMsg(null), 6000)
+      return
+    }
     setSendingId(person.id)
     const body    = applyPlaceholders(cfg.body    ?? '', person)
     const subject = '[TEST] ' + applyPlaceholders(cfg.subject ?? 'Welcome to the team!', person)
@@ -726,6 +731,11 @@ export default function NewStarters({ featureFlags = {} }) {
   async function handleSendEmail(person) {
     const cfg = emailCfg ?? await loadEmailConfig()
     if (!person.email) return
+    if (!String(cfg.body ?? '').trim()) {
+      setSendMsg({ type: 'err', text: 'No welcome email template saved for this production yet — set one up in ✉ Edit Welcome Email first.' })
+      setTimeout(() => setSendMsg(null), 6000)
+      return
+    }
 
     setSendingId(person.id)
 
@@ -819,9 +829,11 @@ export default function NewStarters({ featureFlags = {} }) {
           {sendMsg && (
             <div className={`ns-send-msg ns-send-msg--${sendMsg.type}`}>{sendMsg.text}</div>
           )}
-          <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => setShowEmailCfg(true)}>
-            ✉ Edit Welcome Email
-          </button>
+          {canEditWelcomeEmail && (
+            <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => setShowEmailCfg(true)}>
+              ✉ Edit Welcome Email
+            </button>
+          )}
         </div>
       </div>
 

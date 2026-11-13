@@ -107,7 +107,7 @@ function PermissionsPanel({ perms, role, onChange, onCopyFrom }) {
           <label key={f.id} className="admin-perms-flag" title={f.hint}>
             <input
               type="checkbox"
-              checked={!perms[f.id]}
+              checked={f.grant ? !!perms[f.id] : !perms[f.id]}
               onChange={() => toggleFlag(f.id)}
             />
             <span>{f.label}</span>
