@@ -245,7 +245,7 @@ function EmailConfigModal({ initial, onClose, onSaved }) {
 
 // ─── Starter row ───────────────────────────────────────────────────────────────
 
-function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true }) {
+function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, onSendTestMenu, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true }) {
   const [lNotes, setLNotes] = useState(status?.notes ?? '')
 
   function toggle(field) {
@@ -280,8 +280,9 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
         <button
           className={`pm-btn pm-btn--sm ${status?.emailSent ? 'pm-btn--ghost' : 'pm-btn--primary'}`}
           onClick={() => onSendEmail(person)}
+          onContextMenu={e => { e.preventDefault(); onSendTestMenu?.(person, e.clientX, e.clientY) }}
           disabled={isSending || !person.email}
-          title={!person.email ? 'No email address on file' : undefined}
+          title={!person.email ? 'No email address on file' : 'Right-click for a test send (to yourself)'}
         >
           {isSending ? 'Sending…' : status?.emailSent ? 'Resend' : 'Send'}
         </button>
@@ -484,7 +485,7 @@ function DealMemoSendModal({ person, resource, production, onClose, onSent }) {
 
 // ─── Table section ─────────────────────────────────────────────────────────────
 
-function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusChange, onSendEmail, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true }) {
+function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusChange, onSendEmail, onSendTestMenu, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true }) {
   if (!rows.length) return null
   return (
     <div className="ns-section">
@@ -521,6 +522,7 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
                 status={statuses.find(s => s.crewId === person.id)}
                 crewType={crewType}
                 memoEnabled={memoEnabled}
+                onSendTestMenu={onSendTestMenu}
                 onStatusChange={onStatusChange}
                 onSendEmail={onSendEmail}
                 sendingId={sendingId}
@@ -571,6 +573,7 @@ export default function NewStarters({ featureFlags = {} }) {
     return () => { cancelled = true }
   }, [])
   const [sendingId,     setSendingId]     = useState(null)
+  const [testMenu,      setTestMenu]      = useState(null)  // { person, x, y }
   const [sendMsg,       setSendMsg]       = useState(null) // { type: 'ok'|'err', text }
 
   // ── Deal memos ──────────────────────────────────────────────────────────────
@@ -673,6 +676,50 @@ export default function NewStarters({ featureFlags = {} }) {
     })
 
   const totalStarters = fulltimeStarters.length + additionalStarters.length
+
+  // Close the test-send context menu on any click elsewhere
+  useEffect(() => {
+    if (!testMenu) return
+    const close = () => setTestMenu(null)
+    window.addEventListener('click', close)
+    window.addEventListener('contextmenu', close)
+    return () => { window.removeEventListener('click', close); window.removeEventListener('contextmenu', close) }
+  }, [testMenu])
+
+  // Test send: the email is rendered exactly as this person would get it
+  // (placeholders, watermarked PDFs), but goes to the signed-in user instead.
+  // No Sent/Delivered status is recorded.
+  async function handleSendTestEmail(person) {
+    setTestMenu(null)
+    const cfg = emailCfg ?? await loadEmailConfig()
+    const { data: { session } } = await supabase.auth.getSession()
+    const myEmail = session?.user?.email
+    if (!myEmail) { setSendMsg({ type: 'err', text: 'Could not determine your email address.' }); return }
+    setSendingId(person.id)
+    const body    = applyPlaceholders(cfg.body    ?? '', person)
+    const subject = '[TEST] ' + applyPlaceholders(cfg.subject ?? 'Welcome to the team!', person)
+    const watermarkOn = cfg.watermarkPdfs !== false
+    const attachments = await Promise.all((cfg.attachments ?? []).map(async att => {
+      if (!watermarkOn || !isPdfAttachment(att)) return { filename: att.name, content: att.data }
+      try {
+        const footer = `Issued to ${person.name || person.email} · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
+        return { filename: att.name, content: await watermarkPdfBase64(att.data, person.name || person.email, footer) }
+      } catch { return { filename: att.name, content: att.data } }
+    }))
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ to: [myEmail], productionId: getCurrentProductionId(), subject, text: body, attachments }),
+      })
+      if (res.ok) setSendMsg({ type: 'ok', text: `Test of ${person.name || 'this'}’s welcome email sent to YOU (${myEmail}).` })
+      else { const err = await res.json().catch(() => ({})); setSendMsg({ type: 'err', text: `Test send failed: ${err.error ?? err.message ?? res.statusText}` }) }
+    } catch (err) {
+      setSendMsg({ type: 'err', text: `Network error: ${err.message}` })
+    }
+    setSendingId(null)
+    setTimeout(() => setSendMsg(null), 6000)
+  }
 
   // ── Send welcome email ────────────────────────────────────────────────────────
 
@@ -805,6 +852,7 @@ export default function NewStarters({ featureFlags = {} }) {
         <div className="ns-content">
           <StarterTable
             memoEnabled={memoEnabled}
+            onSendTestMenu={(person, x, y) => setTestMenu({ person, x, y })}
             title="Fulltime Crew"
             rows={taggedFulltime}
             crewType="fulltime"
@@ -819,6 +867,7 @@ export default function NewStarters({ featureFlags = {} }) {
           />
           <StarterTable
             memoEnabled={memoEnabled}
+            onSendTestMenu={(person, x, y) => setTestMenu({ person, x, y })}
             title="Additional Crew"
             rows={taggedAdditional}
             crewType="additional"
@@ -844,6 +893,14 @@ export default function NewStarters({ featureFlags = {} }) {
       )}
 
       {/* ── Deal memo send modal ─────────────────────────────────────────────── */}
+      {testMenu && (
+        <div className="ns-test-menu" style={{ left: testMenu.x, top: testMenu.y }}>
+          <button className="ns-test-menu-item" onClick={() => handleSendTestEmail(testMenu.person)}>
+            ✉ Send Test Email <span className="ns-test-menu-sub">to yourself, as {testMenu.person.name || 'this person'} would get it</span>
+          </button>
+        </div>
+      )}
+
       {memoSendFor && (
         <DealMemoSendModal
           person={memoSendFor}

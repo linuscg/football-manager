@@ -68,7 +68,9 @@ serve(async (req) => {
       .eq('production_id', productionId)
       .neq('contact_email', '')
     const known = new Set((crewRows ?? []).map(r => String(r.contact_email ?? '').toLowerCase().trim()))
-    const unknown = recipients.filter(e => !known.has(e))
+    // The caller may always email THEMSELVES (test sends of the welcome email).
+    const callerEmail = String(user.email ?? '').toLowerCase().trim()
+    const unknown = recipients.filter(e => !known.has(e) && e !== callerEmail)
     if (unknown.length) {
       console.error('send-welcome-email: recipient not in production crew', unknown)
       return new Response(JSON.stringify({ error: `Not crew emails on this production: ${unknown.join(', ')}` }), {
