@@ -275,12 +275,17 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, onS
           <span className="ns-check-yes" title="Previously worked on this production">✓</span>
         )}
       </td>
-      {/* Send welcome email */}
-      <td className="ns-cell ns-cell--action">
+      {/* Send welcome email — right-click anywhere in the cell for a test send
+          (the button itself can be disabled, and disabled elements swallow
+          contextmenu events) */}
+      <td
+        className="ns-cell ns-cell--action"
+        onContextMenu={e => { e.preventDefault(); onSendTestMenu?.(person, e.clientX, e.clientY) }}
+        title="Right-click for a test send (to yourself)"
+      >
         <button
           className={`pm-btn pm-btn--sm ${status?.emailSent ? 'pm-btn--ghost' : 'pm-btn--primary'}`}
           onClick={() => onSendEmail(person)}
-          onContextMenu={e => { e.preventDefault(); onSendTestMenu?.(person, e.clientX, e.clientY) }}
           disabled={isSending || !person.email}
           title={!person.email ? 'No email address on file' : 'Right-click for a test send (to yourself)'}
         >
