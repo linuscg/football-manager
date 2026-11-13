@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, Fragment, memo } from 'react'
 import { useCrewStore } from '../store/useCrewStore'
 import { useCrewPeopleStore } from '../store/useCrewPeopleStore'
+import { useNewStartersStore } from '../store/useNewStartersStore'
 import { getRateCalc, deriveRates } from '../lib/rateCalc'
 import { parseCrewXlsx, parseCrewSheetGrid, buildCrewImportDiff } from '../lib/crewXlsxImport'
 import { parseCSV } from '../lib/csv'
@@ -198,6 +199,9 @@ const DETAIL_COLS_FULL = [
   { label: 'Team Eng', w: 62,  group: 'Onboarding' },
   { label: 'Shoot',    w: 50,  group: 'Onboarding' },
   { label: 'RTW',      w: 50,  group: 'Onboarding' },
+  { label: 'Scenechr.', w: 56, group: 'Onboarding' },
+  { label: 'Contract', w: 56,  group: 'Onboarding' },
+  { label: 'Sec. Pass', w: 56, group: 'Onboarding' },
   { label: 'Rate',     w: 68,  group: 'Weekly',    money: true },
   { label: 'Net',      w: 68,  group: 'Weekly',    money: true },
   { label: 'Hol',      w: 68,  group: 'Weekly',    money: true },
@@ -629,7 +633,7 @@ function SupplierInput({ resource, onUpdate, vendorSuggestions }) {
   )
 }
 
-function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPhone, estEndDate = '', canViewRates = true }) {
+function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPhone, estEndDate = '', canViewRates = true, starterStatus = null, onStarterToggle = null }) {
   const u = field => value => onUpdate(resource.id, field, value)
   // Rows managed by the Google Sheet: the fields the sheet supplies are
   // read-only here (dates, on/off set, vendor, notes stay app-editable).
@@ -650,6 +654,19 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
       <DetailTextCell value={resource.teamEngine} onCommit={u('teamEngine')} width={62} title="Team Engine?" readOnly={lk} />
       <DetailTextCell value={resource.shootCrew}  onCommit={u('shootCrew')}  width={50} title="Shoot crew (Y/N)" readOnly={lk} />
       <DetailTextCell value={resource.rtwCheck}   onCommit={u('rtwCheck')}   width={50} title="Right-to-work check" readOnly={lk} />
+      {/* Shared with the New Starters page (new_starter_status) — ticking in
+          either place updates both live. */}
+      {[['addedToScenechronize', 'Added to Scenechronize'], ['sentContract', 'Contract sent'], ['securityPass', 'Security pass issued']].map(([f, t]) => (
+        <td key={f} className="crewd-td crewd-td--center" style={{ width: 56, minWidth: 56 }}>
+          <input
+            type="checkbox"
+            className="ns-checkbox"
+            checked={starterStatus?.[f] ?? false}
+            title={`${t} — synced with the New Starters page`}
+            onChange={e => onStarterToggle?.(resource.id, resource.crewClass ?? 'additional', f, e.target.checked)}
+          />
+        </td>
+      ))}
       {canViewRates && (<>
       {/* Weekly */}
       <RateCell
@@ -841,6 +858,8 @@ const ResourceRow = memo(function ResourceRow({
   canViewRates = true,
   onRowContextMenu = null,
   hiatuses = [],
+  starterStatus = null,
+  onStarterToggle = null,
 }) {
   // Build suggestions from all other resources (for role/dept/etc.)
   const others = typeResources.filter(r => r.id !== resource.id)
@@ -1129,6 +1148,8 @@ const ResourceRow = memo(function ResourceRow({
             onCommitPhone={commitPhoneValue}
             estEndDate={estEndDate}
             canViewRates={canViewRates}
+            starterStatus={starterStatus}
+            onStarterToggle={onStarterToggle}
           />
         )}
         {showDetails && activeTab === 'equipment' && (
@@ -1277,6 +1298,8 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   paintModeRef.current  = paintMode
   const prevRowMapsRef  = useRef({})          // per-resource booking-map identity cache
   const latestRef       = useRef({})          // latest store fns + derived data for []-stable callbacks
+  // Onboarding checkboxes shared with the New Starters page
+  const { statuses: starterStatuses, updateStatus: updateStarterStatus } = useNewStartersStore()
 
   const {
     loading, error,
@@ -1434,6 +1457,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     updateResource, deleteResource,
     moveResourceUp, moveResourceDown,
     findOrCreatePerson, updateCrewPerson, deleteCrewPerson,
+    updateStarterStatus,
   }
 
   // ── Filter + group resources ───────────────────────────────────────────────
@@ -1998,6 +2022,8 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const handleCreatePerson   = useCallback(p  => latestRef.current.findOrCreatePerson(p), [])
   const handleDeletePerson   = useCallback(id => latestRef.current.deleteCrewPerson(id), [])
   const handleUpdatePerson   = useCallback((id, field, value) => latestRef.current.updateCrewPerson(id, field, value), [])
+  const handleStarterToggle  = useCallback((id, crewClass, field, value) =>
+    latestRef.current.updateStarterStatus(id, crewClass === 'fulltime' ? 'fulltime' : 'additional', field, value), [])
 
   if (loading) return <div className="gantt-state-msg">Loading…</div>
   if (error)   return <div className="gantt-state-msg gantt-state-error">Error: {error}</div>
@@ -2338,6 +2364,8 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                         rateCalcSettings={rateCalcSettings}
                         canViewRates={canViewRates}
                         hiatuses={production?.hiatuses ?? EMPTY_HIATUSES}
+                        starterStatus={starterStatuses.find(st => st.crewId === resource.id) ?? null}
+                        onStarterToggle={handleStarterToggle}
                       />
                     ))}
                   </Fragment>
