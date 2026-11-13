@@ -726,7 +726,7 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
   // No Sent/Delivered status is recorded.
   async function handleSendTestEmail(person) {
     setTestMenu(null)
-    const cfg = emailCfg ?? await loadEmailConfig()
+    const cfg = await loadEmailConfig()
     const { data: { session } } = await supabase.auth.getSession()
     const myEmail = session?.user?.email
     if (!myEmail) { setSendMsg({ type: 'err', text: 'Could not determine your email address.' }); return }
@@ -764,7 +764,9 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
   // ── Send welcome email ────────────────────────────────────────────────────────
 
   async function handleSendEmail(person) {
-    const cfg = emailCfg ?? await loadEmailConfig()
+    // Always fetch fresh — someone else may have edited the template since
+    // this page loaded.
+    const cfg = await loadEmailConfig()
     if (!person.email) return
     if (!String(cfg.body ?? '').trim()) {
       setSendMsg({ type: 'err', text: 'No welcome email template saved for this production yet — set one up in ✉ Edit Welcome Email first.' })
@@ -867,7 +869,10 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
             <div className={`ns-send-msg ns-send-msg--${sendMsg.type}`}>{sendMsg.text}</div>
           )}
           {canEditWelcomeEmail && (
-            <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => setShowEmailCfg(true)}>
+            <button
+              className="pm-btn pm-btn--ghost pm-btn--sm"
+              onClick={async () => { setEmailCfg(await loadEmailConfig()); setShowEmailCfg(true) }}
+            >
               ✉ Edit Welcome Email
             </button>
           )}
