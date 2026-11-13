@@ -234,11 +234,11 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
       <td className="ns-cell">{person.department || '—'}</td>
       <td className="ns-cell ns-cell--date">{fmtDate(person.startDate)}</td>
       <td className="ns-cell ns-cell--date">{fmtDate(person.endDate)}</td>
-      {crewType === 'additional' && (
-        <td className="ns-cell ns-cell--check">
-          {person.returning && <span className="ns-check-yes" title="Previously worked on this production">✓</span>}
-        </td>
-      )}
+      <td className="ns-cell ns-cell--check">
+        {crewType === 'additional' && person.returning && (
+          <span className="ns-check-yes" title="Previously worked on this production">✓</span>
+        )}
+      </td>
       {/* Send welcome email */}
       <td className="ns-cell ns-cell--action">
         <button
@@ -307,6 +307,15 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
           className="ns-checkbox"
           checked={status?.sentContract ?? false}
           onChange={() => toggle('sentContract')}
+        />
+      </td>
+      {/* Security pass */}
+      <td className="ns-cell ns-cell--check">
+        <input
+          type="checkbox"
+          className="ns-checkbox"
+          checked={status?.securityPass ?? false}
+          onChange={() => toggle('securityPass')}
         />
       </td>
       {/* Notes */}
@@ -449,7 +458,7 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
               <th className="ns-th">Department</th>
               <th className="ns-th ns-th--date">Start</th>
               <th className="ns-th ns-th--date">End</th>
-              {crewType === 'additional' && <th className="ns-th ns-th--check" title="Returning crew member">Returning</th>}
+              <th className="ns-th ns-th--check" title="Returning crew member (additional crew only)">Returning</th>
               <th className="ns-th ns-th--action">Welcome email</th>
               <th className="ns-th ns-th--check" title="Welcome email sent">Sent</th>
               <th className="ns-th ns-th--check" title="Welcome email delivered — click the dot to toggle">Delivered</th>
@@ -458,6 +467,7 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
               <th className="ns-th ns-th--check" title="Deal memo delivered — click the dot to toggle">Delivered</th>
               <th className="ns-th ns-th--check" title="Added to Scenechronize">Scenechr.</th>
               <th className="ns-th ns-th--check" title="Contract sent">Contract</th>
+              <th className="ns-th ns-th--check" title="Security pass issued">Sec. Pass</th>
               <th className="ns-th ns-th--notes">Notes</th>
             </tr>
           </thead>

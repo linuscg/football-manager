@@ -10,6 +10,7 @@ function mapStatus(row) {
     crewId:                row.crew_id,
     addedToScenechronize:  row.added_to_scenechronize ?? false,
     sentContract:          row.sent_contract          ?? false,
+    securityPass:          row.security_pass          ?? false,
     emailSent:             row.email_sent             ?? false,
     emailDelivered:        row.email_delivered        ?? false,
     memoSent:              row.memo_sent              ?? false,
@@ -69,7 +70,7 @@ export function useNewStartersStore() {
     } else {
       const placeholder = {
         id: crypto.randomUUID(), productionId: prodId, crewType, crewId,
-        addedToScenechronize: false, sentContract: false,
+        addedToScenechronize: false, sentContract: false, securityPass: false,
         emailSent: false, emailDelivered: false,
         memoSent: false, memoDelivered: false, notes: '',
         [field]: value,
@@ -80,6 +81,7 @@ export function useNewStartersStore() {
     const colMap = {
       addedToScenechronize: 'added_to_scenechronize',
       sentContract:         'sent_contract',
+      securityPass:         'security_pass',
       emailSent:            'email_sent',
       emailDelivered:       'email_delivered',
       memoSent:             'memo_sent',
