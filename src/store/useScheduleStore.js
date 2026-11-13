@@ -96,6 +96,7 @@ function mapProduction(row) {
     hiatuses:       row.hiatuses         ?? [],
     omittedScenes:  row.omitted_scenes   ?? [],
     crewSheetUrl:   row.crew_sheet_url   ?? '',
+    featureFlags:   row.feature_flags    ?? {},
   }
 }
 
@@ -163,6 +164,7 @@ const PRODUCTION_FIELD_MAP = {
   hiatuses:       'hiatuses',
   omittedScenes:  'omitted_scenes',
   crewSheetUrl:   'crew_sheet_url',
+  featureFlags:   'feature_flags',
 }
 
 function dbVal(value) {

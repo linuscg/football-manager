@@ -39,7 +39,24 @@ serve(async (req) => {
     }
 
     // ── Parse request body ──────────────────────────────────────────────────
-    const { email, productionId, role = 'member' } = await req.json()
+    const { email, productionId, role = 'member', permissions = null } = await req.json()
+
+    // Pre-selected access for the invitee: only the known permission keys are
+    // kept; accept_invite() copies this onto their membership row.
+    function sanePermissions(p: unknown) {
+      if (!p || typeof p !== 'object') return null
+      const src = p as Record<string, unknown>
+      const out: Record<string, unknown> = {}
+      if (Array.isArray(src.deniedTabs)) {
+        out.deniedTabs = src.deniedTabs.filter(x => typeof x === 'string').slice(0, 50)
+      }
+      if (Array.isArray(src.deniedModules)) {
+        out.deniedModules = src.deniedModules.filter(x => typeof x === 'string').slice(0, 100)
+      }
+      if (src.denyCrewRates === true) out.denyCrewRates = true
+      return Object.keys(out).length ? out : null
+    }
+    const invitePermissions = sanePermissions(permissions)
 
     if (!email || !productionId) {
       return new Response(JSON.stringify({ error: 'Missing required fields: email, productionId' }), {
@@ -128,6 +145,7 @@ serve(async (req) => {
         token,
         expires_at:    expiresAt,
         accepted:      false,
+        permissions:   invitePermissions,
       })
 
     if (insertError) {

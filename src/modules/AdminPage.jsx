@@ -119,6 +119,8 @@ export default function AdminPage({ currentProductionId, productionName, session
   // Invite form
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole,  setInviteRole]  = useState('member')
+  const [invitePerms, setInvitePerms] = useState(null)   // null = full access
+  const [invitePermsOpen, setInvitePermsOpen] = useState(false)
   const [sending,     setSending]     = useState(false)
   const [sendResult,  setSendResult]  = useState(null) // { ok, message }
 
@@ -165,7 +167,7 @@ export default function AdminPage({ currentProductionId, productionName, session
     // Pending invites for this production
     const { data: inviteRows } = await supabase
       .from('invites')
-      .select('id, email, role, expires_at, accepted, created_at')
+      .select('id, email, role, expires_at, accepted, created_at, permissions')
       .eq('production_id', currentProductionId)
       .order('created_at', { ascending: false })
 
@@ -197,6 +199,7 @@ export default function AdminPage({ currentProductionId, productionName, session
         email:        inviteEmail.trim().toLowerCase(),
         productionId: currentProductionId,
         role:         inviteRole,
+        permissions:  invitePerms && Object.keys(invitePerms).length ? invitePerms : null,
       },
     })
 
@@ -209,6 +212,8 @@ export default function AdminPage({ currentProductionId, productionName, session
       setSendResult({ ok: true, message: `Invite sent to ${inviteEmail.trim()}.` })
       setInviteEmail('')
       setInviteRole('member')
+      setInvitePerms(null)
+      setInvitePermsOpen(false)
       setTimeout(() => setSendResult(null), 4000)
       loadData()
     }
@@ -237,6 +242,7 @@ export default function AdminPage({ currentProductionId, productionName, session
         email:        inv.email,
         productionId: currentProductionId,
         role:         inv.role,
+        permissions:  inv.permissions ?? null,
       },
     })
 
@@ -356,6 +362,27 @@ export default function AdminPage({ currentProductionId, productionName, session
             {sending ? 'Sending…' : 'Send invite'}
           </button>
         </form>
+
+        <button
+          type="button"
+          className="pm-btn pm-btn--ghost pm-btn--sm"
+          style={{ marginTop: 10 }}
+          onClick={() => setInvitePermsOpen(o => !o)}
+        >
+          {invitePermsOpen ? '▾' : '▸'} Pre-set access
+          {invitePerms && Object.keys(cleanPermissions(invitePerms)).length > 0 && (
+            <span style={{ marginLeft: 6, color: '#b45309', fontWeight: 700 }}>· restricted</span>
+          )}
+        </button>
+        {invitePermsOpen && (
+          <div style={{ marginTop: 10 }}>
+            <PermissionsPanel
+              perms={normalizePermissions(invitePerms ?? {})}
+              role={inviteRole}
+              onChange={next => setInvitePerms(next)}
+            />
+          </div>
+        )}
 
         {sendResult && (
           <div className={`admin-send-result${sendResult.ok ? '' : ' admin-send-result--err'}`}>

@@ -209,7 +209,7 @@ function EmailConfigModal({ onClose, onSaved }) {
 
 // ─── Starter row ───────────────────────────────────────────────────────────────
 
-function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds }) {
+function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true }) {
   const [lNotes, setLNotes] = useState(status?.notes ?? '')
 
   function toggle(field) {
@@ -263,6 +263,9 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
       </td>
       {/* Deal memo: generate docx / send PDF */}
       <td className="ns-cell ns-cell--action" style={{ whiteSpace: 'nowrap' }}>
+        {!memoEnabled ? (
+          <span className="ns-memo-off" title="Deal memo sending is turned off for this production (Settings → Feature Toggles, owner only).">Off</span>
+        ) : (<>
         <button
           className="pm-btn pm-btn--ghost pm-btn--sm"
           onClick={() => onGenerateMemo(person)}
@@ -279,6 +282,7 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, sen
         >
           {memoSent ? 'Resend' : 'Send'}
         </button>
+        </>)}
       </td>
       {/* Deal memo: sent / delivered (delivered toggles on click) */}
       <td className="ns-cell ns-cell--check">
@@ -444,7 +448,7 @@ function DealMemoSendModal({ person, resource, production, onClose, onSent }) {
 
 // ─── Table section ─────────────────────────────────────────────────────────────
 
-function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusChange, onSendEmail, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds }) {
+function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusChange, onSendEmail, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true }) {
   if (!rows.length) return null
   return (
     <div className="ns-section">
@@ -478,6 +482,7 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
                 person={person}
                 status={statuses.find(s => s.crewId === person.id)}
                 crewType={crewType}
+                memoEnabled={memoEnabled}
                 onStatusChange={onStatusChange}
                 onSendEmail={onSendEmail}
                 sendingId={sendingId}
@@ -496,7 +501,8 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-export default function NewStarters() {
+export default function NewStarters({ featureFlags = {} }) {
+  const memoEnabled = featureFlags?.dealMemoSend !== false
   const { members }                            = useFullCrewList()
   const { resources, bookings, updateResource } = useCrewStore()
   const { statuses, updateStatus }             = useNewStartersStore()
@@ -730,6 +736,7 @@ export default function NewStarters() {
       ) : (
         <div className="ns-content">
           <StarterTable
+            memoEnabled={memoEnabled}
             title="Fulltime Crew"
             rows={taggedFulltime}
             crewType="fulltime"
@@ -743,6 +750,7 @@ export default function NewStarters() {
             memoSentIds={memoSentIds}
           />
           <StarterTable
+            memoEnabled={memoEnabled}
             title="Additional Crew"
             rows={taggedAdditional}
             crewType="additional"

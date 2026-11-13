@@ -30,6 +30,7 @@ import WeeklyTMO             from './modules/WeeklyTMO'
 import TravelTimes           from './modules/TravelTimes'
 import EquipmentDatabase     from './modules/EquipmentDatabase'
 import NewStarters           from './modules/NewStarters'
+import FeatureToggles        from './modules/FeatureToggles'
 import DPR                   from './modules/DPR'
 import WrapReport            from './modules/WrapReport'
 
@@ -54,6 +55,7 @@ const SETUP_NAV = [
   { id: 'setup-admin',    num: '05', label: 'User Management' },
   { id: 'setup-requests', num: '06', label: 'Invite Requests' },
   { id: 'setup-owner',    num: '07', label: 'Owner Admin'     },
+  { id: 'setup-features', num: '08', label: 'Feature Toggles' },
 ]
 
 const SETUP_MODULE_SUB = {
@@ -64,6 +66,7 @@ const SETUP_MODULE_SUB = {
   'setup-admin':    'User management',
   'setup-requests': 'Invite requests',
   'setup-owner':    'All users & projects',
+  'setup-features': 'Owner feature switches',
 }
 
 // ─── Football Manager nav ─────────────────────────────────────────────────────
@@ -370,7 +373,8 @@ function AppShell({ session, signOut }) {
   // Admin permissions panel via the registry. Owner Admin is gated on the
   // app-wide owner flag (profiles.is_owner), not the per-production role.
   const visibleSetupNav = SETUP_NAV.filter(n => {
-    if (n.id === 'setup-owner') return profile?.is_owner === true
+    if (n.id === 'setup-owner')    return profile?.is_owner === true
+    if (n.id === 'setup-features') return profile?.is_owner === true
     return roleAllowsModule(memberRole, n.id)
   })
 
@@ -753,6 +757,9 @@ function AppShell({ session, signOut }) {
             {effTopTab === 'setup' && effModule === 'setup-owner' && (
               <OwnerAdmin session={session} />
             )}
+            {effTopTab === 'setup' && effModule === 'setup-features' && (
+              <FeatureToggles />
+            )}
             {effTopTab === 'setup' && effModule === 'setup-requests' && (
               <InviteRequestsPage
                 productions={productions}
@@ -792,7 +799,7 @@ function AppShell({ session, signOut }) {
               <Timesheets store={store} />
             )}
             {effTopTab === 'crew-times' && effModule === 'ct-starters' && (
-              <NewStarters />
+              <NewStarters featureFlags={store.production.featureFlags} />
             )}
 
             {/* ── Catering tab ──────────────────────────────────────────────── */}
