@@ -255,7 +255,7 @@ serve(async (req) => {
         if (!synced.length) continue   // auto-sync only runs once a manual sync has linked rows
 
         token ??= await googleAccessToken(sa.client_email, sa.private_key)
-        const range = 'A1:AA3000'
+        const range = 'A1:BZ3000'
         const grab = async (render: string) => {
           const res = await fetch(
             `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=${render}&dateTimeRenderOption=SERIAL_NUMBER`,
@@ -407,7 +407,7 @@ serve(async (req) => {
 
     const token = await googleAccessToken(sa.client_email, sa.private_key)
 
-    const range = 'A1:AA3000'   // first sheet; template columns run A–AA
+    const range = 'A1:BZ3000'   // first sheet; wide enough for trackers with extra columns
     const fetchRange = async (render: string) => {
       const res = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=${render}&dateTimeRenderOption=SERIAL_NUMBER`,
