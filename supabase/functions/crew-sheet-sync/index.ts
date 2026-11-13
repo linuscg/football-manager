@@ -402,7 +402,7 @@ serve(async (req) => {
       const colA1 = (n: number) => { let s2 = ''; while (n > 0) { const r2 = (n - 1) % 26; s2 = String.fromCharCode(65 + r2) + s2; n = Math.floor((n - 1) / 26) } return s2 }
       const data = updates
         .filter((u: { row: number; col: number; value: unknown }) =>
-          Number.isInteger(u.row) && u.row > 0 && Number.isInteger(u.col) && u.col > 0 && typeof u.value === 'string' && u.value.length < 20)
+          Number.isInteger(u.row) && u.row > 0 && Number.isInteger(u.col) && u.col > 0 && typeof u.value === 'string' && u.value.length < 80)
         .map((u: { row: number; col: number; value: string }) => ({
           range: `${colA1(u.col)}${u.row}`,
           values: [[u.value]],
