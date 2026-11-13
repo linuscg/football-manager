@@ -16,7 +16,7 @@ const ROLE_COLORS = {
 // Checkboxes mean "can see" — everything checked by default. Unchecking stores a
 // denial on production_members.permissions (deniedTabs / deniedModules /
 // denyCrewRates), so an empty permissions object = full visibility.
-function PermissionsPanel({ perms, role, onChange }) {
+function PermissionsPanel({ perms, role, onChange, onCopyFrom }) {
   const deniedTabs    = new Set(perms.deniedTabs)
   const deniedModules = new Set(perms.deniedModules)
 
@@ -44,6 +44,16 @@ function PermissionsPanel({ perms, role, onChange }) {
 
   return (
     <div className="admin-perms-panel" onClick={e => e.stopPropagation()}>
+      {onCopyFrom && (
+        <button
+          type="button"
+          className="admin-copy-access-btn"
+          onClick={onCopyFrom}
+          title="Copy the tab/module access of an existing team member onto this one"
+        >
+          ⧉ Copy another user's access
+        </button>
+      )}
       <div className="admin-perms-caption">
         Visibility — unchecked tabs and modules are hidden from this user.
         Greyed items are controlled by their role ({ROLE_LABELS[role] ?? role}); change the role to change those.
@@ -121,6 +131,10 @@ export default function AdminPage({ currentProductionId, productionName, session
   const [inviteRole,  setInviteRole]  = useState('member')
   const [invitePerms, setInvitePerms] = useState(null)   // null = full access
   const [invitePermsOpen, setInvitePermsOpen] = useState(false)
+  const [expandedInvite,  setExpandedInvite]  = useState(null)   // pending-invite id with open access panel
+  // "Copy another user's access": when set, clicking a team member below
+  // copies their permissions into the requesting editor. { label, apply }.
+  const [copyRequest, setCopyRequest] = useState(null)
   const [sending,     setSending]     = useState(false)
   const [sendResult,  setSendResult]  = useState(null) // { ok, message }
 
@@ -218,6 +232,21 @@ export default function AdminPage({ currentProductionId, productionName, session
       loadData()
     }
     setSending(false)
+  }
+
+  // ── Edit a pending invite's pre-set access ──────────────────────────────────
+  async function saveInvitePermissions(inviteId, nextPerms) {
+    const cleaned = cleanPermissions(nextPerms)
+    const value   = Object.keys(cleaned).length ? cleaned : null
+    setInvites(is => is.map(i => i.id === inviteId ? { ...i, permissions: value } : i))
+    const { error } = await supabase
+      .from('invites')
+      .update({ permissions: value })
+      .eq('id', inviteId)
+    if (error) {
+      setSendResult({ ok: false, message: `Could not save invite access: ${error.message}` })
+      loadData()
+    }
   }
 
   // ── Cancel invite ────────────────────────────────────────────────────────────
@@ -380,6 +409,10 @@ export default function AdminPage({ currentProductionId, productionName, session
               perms={normalizePermissions(invitePerms ?? {})}
               role={inviteRole}
               onChange={next => setInvitePerms(next)}
+              onCopyFrom={() => setCopyRequest({
+                label: 'the new invite',
+                apply: perms => setInvitePerms(perms),
+              })}
             />
           </div>
         )}
@@ -396,6 +429,18 @@ export default function AdminPage({ currentProductionId, productionName, session
       {/* ── Current members ─────────────────────────────────────────────────── */}
       <div className="admin-section">
         <h2 className="admin-section-title">Team Members</h2>
+
+        {copyRequest && (
+          <div className="admin-copy-banner">
+            <span>
+              Copying access onto <strong>{copyRequest.label}</strong> — click the team
+              member below whose access you want to copy.
+            </span>
+            <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => setCopyRequest(null)}>
+              Cancel
+            </button>
+          </div>
+        )}
 
         {removeError && (
           <div className="admin-send-result admin-send-result--err" style={{ marginBottom: 12 }}>
@@ -423,7 +468,18 @@ export default function AdminPage({ currentProductionId, productionName, session
               const isOwner = m.role === 'owner'
               const isExpanded = expandedMember === m.user_id
               return (
-                <div key={m.user_id} className="admin-member-block">
+                <div
+                  key={m.user_id}
+                  className={`admin-member-block${copyRequest ? ' is-copy-source' : ''}`}
+                  onClickCapture={copyRequest ? (e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const source = m.role === 'owner' ? {} : (m.permissions ?? {})
+                    copyRequest.apply(normalizePermissions(source))
+                    setCopyRequest(null)
+                  }) : undefined}
+                  title={copyRequest ? `Copy ${fullName || m.email || 'this member'}'s access` : undefined}
+                >
                 <div className="admin-member-row">
                   <div className="admin-member-avatar">
                     {m.profile?.first_name?.[0]?.toUpperCase() ?? '?'}
@@ -507,6 +563,10 @@ export default function AdminPage({ currentProductionId, productionName, session
                       perms={normalizePermissions(m.permissions)}
                       role={m.role}
                       onChange={next => handleChangePermissions(m.user_id, next)}
+                      onCopyFrom={() => setCopyRequest({
+                        label: fullName || m.email || 'this member',
+                        apply: perms => handleChangePermissions(m.user_id, perms),
+                      })}
                     />
                   )
                 )}
@@ -535,8 +595,11 @@ export default function AdminPage({ currentProductionId, productionName, session
               const expired   = expires < new Date()
               const isBusy    = !!resending[inv.id]
               const result    = resendResult[inv.id]
+              const invExpanded = expandedInvite === inv.id
+              const invRestricted = inv.permissions && Object.keys(cleanPermissions(normalizePermissions(inv.permissions))).length > 0
               return (
-                <div key={inv.id} className={`admin-invite-row${expired ? ' admin-invite-row--expired' : ''}`}>
+                <div key={inv.id} className="admin-invite-block">
+                <div className={`admin-invite-row${expired ? ' admin-invite-row--expired' : ''}`}>
                   <div className="admin-invite-email">{inv.email}</div>
                   <span
                     className="admin-role-badge"
@@ -561,12 +624,32 @@ export default function AdminPage({ currentProductionId, productionName, session
                     {isBusy ? '…' : '↩ Resend'}
                   </button>
                   <button
+                    className="pm-btn pm-btn--ghost pm-btn--sm"
+                    onClick={() => setExpandedInvite(x => (x === inv.id ? null : inv.id))}
+                    title="Pre-set what this person can see when they accept"
+                  >
+                    {invExpanded ? '▾' : '▸'} Access{invRestricted ? ' ·' : ''}
+                    {invRestricted && <span style={{ color: '#b45309', fontWeight: 700 }}> restricted</span>}
+                  </button>
+                  <button
                     className="admin-member-remove"
                     onClick={() => handleCancelInvite(inv.id)}
                     title="Cancel invite"
                   >
                     ✕
                   </button>
+                </div>
+                {invExpanded && (
+                  <PermissionsPanel
+                    perms={normalizePermissions(inv.permissions ?? {})}
+                    role={inv.role}
+                    onChange={next => saveInvitePermissions(inv.id, next)}
+                    onCopyFrom={() => setCopyRequest({
+                      label: inv.email,
+                      apply: perms => saveInvitePermissions(inv.id, perms),
+                    })}
+                  />
+                )}
                 </div>
               )
             })}
