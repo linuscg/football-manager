@@ -237,6 +237,15 @@ function EmailConfigModal({ initial, onClose, onSaved }) {
 
   const [showPreview, setShowPreview] = useState(false)
 
+  // Cmd/Ctrl+B / I / U in the body textarea apply the matching format marker.
+  function handleBodyKeyDown(e) {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
+    const marker = { b: '**', i: '*', u: '__' }[e.key.toLowerCase()]
+    if (!marker) return
+    e.preventDefault()
+    wrapSelection(marker)
+  }
+
   function handleFileDrop(e) {
     e.preventDefault()
     setDragging(false)
@@ -318,6 +327,7 @@ function EmailConfigModal({ initial, onClose, onSaved }) {
               value={cfg.body ?? ''}
               placeholder={`Hi {{name}},\n\nWe're excited to have you joining us on {{start_date}}.\n\nPlease find your contract and details attached.\n\nBest,\nThe Production Team`}
               onChange={e => set('body', e.target.value)}
+              onKeyDown={handleBodyKeyDown}
             />
             {showPreview && (
               <div
