@@ -197,10 +197,14 @@ export default function CallSheet({ store, castMembers = [] }) {
     // Show even if no bookings — so the section header/description still appears
   }, [day, isMain, shootDays, bookings, resources])
 
-  // Crew grouped by department
+  // Crew grouped by department.
+  // Main days list ADDITIONAL crew only (fulltime presence is implied by their
+  // auto-booked weekdays). Non-main days (prep / splinter / rehearsal / other)
+  // list EVERY crew member booked on the day — those bookings are hand-picked
+  // in the gantt, so fulltime crew selected for a prep day show up too.
   const crewGroups = useMemo(() => {
     const grouped = {}
-    for (const r of dayBookings.filter(r => r.type === 'crew' && r.crewClass === 'additional')) {
+    for (const r of dayBookings.filter(r => r.type === 'crew' && (isMain ? r.crewClass === 'additional' : true))) {
       const key = r.department.trim() || 'Unassigned'
       if (!grouped[key]) grouped[key] = []
       grouped[key].push(r)
@@ -208,7 +212,7 @@ export default function CallSheet({ store, castMembers = [] }) {
     return Object.entries(grouped)
       .sort(([a], [b]) => a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b))
       .map(([dept, members]) => [dept, [...members].sort(sortByStatusThenName)])
-  }, [dayBookings])
+  }, [dayBookings, isMain])
 
   // Equipment grouped by category
   const equipGroups = useMemo(() => {
@@ -549,8 +553,8 @@ export default function CallSheet({ store, castMembers = [] }) {
 
             {/* ── Crew — split by on set / off set ────────────────────────── */}
             {[
-              ['Additional Crew — On Set',  onSetGroups],
-              ['Additional Crew — Off Set', offSetGroups],
+              [`${isMain ? 'Additional Crew' : 'Crew'} — On Set`,  onSetGroups],
+              [`${isMain ? 'Additional Crew' : 'Crew'} — Off Set`, offSetGroups],
             ].filter(([, groups]) => groups.length > 0).map(([title, groups]) => (
               <div className="pm-cs-section" key={title}>
                 <div className="pm-cs-section-head">
