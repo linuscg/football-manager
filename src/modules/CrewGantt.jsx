@@ -1294,7 +1294,9 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   })
   const [paintMode,      setPaintMode]      = useState('booked')   // the selected brush
   const [isDragging,     setIsDragging]     = useState(false)
-  const [hidePastDays,   setHidePastDays]   = useState(false)
+  const [hidePastDays,   setHidePastDays]   = useState(() =>
+    localStorage.getItem('fm_gantt_hidepast') === '1'
+  )
 
   const isDraggingRef   = useRef(false)
   const dragActionRef   = useRef(paintMode)   // the status being applied for the current drag
@@ -2190,8 +2192,10 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
                 onClick={() => {
                   if (hidePastDays) {
                     setHidePastDays(false)
+                    localStorage.setItem('fm_gantt_hidepast', '0')
                   } else {
                     setHidePastDays(true)
+                    localStorage.setItem('fm_gantt_hidepast', '1')
                     collapseBeforeToday()
                   }
                 }}
