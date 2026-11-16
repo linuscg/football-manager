@@ -2569,26 +2569,14 @@ textarea.field-input {
     background-image: none !important;
   }
 
-  /* Header: ink-friendly masthead — dark band becomes black-on-white with rules */
-  .pm-cs-header {
-    background: #fff !important;
-    color: #111 !important;
-    border-top: 3px solid #111 !important;
-    border-bottom: 1.5px solid #111 !important;
-    padding: 14px 2px 12px !important;
-  }
-  .pm-cs-header .pm-cs-prod,
-  .pm-cs-header .cs-date-line,
-  .pm-cs-header .pm-cs-call-val,
-  .pm-cs-header .pm-cs-call-label,
-  .pm-cs-header .pm-cs-daynum { color: #111 !important; }
+  /* Header: keep the coloured band — force backgrounds to print */
+  .pm-cs-header,
+  .pm-cs-header *,
   .pm-cs-stamp {
-    background: none !important;
-    color: #111 !important;
-    border-color: #111 !important;
-    outline-color: #111 !important;
-    transform: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
+  .pm-cs-header { padding: 16px 20px 14px !important; }
 
   /* Info strip: plain row with hairline rules */
   .pm-cs-strip {
