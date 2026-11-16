@@ -189,9 +189,18 @@ function SaRow({ dayId, item, onUpdate, onDelete }) {
 
 // ─── ExtrasSection — the "Additional Info" collapsible block ─────────────────
 
-function ExtrasSection({ day, onAddDayExtra, onDeleteDayExtra, onUpdateDayExtra }) {
+function ExtrasSection({ day, onAddDayExtra, onDeleteDayExtra, onUpdateDayExtra, openSignal = 0 }) {
   const [open,         setOpen]         = useState(false)
   const [openCats,     setOpenCats]     = useState({})
+  const rootRef = useRef(null)
+
+  // A scene row's SA-count badge was clicked → unfurl straight to the SA list
+  useEffect(() => {
+    if (!openSignal) return
+    setOpen(true)
+    setOpenCats(c => ({ ...c, extras: true }))
+    requestAnimationFrame(() => rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+  }, [openSignal])
 
   const totalCount = EXTRAS_CATEGORIES.reduce((s, c) => {
     return s + (day.extras?.[c.key]?.length ?? 0)
@@ -202,7 +211,7 @@ function ExtrasSection({ day, onAddDayExtra, onDeleteDayExtra, onUpdateDayExtra 
   }
 
   return (
-    <div className="extras-section">
+    <div className="extras-section" ref={rootRef}>
       <div
         className="additionals-header"
         onClick={() => setOpen(o => !o)}
@@ -329,6 +338,22 @@ export default function ShootDayCard({
   onDateChange,
 }) {
   const sceneDragRef = useRef(null)   // scene id being drag-reordered
+  const [extrasOpenSignal, setExtrasOpenSignal] = useState(0)
+
+  // Per-scene SA headcount (rows linked by scene_id, falling back to the
+  // scene-number label)
+  const saCountForScene = sc => {
+    let n = 0
+    for (const [cat, rows] of Object.entries(day.extras ?? {})) {
+      if (cat.toLowerCase() !== 'extras') continue
+      for (const r of rows) {
+        const linked = r.sceneId ? r.sceneId === sc.id
+          : String(r.scene ?? '').trim() === String(sc.sceneNumber ?? '').trim() && String(r.scene ?? '').trim()
+        if (linked) n += Number(r.totalNumber) || 0
+      }
+    }
+    return n
+  }
   // Resolve which day type applies and calculate wrap time
   const effectiveDayType = day.dayType || production.defaultDayType || 'SWD'
   const lunchMinutes = effectiveDayType === 'CWD'  ? (production.cwdLunch  ?? 0)
@@ -743,6 +768,8 @@ export default function ShootDayCard({
                   castMembers={castMembers}
                   onUpdateSceneCast={onUpdateSceneCast}
                   production={production}
+                  saCount={saCountForScene(scene)}
+                  onShowSas={() => setExtrasOpenSignal(n => n + 1)}
                 />
               </div>
             ))}
@@ -750,6 +777,7 @@ export default function ShootDayCard({
 
           {/* ── Additional Info (extras) — all day types ─────────────────────── */}
           <ExtrasSection
+            openSignal={extrasOpenSignal}
             day={day}
             onAddDayExtra={onAddDayExtra}
             onDeleteDayExtra={onDeleteDayExtra}

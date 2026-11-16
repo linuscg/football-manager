@@ -233,8 +233,8 @@ export function reconcileSchedule(parsed, existing) {
         if (managed.totalNumber !== saNum) { extrasToUpdate.push({ id: managed.id, totalNumber: saNum }); summaryChangedSAs++ }
       } else if (!oldRows.some(e => String(e.scene ?? '') === numKey)) {
         extrasToInsert.push({
-          id: crypto.randomUUID(), dayId: toDayId, scene: numKey, saName: '',
-          totalNumber: saNum, sortOrder: 0,
+          id: crypto.randomUUID(), dayId: toDayId, sceneId: global.scene.id,
+          scene: numKey, saName: '', totalNumber: saNum, sortOrder: 0,
         })
         summaryNewSAs++
       }
@@ -306,7 +306,7 @@ export function reconcileSchedule(parsed, existing) {
   //   • equal   → nothing
   // Dedup: if a blank-name row already exists for this scene we never insert a
   // second one, so repeat imports don't pile up rows.
-  function reconcileSaRow(dayId, ps, existingDay) {
+  function reconcileSaRow(dayId, ps, existingDay, sceneId = null) {
     const saNum = parseInt(ps.saCount, 10)
     if (isNaN(saNum) || saNum <= 0) return
     const sceneStr = String(ps.sceneNumber ?? '')
@@ -326,6 +326,7 @@ export function reconcileSchedule(parsed, existing) {
     extrasToInsert.push({
       id: crypto.randomUUID(),
       dayId,
+      sceneId,
       scene: ps.sceneNumber ?? '',
       saName: '',
       totalNumber: saNum,
@@ -407,7 +408,7 @@ export function reconcileSchedule(parsed, existing) {
             summaryChangedScenes++
           }
           // Reconcile the importer SA row for this matched scene.
-          reconcileSaRow(matched.id, ps, matched)
+          reconcileSaRow(matched.id, ps, matched, existScene.id)
           previewScenes.push({
             status: changes.length ? 'changed' : 'unchanged',
             sceneNumber: numKey, intExt: ps.intExt ?? 'INT', setName: ps.setName ?? '',
@@ -457,7 +458,7 @@ export function reconcileSchedule(parsed, existing) {
             castMemberIds: resolvedCast,
             sortOrder:     idx,
           })
-          reconcileSaRow(matched.id, ps, matched)
+          reconcileSaRow(matched.id, ps, matched, newSceneId)
           summaryNewScenes++
           previewScenes.push({
             status: 'new',
@@ -560,7 +561,7 @@ export function reconcileSchedule(parsed, existing) {
           castMemberIds: resolvedCast,
           sortOrder:     idx,
         })
-        reconcileSaRow(dayId, ps, null)
+        reconcileSaRow(dayId, ps, null, newSceneId)
         summaryNewScenes++
         previewScenes.push({
           status: 'new',

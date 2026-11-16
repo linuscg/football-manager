@@ -23,6 +23,7 @@ function groupExtrasByCategory(extras) {
       totalNumber: e.total_number ?? null,
       linkKey: e.link_key ?? null,
       doodId: e.dood_id ?? null,
+      sceneId: e.scene_id ?? null,
     })
   }
   return out
@@ -864,10 +865,13 @@ export function useScheduleStore() {
         return { ...d, extras: { ...d.extras, extras: [...prev, row] } }
       }),
     }))
+    const dayForLink = store.shootDays.find(d => d.id === dayId)
+    const linkMatches = (dayForLink?.scenes ?? []).filter(sc => String(sc.sceneNumber ?? '').trim() === String(row.scene ?? '').trim() && String(row.scene ?? '').trim())
     dbWrite(supabase.from('day_extras').insert({
       id: newId, day_id: dayId, category: 'extras', description: row.description,
       sort_order: sortOrder, scene: row.scene, sa_name: row.saName,
       total_number: row.totalNumber, link_key: row.linkKey, dood_id: row.doodId,
+      scene_id: fields.sceneId ?? (linkMatches.length === 1 ? linkMatches[0].id : null),
     }))
     return newId
   }
@@ -895,6 +899,7 @@ export function useScheduleStore() {
     totalNumber: 'total_number',
     linkKey:     'link_key',
     doodId:      'dood_id',
+    sceneId:     'scene_id',
   }
 
   function updateDayExtra(dayId, extraId, field, value) {
@@ -910,7 +915,15 @@ export function useScheduleStore() {
       }),
     }))
     const col = EXTRA_FIELD_MAP[field] ?? field
-    dbWrite(supabase.from('day_extras').update({ [col]: value }).eq('id', extraId))
+    const patch = { [col]: value }
+    // Editing the scene label re-resolves the real scene link (unique match
+    // on this day; ambiguous or unknown numbers unlink).
+    if (field === 'scene') {
+      const d2 = store.shootDays.find(d => d.id === dayId)
+      const matches = (d2?.scenes ?? []).filter(sc => String(sc.sceneNumber ?? '').trim() === String(value ?? '').trim() && String(value ?? '').trim())
+      patch.scene_id = matches.length === 1 ? matches[0].id : null
+    }
+    dbWrite(supabase.from('day_extras').update(patch).eq('id', extraId))
   }
 
   // ── Cast members ───────────────────────────────────────────────────────────
@@ -1183,7 +1196,7 @@ export function useScheduleStore() {
       // 8. Insert Supporting-Artist extras rows derived from scene SA counts
       if (plan.extrasToInsert?.length) {
         await supabase.from('day_extras').insert(plan.extrasToInsert.map(e => ({
-          id: e.id, day_id: e.dayId, category: 'extras',
+          id: e.id, day_id: e.dayId, category: 'extras', scene_id: e.sceneId ?? null,
           scene: e.scene ?? '', sa_name: e.saName ?? '', total_number: e.totalNumber ?? null,
           description: '', sort_order: e.sortOrder ?? 0,
         })))

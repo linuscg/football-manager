@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 
 import { castNumCompare } from '../lib/castNum'
-export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers = [], onUpdateSceneCast, production }) {
+export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers = [], onUpdateSceneCast, production, saCount = 0, onShowSas }) {
   const [castOpen, setCastOpen] = useState(false)
   const dropdownRef = useRef(null)
 
@@ -127,6 +127,17 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
           ))}
         </select>
       )}
+
+      {/* SA headcount — click to open this day's Supporting Artists editor */}
+      <button
+        className={`scene-sa-badge${saCount > 0 ? ' has-sas' : ''}`}
+        title={saCount > 0
+          ? `${saCount} supporting artist${saCount === 1 ? '' : 's'} on this scene — click to edit in Additional Info`
+          : 'No SAs on this scene — click to add in Additional Info'}
+        onClick={() => onShowSas?.()}
+      >
+        SA {saCount > 0 ? saCount : '–'}
+      </button>
 
       {/* Cast selector */}
       <div className="cast-cell" ref={dropdownRef} style={{ position: 'relative' }}>

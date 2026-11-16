@@ -11422,3 +11422,19 @@ select.pm-input { cursor: pointer; }
 /* Import preview: scene moved to a different day */
 .sched-import-scene--moved { background: #eff6ff; box-shadow: inset 3px 0 0 #3b82f6; }
 .sched-import-badge--moved { background: #dbeafe; color: #1d4ed8; }
+
+/* Scene SA headcount badge */
+.scene-sa-badge {
+  border: 1px solid #e5e7eb;
+  background: #fafafa;
+  color: #9ca3af;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 3px 7px;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.scene-sa-badge.has-sas { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+.scene-sa-badge:hover { border-color: #6366f1; }
