@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useCrewStore }           from '../store/useCrewStore'
 import { useFullCrewList } from '../store/useFullCrewList'
 import { useBackpageStore }       from '../store/useBackpageStore'
@@ -105,15 +105,35 @@ export default function CallSheet({ store, castMembers = [] }) {
   )
 
   const [summaryCopied, setSummaryCopied] = useState(false)
+  // Selected day persists per production, so returning to the tab (or
+  // reloading) comes back to the day you were on rather than Day 1.
+  const dayStorageKey = `fm_cs_day_${store.production?.id ?? 'default'}`
   const [selectedId, setSelectedId] = useState(() => {
     const sorted = [...shootDays].sort((a, b) => {
       if (a.date < b.date) return -1
       if (a.date > b.date) return  1
       return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
     })
+    try {
+      const saved = localStorage.getItem(dayStorageKey)
+      if (saved && sorted.some(d => d.id === saved)) return saved
+    } catch { /* ignore */ }
     // Default to first main day; fall back to first day of any type
     return sorted.find(d => d.dayCategory === 'main')?.id ?? sorted[0]?.id ?? null
   })
+  useEffect(() => {
+    if (selectedId) try { localStorage.setItem(dayStorageKey, selectedId) } catch { /* ignore */ }
+  }, [selectedId, dayStorageKey])
+  // If the component mounted before the schedule finished loading, re-apply
+  // the saved day once the days arrive (the initializer saw an empty list).
+  useEffect(() => {
+    if (!shootDays.length) return
+    if (selectedId && shootDays.some(d => d.id === selectedId)) return
+    try {
+      const saved = localStorage.getItem(dayStorageKey)
+      if (saved && shootDays.some(d => d.id === saved)) setSelectedId(saved)
+    } catch { /* ignore */ }
+  }, [shootDays])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const day        = allDays.find(d => d.id === selectedId) ?? allDays[0] ?? null
   const currentIdx = allDays.findIndex(d => d.id === day?.id)
