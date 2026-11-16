@@ -14,7 +14,7 @@ const EXTRAS_CATEGORY_LABELS = {
   risk:     'Risk Assessments',
   stunts:   'Stunts',
   vfx:      'VFX',
-  extras:   'Extras',
+  extras:   'Supporting Artists',
   visitors: 'Visitors',
   other:    'Other',
 }
@@ -558,18 +558,37 @@ export default function CallSheet({ store, castMembers = [] }) {
             {extrasWithEntries.length > 0 && (
               <div className="pm-cs-section">
                 <div className="pm-cs-section-head">Additional Info</div>
-                {extrasWithEntries.map(({ key, label, items }) => (
+                {extrasWithEntries.map(({ key, label, items }) => {
+                  const isSa = key === 'extras'
+                  const saTotal = isSa
+                    ? items.reduce((n, e) => n + (Number(e.totalNumber) || 0), 0)
+                    : 0
+                  return (
                   <div key={key} className="cs-group">
-                    <div className="cs-group-header">{label}</div>
+                    <div className="cs-group-header">
+                      {label}{isSa && saTotal > 0 ? ` — ${saTotal} total` : ''}
+                    </div>
                     <ul style={{ margin: '4px 0 8px 8px', paddingLeft: 16 }}>
-                      {items.map(e => (
-                        <li key={e.id} style={{ fontSize: 12.5, color: '#1f2937', lineHeight: 1.7 }}>
-                          {e.description || '(no description)'}
-                        </li>
-                      ))}
+                      {items.map(e => {
+                        // SA rows store scene / group name / headcount rather
+                        // than a description — show those.
+                        const text = isSa
+                          ? [
+                              e.saName?.trim() || e.description?.trim() || 'Supporting artists',
+                              e.scene ? `Sc. ${e.scene}` : null,
+                              e.totalNumber != null && e.totalNumber !== '' ? `×${e.totalNumber}` : null,
+                            ].filter(Boolean).join(' · ')
+                          : (e.description || '(no description)')
+                        return (
+                          <li key={e.id} style={{ fontSize: 12.5, color: '#1f2937', lineHeight: 1.7 }}>
+                            {text}
+                          </li>
+                        )
+                      })}
                     </ul>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
