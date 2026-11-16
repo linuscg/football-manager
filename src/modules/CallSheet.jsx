@@ -539,12 +539,18 @@ export default function CallSheet({ store, castMembers = [] }) {
                       <th className="cs-th cs-th-tag">D/N</th>
                       <th className="cs-th cs-th-desc">Description</th>
                       <th className="cs-th">Cast</th>
+                      <th className="cs-th cs-th-pages" title="Supporting artists on this scene">SAs</th>
                       <th className="cs-th cs-th-pages">Pages</th>
                     </tr>
                   </thead>
                   <tbody>
                     {day.scenes.map(scene => {
                       const castStr = sceneCastDisplay(scene)
+                      const saN = (day.extras?.extras ?? []).reduce((n, r) => {
+                        const linked = r.sceneId ? r.sceneId === scene.id
+                          : String(r.scene ?? '').trim() === String(scene.sceneNumber ?? '').trim() && String(r.scene ?? '').trim()
+                        return linked ? n + (Number(r.totalNumber) || 0) : n
+                      }, 0)
                       return (
                         <tr key={scene.id} className="cs-tr">
                           <td className="cs-td cs-td-sc">{scene.sceneNumber || '—'}</td>
@@ -557,6 +563,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                           </td>
                           <td className="cs-td">{scene.description || '—'}</td>
                           <td className="cs-td cs-td-cast">{castStr || '—'}</td>
+                          <td className="cs-td cs-td-pages">{saN > 0 ? saN : '—'}</td>
                           <td className="cs-td cs-td-pages">{scene.pages || '—'}</td>
                         </tr>
                       )
