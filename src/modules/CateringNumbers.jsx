@@ -3,6 +3,7 @@ import { useFullCrewList } from '../store/useFullCrewList'
 import { useCrewStore }         from '../store/useCrewStore'
 import { useBackpageStore }     from '../store/useBackpageStore'
 import { useCateringStore }     from '../store/useCateringStore'
+import { saDayTotal } from '../lib/saTotals'
 
 // Round up to nearest 5
 function roundUp5(n) {
@@ -85,12 +86,8 @@ export default function CateringNumbers({ store }) {
     )
     const castCount = castMembers.filter(c => sceneCastIds.has(c.id)).length
 
-    // 4. Supporting artists — sum of the day's SA group totals from the Schedule
-    // (category key is 'extras'; legacy/seeded rows may use 'Extras')
-    const saCount = Object.entries(day.extras ?? {})
-      .filter(([k]) => k.toLowerCase() === 'extras')
-      .flatMap(([, list]) => list)
-      .reduce((s, e) => s + (Number(e.totalNumber) || 0), 0)
+    // 4. Supporting artists — deduplicated day total (linked groups once)
+    const saCount = saDayTotal(day)
 
     // 5. Manual additionals
     const addl = Number(additionals[day.id] ?? 0)

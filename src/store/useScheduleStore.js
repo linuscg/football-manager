@@ -21,6 +21,8 @@ function groupExtrasByCategory(extras) {
       scene: e.scene ?? '',
       saName: e.sa_name ?? '',
       totalNumber: e.total_number ?? null,
+      linkKey: e.link_key ?? null,
+      doodId: e.dood_id ?? null,
     })
   }
   return out
@@ -826,6 +828,32 @@ export function useScheduleStore() {
     }))
   }
 
+  // Insert a pre-filled SA row (category 'extras') — used by the DooD import.
+  function addSaRow(dayId, fields = {}) {
+    const newId = crypto.randomUUID()
+    const sortOrder = Date.now()
+    const row = {
+      id: newId, description: fields.description ?? '', sortOrder,
+      scene: fields.scene ?? '', saName: fields.saName ?? '',
+      totalNumber: fields.totalNumber ?? null,
+      linkKey: fields.linkKey ?? null, doodId: fields.doodId ?? null,
+    }
+    optimistic(s2 => ({
+      ...s2,
+      shootDays: s2.shootDays.map(d => {
+        if (d.id !== dayId) return d
+        const prev = d.extras?.extras ?? []
+        return { ...d, extras: { ...d.extras, extras: [...prev, row] } }
+      }),
+    }))
+    dbWrite(supabase.from('day_extras').insert({
+      id: newId, day_id: dayId, category: 'extras', description: row.description,
+      sort_order: sortOrder, scene: row.scene, sa_name: row.saName,
+      total_number: row.totalNumber, link_key: row.linkKey, dood_id: row.doodId,
+    }))
+    return newId
+  }
+
   function deleteDayExtra(dayId, extraId) {
     optimistic(s => ({
       ...s,
@@ -847,6 +875,8 @@ export function useScheduleStore() {
     scene:       'scene',
     saName:      'sa_name',
     totalNumber: 'total_number',
+    linkKey:     'link_key',
+    doodId:      'dood_id',
   }
 
   function updateDayExtra(dayId, extraId, field, value) {
@@ -1190,7 +1220,7 @@ export function useScheduleStore() {
     addScene, deleteScene, updateScene,
     moveSceneToDay, moveAllScenes,
     updateSceneCast,
-    addDayExtra, deleteDayExtra, updateDayExtra,
+    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
     applyScheduleImport, applyCastListImport,
   }

@@ -3,6 +3,7 @@ import { useFullCrewList } from '../store/useFullCrewList'
 import { useCrewStore }         from '../store/useCrewStore'
 import { useBackpageStore }     from '../store/useBackpageStore'
 import { useCateringStore }     from '../store/useCateringStore'
+import { saDayTotal, saDayGroups } from '../lib/saTotals'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -259,23 +260,22 @@ export default function Catering({ store }) {
     // groups in the Schedule (category 'extras'; legacy rows may use 'Extras').
     // Unnamed groups become "SA 1", "SA 2", … numbered across the day; the
     // group's name/description and scene go in the role column.
-    const saGroups = Object.entries(day.extras ?? {})
-      .filter(([k]) => k.toLowerCase() === 'extras')
-      .flatMap(([, l]) => l)
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    const saGroups = saDayGroups(day)
     let saN = 0
     for (const g of saGroups) {
-      const count = Number(g.totalNumber) || 0
-      const label = (g.saName || g.description || '').trim()
+      const count = g.total
+      const label = g.name === 'Supporting artists' ? '' : g.name
+      const gid = g.rows[0].id   // stable uuid for collection records
+      const gScene = g.scenes.join(', ')
       for (let i = 1; i <= count; i++) {
         saN++
-        const pid = saPersonId(g.id, i)
+        const pid = saPersonId(gid, i)
         const rec = getRecord(day.id, pid)
         list.push({
           key:         `sa-${pid}`,
           id:          pid,
           name:        label ? (count > 1 ? `${label} ${i}` : label) : `SA ${saN}`,
-          role:        g.scene ? `Sc. ${g.scene}` : 'Supporting Artist',
+          role:        gScene ? `Sc. ${gScene}` : 'Supporting Artist',
           dept:        'SAs',
           type:        'sa',
           entitled:    true,
@@ -348,10 +348,7 @@ export default function Catering({ store }) {
     ).size
     const sceneCastIds = new Set((day.scenes ?? []).flatMap(s => s.castMemberIds ?? []))
     const castCount = castMembers.filter(c => sceneCastIds.has(c.id)).length
-    const saCount = Object.entries(day.extras ?? {})
-      .filter(([k]) => k.toLowerCase() === 'extras')
-      .flatMap(([, l]) => l)
-      .reduce((s, e) => s + (Number(e.totalNumber) || 0), 0)
+    const saCount = saDayTotal(day)
     try {
       const stored  = JSON.parse(localStorage.getItem(CAT_ADDITIONALS_KEY) ?? '{}')
       const addl    = Number(stored[day.id] ?? 0)

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useCrewStore }           from '../store/useCrewStore'
 import { useFullCrewList } from '../store/useFullCrewList'
 import { useBackpageStore }       from '../store/useBackpageStore'
+import { saDayTotal, saDayGroups } from '../lib/saTotals'
 import { generatePreCallSummary } from '../lib/backpageSummary'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -560,27 +561,26 @@ export default function CallSheet({ store, castMembers = [] }) {
                 <div className="pm-cs-section-head">Additional Info</div>
                 {extrasWithEntries.map(({ key, label, items }) => {
                   const isSa = key === 'extras'
-                  const saTotal = isSa
-                    ? items.reduce((n, e) => n + (Number(e.totalNumber) || 0), 0)
-                    : 0
+                  const saTotal = isSa ? saDayTotal(day) : 0
+                  const saGroups2 = isSa ? saDayGroups(day) : null
                   return (
                   <div key={key} className="cs-group">
                     <div className="cs-group-header">
                       {label}{isSa && saTotal > 0 ? ` — ${saTotal} total` : ''}
                     </div>
                     <ul style={{ margin: '4px 0 8px 8px', paddingLeft: 16 }}>
-                      {items.map(e => {
-                        // SA rows store scene / group name / headcount rather
-                        // than a description — show those.
+                      {(isSa ? saGroups2 : items).map((e, ei) => {
+                        // SA rows collapse linked same-day groups into one
+                        // entry (all their scene numbers, counted once).
                         const text = isSa
                           ? [
-                              e.saName?.trim() || e.description?.trim() || 'Supporting artists',
-                              e.scene ? `Sc. ${e.scene}` : null,
-                              e.totalNumber != null && e.totalNumber !== '' ? `×${e.totalNumber}` : null,
+                              e.name,
+                              e.scenes.length ? `Sc. ${e.scenes.join(', ')}` : null,
+                              `×${e.total}`,
                             ].filter(Boolean).join(' · ')
                           : (e.description || '(no description)')
                         return (
-                          <li key={e.id} style={{ fontSize: 12.5, color: '#1f2937', lineHeight: 1.7 }}>
+                          <li key={e.id ?? ei} style={{ fontSize: 12.5, color: '#1f2937', lineHeight: 1.7 }}>
                             {text}
                           </li>
                         )

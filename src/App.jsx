@@ -35,6 +35,7 @@ import TransportLog          from './modules/TransportLog'
 import TransportSheet        from './modules/TransportSheet'
 import TransportDrivers      from './modules/TransportDrivers'
 import TransportLocations    from './modules/TransportLocations'
+import SupportingArtists     from './modules/SupportingArtists'
 import DPR                   from './modules/DPR'
 import WrapReport            from './modules/WrapReport'
 
@@ -82,9 +83,11 @@ const FM_NAV = [
   { id: 'callsheet', num: '03', label: 'Daily Info'       },
   { id: 'budget',    num: '04', label: 'Cost Tracking'    },
   { id: 'equip-db',  num: '05', label: 'Equipment Database' },
+  { id: 'sas',       num: '06', label: 'Supporting Artists' },
 ]
 
 const FM_MODULE_SUB = {
+  sas: 'SA calendar, totals & Day-out-of-Days',
   schedule:  'Shooting board',
   crew:      'Equipment booking gantt',
   callsheet: 'Call sheet',
@@ -386,7 +389,7 @@ function AppShell({ session, signOut }) {
     addScene, deleteScene, updateScene,
     moveSceneToDay, moveAllScenes,
     updateSceneCast,
-    addDayExtra, deleteDayExtra, updateDayExtra,
+    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
     applyScheduleImport, applyCastListImport,
   } = useScheduleStore()
@@ -501,7 +504,7 @@ function AppShell({ session, signOut }) {
     addScene, deleteScene, updateScene,
     moveSceneToDay, moveAllScenes,
     updateSceneCast,
-    addDayExtra, deleteDayExtra, updateDayExtra,
+    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow,
     applyScheduleImport,
   }
 
@@ -823,6 +826,9 @@ function AppShell({ session, signOut }) {
             )}
             {effTopTab === 'fm' && effModule === 'equip-db' && (
               <EquipmentDatabase />
+            )}
+            {effTopTab === 'fm' && effModule === 'sas' && (
+              <SupportingArtists store={store} actions={scheduleActions} />
             )}
 
             {/* ── Crew Times tab ────────────────────────────────────────────── */}
