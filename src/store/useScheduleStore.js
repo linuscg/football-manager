@@ -1188,6 +1188,20 @@ export function useScheduleStore() {
           description: '', sort_order: e.sortOrder ?? 0,
         })))
       }
+      // 8a. Scene moved days → its SA rows (matched by scene-number text on
+      // the old day) move with it, keeping names, links and DooD ids.
+      for (const mv of (plan.saMoves ?? [])) {
+        const { data: exRows } = await supabase
+          .from('day_extras').select('id, scene')
+          .eq('day_id', mv.fromDayId).eq('category', 'extras')
+        const ids = (exRows ?? [])
+          .filter(r => String(r.scene ?? '').trim() === mv.sceneNumber)
+          .map(r => r.id)
+        if (ids.length) {
+          await supabase.from('day_extras').update({ day_id: mv.toDayId }).in('id', ids)
+        }
+      }
+
       // 8b. Update changed Supporting-Artist extras rows (blank-name rows only)
       for (const e of (plan.extrasToUpdate ?? [])) {
         await supabase.from('day_extras').update({ total_number: e.totalNumber }).eq('id', e.id)

@@ -11418,3 +11418,7 @@ select.pm-input { cursor: pointer; }
 .cc-list-item.is-first { border-color: #86efac; background: #f0fdf4; }
 .cc-list-item.is-last  { border-color: #fca5a5; background: #fef2f2; }
 .cc-list-item.is-first.is-last { border-color: #fcd34d; background: #fffbeb; }
+
+/* Import preview: scene moved to a different day */
+.sched-import-scene--moved { background: #eff6ff; box-shadow: inset 3px 0 0 #3b82f6; }
+.sched-import-badge--moved { background: #dbeafe; color: #1d4ed8; }

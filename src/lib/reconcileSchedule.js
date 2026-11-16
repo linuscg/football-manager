@@ -191,6 +191,56 @@ export function reconcileSchedule(parsed, existing) {
   const existingMainDays = existingDays.filter(d => d.dayCategory === 'main')
   const matchedExistingIds = new Set()
 
+  // Global scene index (unique scene numbers only): lets a re-import recognise
+  // a scene that MOVED to a different day — it becomes an update (day change)
+  // instead of insert-here + orphan-there, and its SA rows move with it.
+  const globalSceneByNum = new Map()   // num → { scene, day } | null (null = duplicated)
+  for (const d of existingDays) {
+    for (const sc of d.scenes ?? []) {
+      const num = String(sc.sceneNumber ?? '').trim()
+      if (!num) continue
+      globalSceneByNum.set(num, globalSceneByNum.has(num) ? null : { scene: sc, day: d })
+    }
+  }
+  const movedSceneIds = new Set()
+  const saMoves = []   // { sceneNumber, fromDayId, toDayId } — SA rows to re-home
+
+  // A cross-day scene move: emit the update (with the new dayId), queue the
+  // SA-row move, and reconcile the SA headcount against the OLD day's rows.
+  function emitSceneMove(global, ps, toDayId, resolvedCast) {
+    const numKey = String(ps.sceneNumber ?? '').trim()
+    movedSceneIds.add(global.scene.id)
+    scenesToUpdate.push({
+      id: global.scene.id,
+      dayId: toDayId,
+      sceneNumber: numKey,
+      intExt: ps.intExt ?? 'INT',
+      location: ps.setName ?? '',
+      dayNight: ps.dayNight ?? 'DAY',
+      description: buildSceneDescription(ps),
+      pages: ps.pages ?? '',
+      storyDay: ps.storyDay ?? '',
+      castMemberIds: resolvedCast,
+    })
+    saMoves.push({ sceneNumber: numKey, fromDayId: global.day.id, toDayId })
+    // SA count: update the old day's importer-managed (blank-name) row if its
+    // total changed; it travels to the new day via saMoves. No new insert.
+    const saNum = parseInt(ps.saCount, 10)
+    const oldRows = global.day.extras?.extras ?? []
+    const managed = oldRows.find(e => String(e.scene ?? '') === numKey && !String(e.saName ?? '').trim())
+    if (!isNaN(saNum) && saNum > 0) {
+      if (managed) {
+        if (managed.totalNumber !== saNum) { extrasToUpdate.push({ id: managed.id, totalNumber: saNum }); summaryChangedSAs++ }
+      } else if (!oldRows.some(e => String(e.scene ?? '') === numKey)) {
+        extrasToInsert.push({
+          id: crypto.randomUUID(), dayId: toDayId, scene: numKey, saName: '',
+          totalNumber: saNum, sortOrder: 0,
+        })
+        summaryNewSAs++
+      }
+    }
+  }
+
   // Compute the append baseline for new sort orders / day numbers.
   let nextSortOrder = existingDays.length
     ? Math.max(...existingDays.map(d => d.sortOrder ?? 0)) + 1
@@ -372,6 +422,25 @@ export function reconcileSchedule(parsed, existing) {
             commitDescription: buildSceneDescription(ps),
             castMemberIds: resolvedCast,
           })
+        } else if ((() => { const g = globalSceneByNum.get(numKey); return g && !movedSceneIds.has(g.scene.id) && g.day.id !== matched.id })()) {
+          // Scene exists on a DIFFERENT day → cross-day move.
+          const g = globalSceneByNum.get(numKey)
+          emitSceneMove(g, ps, matched.id, resolvedCast)
+          summaryChangedScenes++
+          previewScenes.push({
+            status: 'moved',
+            movedFrom: `Day ${g.day.dayNumber ?? '?'}`,
+            sceneNumber: numKey, intExt: ps.intExt ?? 'INT', setName: ps.setName ?? '',
+            dayNight: ps.dayNight ?? 'DAY', pages: ps.pages ?? '',
+            storyDay: ps.storyDay ?? '',
+            description: ps.description ?? '', danceSequence: ps.danceSequence ?? '',
+            castNumbers: ps.castNumbers ?? [], changes: ['moved'],
+            sceneKey: crypto.randomUUID(),
+            commitKind: 'update', existingId: g.scene.id,
+            location: ps.setName ?? '',
+            commitDescription: buildSceneDescription(ps),
+            castMemberIds: resolvedCast,
+          })
         } else {
           // New scene on an existing day.
           const newSceneId = crypto.randomUUID()
@@ -408,6 +477,7 @@ export function reconcileSchedule(parsed, existing) {
 
       // Existing scenes on this day not present in the PDF → flag (no auto-delete).
       for (const es of existingScenes) {
+        if (movedSceneIds.has(es.id)) continue
         if (!matchedSceneNums.has(String(es.sceneNumber ?? ''))) {
           scenesUnmatched.push({
             id: es.id, dayId: matched.id, sceneNumber: es.sceneNumber ?? '',
@@ -454,8 +524,29 @@ export function reconcileSchedule(parsed, existing) {
       const previewScenes = []
       ;(pDay.scenes ?? []).forEach((ps, idx) => {
         const resolvedCast = resolveCastIds(ps.castNumbers, castNumberToId, createPlaceholderCast)
-        const newSceneId = crypto.randomUUID()
         const numKey = String(ps.sceneNumber ?? '').trim()
+        const gMove = numKey ? globalSceneByNum.get(numKey) : null
+        if (gMove && !movedSceneIds.has(gMove.scene.id)) {
+          // Scene moved onto this brand-new day.
+          emitSceneMove(gMove, ps, dayId, resolvedCast)
+          summaryChangedScenes++
+          previewScenes.push({
+            status: 'moved',
+            movedFrom: `Day ${gMove.day.dayNumber ?? '?'}`,
+            sceneNumber: numKey, intExt: ps.intExt ?? 'INT', setName: ps.setName ?? '',
+            dayNight: ps.dayNight ?? 'DAY', pages: ps.pages ?? '',
+            storyDay: ps.storyDay ?? '',
+            description: ps.description ?? '', danceSequence: ps.danceSequence ?? '',
+            castNumbers: ps.castNumbers ?? [], changes: ['moved'],
+            sceneKey: crypto.randomUUID(),
+            commitKind: 'update', existingId: gMove.scene.id,
+            location: ps.setName ?? '',
+            commitDescription: buildSceneDescription(ps),
+            castMemberIds: resolvedCast,
+          })
+          return
+        }
+        const newSceneId = crypto.randomUUID()
         scenesToInsert.push({
           id:            newSceneId,
           dayId,
@@ -531,10 +622,14 @@ export function reconcileSchedule(parsed, existing) {
     castNumCompare(a.castNumber, b.castNumber)
   )
 
+  // A move detected AFTER its old day was processed may already be in the
+  // unmatched list — strip it.
+  const scenesUnmatchedFinal = scenesUnmatched.filter(su => !movedSceneIds.has(su.id))
+
   return {
     // commit lists
     castToInsert, castToUpdate, daysToInsert, daysToUpdate, scenesToInsert, scenesToUpdate,
-    extrasToInsert, extrasToUpdate,
+    extrasToInsert, extrasToUpdate, saMoves,
     dayIdsToDelete, sceneIdsToDelete,
     // preview
     summary: {
@@ -548,6 +643,6 @@ export function reconcileSchedule(parsed, existing) {
       changedSAs:    summaryChangedSAs,
     },
     castPreview,
-    daysUnmatched, scenesUnmatched, preview,
+    daysUnmatched, scenesUnmatched: scenesUnmatchedFinal, preview,
   }
 }

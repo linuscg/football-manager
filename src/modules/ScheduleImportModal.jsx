@@ -4,7 +4,7 @@ import { reconcileSchedule } from '../lib/reconcileSchedule'
 
 // Status badge for days / scenes.
 function StatusBadge({ status }) {
-  const label = status === 'new' ? 'NEW' : status === 'changed' ? 'CHANGED' : 'UNCHANGED'
+  const label = status === 'new' ? 'NEW' : status === 'changed' ? 'CHANGED' : status === 'moved' ? 'MOVED' : 'UNCHANGED'
   return <span className={`sched-import-badge sched-import-badge--${status}`}>{label}</span>
 }
 
