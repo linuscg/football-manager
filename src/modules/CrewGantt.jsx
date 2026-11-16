@@ -122,20 +122,17 @@ function buildColSpecs(production, expandedPhases, dateMap, today, subUnitsByDat
       for (const date of eachDay(start, end)) {
         const { isWeekend } = formatColHeader(date)
         const subDays   = subUnitsByDate[date] ?? []
-        const hasMainDay = !!dateMap[date]
 
-        // Only emit a main-unit column if there IS a main unit for this date,
-        // OR if there are no sub-units (so an empty day column still appears).
-        if (hasMainDay || subDays.length === 0) {
-          specs.push({
-            type: 'day', date,
-            phaseId: phase.id, phaseColor: phase.color, phaseLabel: phase.label,
-            isHiatus: phase.isHiatus,
-            isToday: date === today, isWeekend,
-            shootDay: dateMap[date] ?? null,
-            dayId: null, subUnitCategory: null,
-          })
-        }
+        // The regular day-of-week column always appears — a prep/splinter day
+        // on the date adds its own column NEXT TO it rather than replacing it.
+        specs.push({
+          type: 'day', date,
+          phaseId: phase.id, phaseColor: phase.color, phaseLabel: phase.label,
+          isHiatus: phase.isHiatus,
+          isToday: date === today, isWeekend,
+          shootDay: dateMap[date] ?? null,
+          dayId: null, subUnitCategory: null,
+        })
         // Insert a column for each sub-unit (prep / splinter / other) on this date
         for (const subDay of subDays) {
           specs.push({
@@ -1602,16 +1599,18 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     // on a main-unit cell. Painting cancelled/unavailable/hold triggers no hire-date update,
     // which avoids a race condition where the hire-date DB write triggers a
     // realtime reload that races with the (still in-flight) booking INSERT.
-    if (!dayId) {
+    {
       const res = latestRef.current.resources.find(r => r.id === resourceId)
       const isEquip = res?.type === 'equipment'
       // Equipment: the gantt drives the hire window outright, so booked, hold
-      // and clear all resync the From/To dates. Crew: only booked/clear sync
-      // (a hold isn't a hire), and fulltime crew never sync — their dates are
-      // the source of truth for the weekday auto-fill (feedback loop).
+      // and clear all resync the From/To dates — on main AND prep/splinter
+      // columns alike. Crew: main-unit booked/clear only (a hold isn't a
+      // hire, and sub-unit assignments aren't the hire range), and fulltime
+      // crew never sync — their dates are the source of truth for the weekday
+      // auto-fill (feedback loop).
       const syncs = isEquip
         ? (status === 'booked' || status === 'hold' || status === null)
-        : (status === 'booked' || status === null)
+        : (!dayId && (status === 'booked' || status === null))
       if (syncs && (isEquip || (res?.crewClass ?? 'additional') !== 'fulltime')) {
         dirtyResources.current.add(resourceId)
       }
@@ -1757,9 +1756,10 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
     for (const resourceId of toSync) {
       const res0 = resources.find(r => r.id === resourceId)
-      const countedStatuses = res0?.type === 'equipment' ? ['booked', 'hold'] : ['booked']
+      const isEquip0 = res0?.type === 'equipment'
+      const countedStatuses = isEquip0 ? ['booked', 'hold'] : ['booked']
       const myBookedDates = bookings
-        .filter(b => b.resourceId === resourceId && countedStatuses.includes(b.status) && !b.dayId)
+        .filter(b => b.resourceId === resourceId && countedStatuses.includes(b.status) && (isEquip0 || !b.dayId))
         .map(b => b.date)
         .sort()
       const newStart = myBookedDates[0] ?? ''
