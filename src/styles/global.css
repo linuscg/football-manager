@@ -10691,6 +10691,20 @@ select.pm-input { cursor: pointer; }
   padding: 3px 4px;
   color: var(--pm-fg);
 }
+
+/* Multiline notes textarea in gantt detail columns — fixed height, scrolls
+   inside so it never changes the row height */
+textarea.crewd-notes {
+  display: block;
+  resize: none;
+  overflow-y: auto;
+  height: 24px;
+  line-height: 1.45;
+  font-family: inherit;
+  white-space: pre-wrap;
+  scrollbar-width: thin;
+}
+textarea.crewd-notes:focus { background: #fff; }
 .crewd-input:hover  { border-color: var(--pm-rule-color); background: #fff; }
 .crewd-input:focus  { border-color: var(--pm-accent); background: #fff; outline: none; }
 .crewd-input.crewd-num { text-align: right; }

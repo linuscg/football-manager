@@ -218,7 +218,7 @@ const DETAIL_COLS_FULL = [
   { label: 'End',      w: 108, group: 'Dates' },
   { label: 'On/Off Set', w: 84, group: 'Other' },
   { label: 'Vendor',   w: 100, group: 'Other' },
-  { label: 'Notes',    w: 170, group: 'Other' },
+  { label: 'Notes',    w: 230, group: 'Other' },
 ]
 const DETAIL_COLS_NO_RATES = DETAIL_COLS_FULL.filter(c => !c.money)
 
@@ -249,7 +249,7 @@ const EQUIP_DETAIL_COLS = [
   { label: 'Remind',   w: 64,  group: 'Hire' },
   { label: 'Weeks',    w: 64,  group: 'Total' },
   { label: 'Cost',     w: 90,  group: 'Total' },
-  { label: 'Notes',    w: 170, group: 'Other' },
+  { label: 'Notes',    w: 230, group: 'Other' },
 ]
 const EQUIP_DETAIL_GROUPS = buildDetailGroups(EQUIP_DETAIL_COLS)
 
@@ -278,6 +278,34 @@ function DetailTextCell({ value, onCommit, width, placeholder = '', type = 'text
       <input
         className={`crewd-input${readOnly ? ' is-sheet-locked' : ''}`}
         type={type}
+        value={v}
+        placeholder={placeholder}
+        title={readOnly ? SHEET_LOCK_TOOLTIP : title}
+        readOnly={readOnly}
+        onChange={e => { if (!readOnly) setV(e.target.value) }}
+        onBlur={() => { if (!readOnly && v !== (value ?? '')) onCommit(v) }}
+      />
+    </td>
+  )
+}
+
+// Multiline notes cell — textarea, Enter adds a line, fixed height (scrolls
+// inside, never changes row height), commits on blur and on unmount
+function DetailNotesCell({ value, onCommit, width, placeholder = '', title, readOnly = false, height }) {
+  const [v, setV] = useState(value ?? '')
+  useEffect(() => setV(value ?? ''), [value])
+  const latest = useRef({})
+  latest.current = { v, value, onCommit, readOnly }
+  useEffect(() => () => {
+    const { v: lv, value: lval, onCommit: lc, readOnly: lro } = latest.current
+    if (!lro && lv !== (lval ?? '')) lc(lv)
+  }, [])
+  return (
+    <td className="crewd-td" style={{ width, minWidth: width }}>
+      <textarea
+        className={`crewd-input crewd-notes${readOnly ? ' is-sheet-locked' : ''}`}
+        rows={1}
+        style={height ? { height } : undefined}
         value={v}
         placeholder={placeholder}
         title={readOnly ? SHEET_LOCK_TOOLTIP : title}
@@ -527,7 +555,7 @@ function EquipDetailCells({ resource, onUpdate, vendorSuggestions, hiatuses }) {
       </td>
       <OffhireBellCell resource={resource} />
       <EquipTotalsCells resource={resource} hiatuses={hiatuses} />
-      <DetailTextCell value={resource.notes} width={170} placeholder="Notes…" onCommit={u('notes')} />
+      <DetailNotesCell value={resource.notes} width={230} height={64} placeholder="Notes…" onCommit={u('notes')} />
     </Fragment>
   )
 }
@@ -744,7 +772,7 @@ function CrewDetailCells({ resource, rates, onUpdate, onCommitEmail, onCommitPho
         </select>
       </td>
       <DetailTextCell value={resource.vendor} onCommit={u('vendor')} width={100} placeholder="vendor" title="Vendor / company supplying this crew member" />
-      <DetailTextCell value={resource.notes}  onCommit={u('notes')}  width={170} placeholder="notes" title="Notes" />
+      <DetailNotesCell value={resource.notes} onCommit={u('notes')} width={230} placeholder="notes" title="Notes" />
     </Fragment>
   )
 }
