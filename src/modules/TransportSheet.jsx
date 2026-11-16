@@ -65,6 +65,7 @@ export default function TransportSheet({ productionName }) {
     for (const trip of dayLog) {
       const key = `${trip.description}|${trip.fromLocation}|${trip.toLocation}`
       if (existingKeys.has(key)) continue
+      existingKeys.add(key)
       store.addSheetRow(date, 'pickups', {
         time: trip.time,
         description: trip.description || trip.type,

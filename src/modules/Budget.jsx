@@ -348,12 +348,6 @@ export default function Budget({ store, onUpdate }) {
   const equipHold         = rosHold + addEquipHold
   const otherTotal     = otherItems.reduce((s, i)    => s + (parseFloat(i.amount) || 0), 0)
 
-  const grandConfirmed = crewConfirmed + equipConfirmed + otherTotal + transportTotal
-  const grandWithHolds = grandConfirmed + crewHold + equipHold
-
-  // Converted totals for display
-  const cv = n => n * fxRate
-
   // Transport costs (from the Transport Log), broken out by type
   const { log: transportLog } = useTransportStore()
   const transportByType = TRANSPORT_TYPES.map(t => [
@@ -362,6 +356,12 @@ export default function Budget({ store, onUpdate }) {
       .reduce((s2, r) => s2 + Number(r.cost), 0),
   ])
   const transportTotal = transportByType.reduce((s2, [, v]) => s2 + v, 0)
+
+  const grandConfirmed = crewConfirmed + equipConfirmed + otherTotal + transportTotal
+  const grandWithHolds = grandConfirmed + crewHold + equipHold
+
+  // Converted totals for display
+  const cv = n => n * fxRate
 
   // ── TSV builders for per-section copy (display currency, plain numbers) ──────
   function crewTSV(byDept) {

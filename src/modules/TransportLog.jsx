@@ -143,7 +143,7 @@ export default function TransportLog() {
             <tbody>
               {rows.map(row => <LogRow key={row.id} row={row} actions={store} />)}
               {rows.length === 0 && (
-                <tr><td className="crew-db-cell" colSpan={11} style={{ color: '#9ca3af' }}>
+                <tr key="empty"><td className="crew-db-cell" colSpan={11} style={{ color: '#9ca3af' }}>
                   No trips yet — add one, and From/To/Driver fields will start autofilling from the databases as they grow.
                 </td></tr>
               )}
