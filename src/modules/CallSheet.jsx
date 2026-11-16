@@ -565,7 +565,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                 {groups.map(([dept, members]) => (
                   <div key={dept} className="cs-group">
                     <div className="cs-group-header">{dept}</div>
-                    <table className="pm-cs-tbl">
+                    <table className="pm-cs-tbl pm-cs-tbl--crew">
                       <thead>
                         <tr>
                           <th className="cs-th cs-th-name">Name</th>
@@ -609,7 +609,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                 {equipGroups.map(([cat, items]) => (
                   <div key={cat} className="cs-group">
                     <div className="cs-group-header">{cat}</div>
-                    <table className="pm-cs-tbl">
+                    <table className="pm-cs-tbl pm-cs-tbl--equip">
                       <thead>
                         <tr>
                           <th className="cs-th cs-th-name">Name</th>

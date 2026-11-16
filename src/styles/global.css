@@ -11186,3 +11186,22 @@ select.pm-input { cursor: pointer; }
   padding: 12px 14px;
   margin-top: 8px;
 }
+
+/* ── Daily Info: identical column grid across every dept/category group ─────── */
+/* Each group is its own <table>; fixed layout + shared widths keep columns
+   vertically aligned down the whole page instead of auto-sizing per group. */
+.pm-cs-tbl--crew, .pm-cs-tbl--equip { table-layout: fixed; }
+.pm-cs-tbl--crew .cs-th-name        { width: 19%; }
+.pm-cs-tbl--crew th:nth-child(2)    { width: 17%; }
+.pm-cs-tbl--crew th:nth-child(3)    { width: 15%; }
+.pm-cs-tbl--crew th:nth-child(4)    { width: 22%; }
+.pm-cs-tbl--crew th:nth-child(5)    { width: 13%; }
+.pm-cs-tbl--crew .cs-th-status      { width: 110px; }
+.pm-cs-tbl--equip .cs-th-name       { width: 36%; }
+.pm-cs-tbl--equip th:nth-child(2)   { width: 24%; }
+.pm-cs-tbl--equip th:nth-child(3)   { width: 24%; }
+.pm-cs-tbl--equip .cs-th-status     { width: 110px; }
+.pm-cs-tbl--crew td, .pm-cs-tbl--equip td { overflow-wrap: break-word; }
+.pm-cs-tbl--crew .cs-td-name, .pm-cs-tbl--equip .cs-td-name {
+  white-space: normal;
+}
