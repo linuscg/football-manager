@@ -29,9 +29,18 @@ function buildSceneDescription(parsedScene) {
 }
 
 // Resolve a parsed scene's castNumbers → store cast member UUIDs.
-function resolveCastIds(castNumbers, castNumberToId) {
+// `createMissing(numKey)` is called for numbers with no cast member yet; the
+// reconciler passes a factory that creates a PLACEHOLDER cast member (number
+// only, name blank) so cast numbers survive imports into a production whose
+// cast list hasn't been set up — name them later in Project Setup.
+function resolveCastIds(castNumbers, castNumberToId, createMissing) {
   return (castNumbers ?? [])
-    .map(n => castNumberToId[String(n).trim()])
+    .map(n => {
+      const numKey = String(n).trim()
+      if (!numKey) return null
+      if (!castNumberToId[numKey] && createMissing) createMissing(numKey)
+      return castNumberToId[numKey]
+    })
     .filter(Boolean)
 }
 
@@ -161,6 +170,19 @@ export function reconcileSchedule(parsed, existing) {
     castNumberToId[numKey] = id
     newCastCount++
   })
+
+  // Placeholder factory for scene cast numbers that match no cast member
+  // (e.g. the PDF has no cast legend and Project Setup is empty).
+  let placeholderCount = 0
+  function createPlaceholderCast(numKey) {
+    const id = crypto.randomUUID()
+    castToInsert.push({
+      id, name: '', role: '', notes: '', castNumber: numKey,
+      sortOrder: existingCast.length + newCastCount + placeholderCount,
+    })
+    castNumberToId[numKey] = id
+    placeholderCount++
+  }
 
   // ── Day matching helpers ─────────────────────────────────────────────────────
   // Existing main days indexed for matching, and a set tracking which existing
@@ -310,7 +332,7 @@ export function reconcileSchedule(parsed, existing) {
 
       ;(pDay.scenes ?? []).forEach((ps, idx) => {
         const numKey = String(ps.sceneNumber ?? '').trim()
-        const resolvedCast = resolveCastIds(ps.castNumbers, castNumberToId)
+        const resolvedCast = resolveCastIds(ps.castNumbers, castNumberToId, createPlaceholderCast)
         const existScene = numKey
           ? existingScenes.find(s => String(s.sceneNumber ?? '') === numKey)
           : null
@@ -430,7 +452,7 @@ export function reconcileSchedule(parsed, existing) {
       // All scenes for a new day → scenesToInsert referencing the new day id.
       const previewScenes = []
       ;(pDay.scenes ?? []).forEach((ps, idx) => {
-        const resolvedCast = resolveCastIds(ps.castNumbers, castNumberToId)
+        const resolvedCast = resolveCastIds(ps.castNumbers, castNumberToId, createPlaceholderCast)
         const newSceneId = crypto.randomUUID()
         const numKey = String(ps.sceneNumber ?? '').trim()
         scenesToInsert.push({

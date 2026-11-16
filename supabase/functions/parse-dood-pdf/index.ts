@@ -25,6 +25,8 @@ LAYOUT:
 - Cell codes: "SWF" (start-work-finish), "SW" (start-work), "WF" (work-finish), "W" (work), "S", "F" — ALL of these mean the group WORKS that date. A "/" cell or an empty cell is NOT a work day (the "/" columns are production holidays). "H" (hold) is not a work day.
 - Dates are UK dd/mm. The year: the report header shows the report date (e.g. 12-Nov-2026); the schedule runs forward from roughly that date, so December dates are that year and January/February dates are the following year. Output ISO YYYY-MM-DD.
 
+SELF-CHECK (do this for EVERY row before output): the final summary columns give Start, Finish and TOTAL for the row. Your workDates for that row must contain exactly TOTAL dates, the earliest equal to Start and the latest equal to Finish (dd/mm there too). If they disagree you have misread a cell — recount that row. Rows are dense: never let a code slip onto the row above or below.
+
 OUTPUT strict JSON only:
 {"groups":[{"doodId":"104","description":"Subway commuters","total":30,"workDates":["2026-12-21","2027-01-13"]}]}
 Every row in the PDF appears exactly once with ALL of its work dates. Do not invent or drop rows.`

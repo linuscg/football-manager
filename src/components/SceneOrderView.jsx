@@ -68,6 +68,26 @@ export default function SceneOrderView({ shootDays, production, actions }) {
     return e => actions.updateScene(day.id, scene.id, field, e.target.value)
   }
 
+  // Duplicates: same scene number appearing more than once; "hard" duplicate
+  // when the descriptions also match (likely a true double entry).
+  const numCounts = {}
+  const numDescCounts = {}
+  for (const r of rows) {
+    if (r.kind !== 'scene') continue
+    const num = String(r.scene.sceneNumber ?? '').trim()
+    if (!num) continue
+    numCounts[num] = (numCounts[num] ?? 0) + 1
+    const nd = `${num}|${String(r.scene.description ?? '').trim().toLowerCase()}`
+    numDescCounts[nd] = (numDescCounts[nd] ?? 0) + 1
+  }
+  const dupInfo = r => {
+    const num = String(r.scene.sceneNumber ?? '').trim()
+    if (!num || (numCounts[num] ?? 0) < 2) return null
+    const nd = `${num}|${String(r.scene.description ?? '').trim().toLowerCase()}`
+    return (numDescCounts[nd] ?? 0) >= 2 ? 'hard' : 'soft'
+  }
+  const dupCount = rows.filter(r => r.kind === 'scene' && dupInfo(r) === 'hard').length
+
   const missingCount = rows.filter(r => r.kind === 'gap' && !omitted.has(String(r.num))).length
   const omittedCount = rows.filter(r => r.kind === 'gap' && omitted.has(String(r.num))).length
 
@@ -86,6 +106,7 @@ export default function SceneOrderView({ shootDays, production, actions }) {
       <div className="sceneorder-summary">
         <span><strong>{rows.filter(r => r.kind === 'scene').length + unnumbered.length}</strong> scenes</span>
         {missingCount > 0 && <span className="sceneorder-summary-missing"><strong>{missingCount}</strong> missing</span>}
+        {dupCount > 0 && <span className="sceneorder-summary-missing"><strong>{dupCount}</strong> duplicated</span>}
         {omittedCount > 0 && <span className="sceneorder-summary-omitted"><strong>{omittedCount}</strong> omitted</span>}
       </div>
 
@@ -138,7 +159,7 @@ export default function SceneOrderView({ shootDays, production, actions }) {
           <>
             <div className="sceneorder-section">Unnumbered scenes</div>
             {unnumbered.map(r => (
-              <SceneRow key={r.scene.id} r={r} dayOptions={dayOptions} upd={upd} actions={actions} />
+              <SceneRow key={r.scene.id} r={r} dayOptions={dayOptions} upd={upd} actions={actions} dup={dupInfo(r)} />
             ))}
           </>
         )}
@@ -162,10 +183,14 @@ export function buildDayOptions(shootDays) {
 
 export { parseSceneNum, fmtShort }
 
-export function SceneRow({ r, dayOptions, upd, actions }) {
+export function SceneRow({ r, dayOptions, upd, actions, dup = null }) {
   const { scene, day } = r
   return (
-    <div className="sceneorder-row">
+    <div
+      className={`sceneorder-row${dup === 'hard' ? ' sceneorder-row--dup' : dup === 'soft' ? ' sceneorder-row--dupnum' : ''}`}
+      title={dup === 'hard' ? 'Duplicate: this scene number AND description appear more than once'
+           : dup === 'soft' ? 'This scene number appears more than once (different descriptions)' : undefined}
+    >
       <input
         className="sceneorder-input sceneorder-input--num"
         value={scene.sceneNumber}

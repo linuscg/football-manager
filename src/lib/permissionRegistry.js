@@ -28,6 +28,7 @@ export const PERMISSION_TABS = [
       { id: 'callsheet', label: 'Daily Info'    },
       { id: 'budget',    label: 'Cost Tracking' },
       { id: 'equip-db',  label: 'Equipment Database' },
+      { id: 'cast-cal',  label: 'Cast Calendar'      },
       { id: 'sas',       label: 'Supporting Artists' },
     ],
   },

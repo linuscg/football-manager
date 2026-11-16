@@ -11361,3 +11361,60 @@ select.pm-input { cursor: pointer; }
 .sa-cal-group { color: #6b7280; font-size: 10px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sa-dood-row { display: flex; align-items: center; gap: 10px; }
 .sa-dood-pick { max-width: 320px; margin-left: auto; }
+
+/* Scene Order duplicate flags */
+.sceneorder-row--dup    { background: #fef2f2; box-shadow: inset 3px 0 0 #dc2626; }
+.sceneorder-row--dupnum { background: #fffbeb; box-shadow: inset 3px 0 0 #f59e0b; }
+
+/* Scene drag-reorder (list view) */
+.scene-dnd-wrap { display: flex; align-items: flex-start; gap: 2px; }
+.scene-dnd-wrap > .scene-row { flex: 1; }
+.scene-drag-handle {
+  cursor: grab;
+  color: #c4c4cc;
+  font-size: 12px;
+  padding: 7px 1px 0 0;
+  user-select: none;
+}
+.scene-drag-handle:hover { color: #6366f1; }
+
+/* ── Cast Calendar ──────────────────────────────────────────────────────────── */
+.cc-chips { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 2px; }
+.cc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #374151;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.cc-chip--first { background: #dcfce7; color: #15803d; }
+.cc-chip--last  { background: #fee2e2; color: #b91c1c; }
+.cc-chip--only  { background: #fef3c7; color: #b45309; }
+.cc-flag {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.cc-flag--first { background: #16a34a; color: #fff; }
+.cc-flag--last  { background: #dc2626; color: #fff; }
+.cc-date--first { color: #15803d; font-weight: 700; }
+.cc-date--last  { color: #b91c1c; font-weight: 700; }
+.cc-list-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+.cc-list-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.cc-list-item.is-first { border-color: #86efac; background: #f0fdf4; }
+.cc-list-item.is-last  { border-color: #fca5a5; background: #fef2f2; }
+.cc-list-item.is-first.is-last { border-color: #fcd34d; background: #fffbeb; }

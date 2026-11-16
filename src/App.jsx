@@ -36,6 +36,7 @@ import TransportSheet        from './modules/TransportSheet'
 import TransportDrivers      from './modules/TransportDrivers'
 import TransportLocations    from './modules/TransportLocations'
 import SupportingArtists     from './modules/SupportingArtists'
+import CastCalendar          from './modules/CastCalendar'
 import DPR                   from './modules/DPR'
 import WrapReport            from './modules/WrapReport'
 
@@ -83,10 +84,12 @@ const FM_NAV = [
   { id: 'callsheet', num: '03', label: 'Daily Info'       },
   { id: 'budget',    num: '04', label: 'Cost Tracking'    },
   { id: 'equip-db',  num: '05', label: 'Equipment Database' },
-  { id: 'sas',       num: '06', label: 'Supporting Artists' },
+  { id: 'cast-cal',  num: '06', label: 'Cast Calendar'      },
+  { id: 'sas',       num: '07', label: 'Supporting Artists' },
 ]
 
 const FM_MODULE_SUB = {
+  'cast-cal': 'Cast working days, firsts & lasts',
   sas: 'SA calendar, totals & Day-out-of-Days',
   schedule:  'Shooting board',
   crew:      'Equipment booking gantt',
@@ -389,7 +392,7 @@ function AppShell({ session, signOut }) {
     addScene, deleteScene, updateScene,
     moveSceneToDay, moveAllScenes,
     updateSceneCast,
-    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow,
+    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow, reorderScenes,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
     applyScheduleImport, applyCastListImport,
   } = useScheduleStore()
@@ -504,7 +507,7 @@ function AppShell({ session, signOut }) {
     addScene, deleteScene, updateScene,
     moveSceneToDay, moveAllScenes,
     updateSceneCast,
-    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow,
+    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow, reorderScenes,
     applyScheduleImport,
   }
 
@@ -826,6 +829,9 @@ function AppShell({ session, signOut }) {
             )}
             {effTopTab === 'fm' && effModule === 'equip-db' && (
               <EquipmentDatabase />
+            )}
+            {effTopTab === 'fm' && effModule === 'cast-cal' && (
+              <CastCalendar store={store} />
             )}
             {effTopTab === 'fm' && effModule === 'sas' && (
               <SupportingArtists store={store} actions={scheduleActions} />

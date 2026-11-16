@@ -765,6 +765,24 @@ export function useScheduleStore() {
     if (num) moveSaRowsForScenes(from, toDayId, new Set([num]))
   }
 
+  // Reorder scenes within one day (list-view drag): write 0..n sort orders.
+  function reorderScenes(dayId, orderedIds) {
+    optimistic(s2 => ({
+      ...s2,
+      shootDays: s2.shootDays.map(d => {
+        if (d.id !== dayId) return d
+        const byId = Object.fromEntries(d.scenes.map(sc => [sc.id, sc]))
+        return {
+          ...d,
+          scenes: orderedIds.filter(id => byId[id]).map((id, i) => ({ ...byId[id], sortOrder: i })),
+        }
+      }),
+    }))
+    orderedIds.forEach((id, i) => {
+      dbWrite(supabase.from('scenes').update({ sort_order: i }).eq('id', id))
+    })
+  }
+
   // Move every scene from one day onto another (dragging a day title onto a
   // day). Order is preserved; scenes land after the target's existing scenes.
   function moveAllScenes(fromDayId, toDayId) {
@@ -1218,7 +1236,7 @@ export function useScheduleStore() {
     moveDayUp, moveDayDown, reorderDays,
     executeScheduleMove, resequenceDayNumbers,
     addScene, deleteScene, updateScene,
-    moveSceneToDay, moveAllScenes,
+    moveSceneToDay, moveAllScenes, reorderScenes,
     updateSceneCast,
     addDayExtra, deleteDayExtra, updateDayExtra, addSaRow,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,

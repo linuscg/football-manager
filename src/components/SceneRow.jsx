@@ -144,7 +144,18 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
             : <span style={{ color: '#d1d5db' }}>Cast</span>}
         </button>
         {castOpen && (
-          <div className="cast-dropdown">
+          <div
+            className="cast-dropdown"
+            style={(() => {
+              const r = dropdownRef.current?.getBoundingClientRect()
+              if (!r) return undefined
+              const left = Math.min(r.left, window.innerWidth - 230)
+              // Flip above the trigger when there's no room below
+              return window.innerHeight - r.bottom < 240
+                ? { position: 'fixed', bottom: window.innerHeight - r.top + 2, left, zIndex: 1000 }
+                : { position: 'fixed', top: r.bottom + 2, left, zIndex: 1000 }
+            })()}
+          >
             {castMembers.length === 0 ? (
               <div className="cast-dropdown-empty">No cast added yet — add in Project Setup</div>
             ) : (

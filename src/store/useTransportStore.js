@@ -8,12 +8,12 @@ const mapLog = r => ({
   id: r.id, type: r.type ?? 'Cab', date: r.date ?? '', time: r.time ?? '',
   description: r.description ?? '', fromLocation: r.from_location ?? '',
   toLocation: r.to_location ?? '', driver: r.driver ?? '', supplier: r.supplier ?? '',
-  po: r.po ?? '', cost: r.cost, sortOrder: r.sort_order ?? 0,
+  po: r.po ?? '', cost: r.cost, notes: r.notes ?? '', sortOrder: r.sort_order ?? 0,
 })
 const LOG_COLS = {
   type: 'type', date: 'date', time: 'time', description: 'description',
   fromLocation: 'from_location', toLocation: 'to_location', driver: 'driver',
-  supplier: 'supplier', po: 'po', cost: 'cost', sortOrder: 'sort_order',
+  supplier: 'supplier', po: 'po', cost: 'cost', notes: 'notes', sortOrder: 'sort_order',
 }
 const mapDriver = r => ({
   id: r.id, name: r.name ?? '', phone: r.phone ?? '', vehicleReg: r.vehicle_reg ?? '',
@@ -94,14 +94,14 @@ export function useTransportStore() {
     const row = {
       id, type: 'Cab', date: new Date().toISOString().slice(0, 10), time: '',
       description: '', fromLocation: '', toLocation: '', driver: '', supplier: '',
-      po: '', cost: null, sortOrder: Date.now(), ...initial,
+      po: '', cost: null, notes: '', sortOrder: Date.now(), ...initial,
     }
     setLog(ls => [...ls, row])
     dbWrite(supabase.from('transport_log').insert({
       id, production_id: getCurrentProductionId(),
       type: row.type, date: row.date || null, time: row.time, description: row.description,
       from_location: row.fromLocation, to_location: row.toLocation, driver: row.driver,
-      supplier: row.supplier, po: row.po, cost: row.cost, sort_order: row.sortOrder,
+      supplier: row.supplier, po: row.po, cost: row.cost, notes: row.notes ?? '', sort_order: row.sortOrder,
     }))
     return id
   }

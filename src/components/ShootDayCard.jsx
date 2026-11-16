@@ -37,7 +37,18 @@ function RehearsalCast({ day, castMembers = [], onUpdate }) {
             : <span style={{ color: '#9ca3af' }}>Select cast attending rehearsal…</span>}
         </button>
         {open && (
-          <div className="cast-dropdown">
+          <div
+            className="cast-dropdown"
+            style={(() => {
+              const r = ref.current?.getBoundingClientRect()
+              if (!r) return undefined
+              const left = Math.min(r.left, window.innerWidth - 230)
+              // Flip above the trigger when there's no room below
+              return window.innerHeight - r.bottom < 240
+                ? { position: 'fixed', bottom: window.innerHeight - r.top + 2, left, zIndex: 1000 }
+                : { position: 'fixed', top: r.bottom + 2, left, zIndex: 1000 }
+            })()}
+          >
             {castMembers.length === 0 ? (
               <div className="cast-dropdown-empty">No cast added yet — add in Project Setup</div>
             ) : (
@@ -302,6 +313,7 @@ export default function ShootDayCard({
   onAddScene,
   onDeleteScene,
   onUpdateScene,
+  onReorderScenes,
   onAddPrepDay,
   onAddSplinterDay,
   onAddDayExtra,
@@ -315,6 +327,7 @@ export default function ShootDayCard({
   allLocations = [],
   onDateChange,
 }) {
+  const sceneDragRef = useRef(null)   // scene id being drag-reordered
   // Resolve which day type applies and calculate wrap time
   const effectiveDayType = day.dayType || production.defaultDayType || 'SWD'
   const lunchMinutes = effectiveDayType === 'CWD'  ? (production.cwdLunch  ?? 0)
@@ -697,16 +710,40 @@ export default function ShootDayCard({
             )}
 
             {day.scenes.map(scene => (
-              <SceneRow
+              <div
                 key={scene.id}
-                scene={scene}
-                dayId={day.id}
-                onUpdate={onUpdateScene}
-                onDelete={onDeleteScene}
-                castMembers={castMembers}
-                onUpdateSceneCast={onUpdateSceneCast}
-                production={production}
-              />
+                className="scene-dnd-wrap"
+                onDragOver={e => { if (sceneDragRef.current) { e.preventDefault(); e.dataTransfer.dropEffect = 'move' } }}
+                onDrop={e => {
+                  e.preventDefault()
+                  const src = sceneDragRef.current
+                  sceneDragRef.current = null
+                  if (!src || src === scene.id || !onReorderScenes) return
+                  const ids = day.scenes.map(sc => sc.id).filter(id => id !== src)
+                  ids.splice(ids.indexOf(scene.id), 0, src)
+                  onReorderScenes(day.id, ids)
+                }}
+              >
+                <span
+                  className="scene-drag-handle"
+                  draggable
+                  title="Drag to reorder scenes within the day"
+                  onDragStart={e => {
+                    sceneDragRef.current = scene.id
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('text/plain', scene.id)
+                  }}
+                >⠿</span>
+                <SceneRow
+                  scene={scene}
+                  dayId={day.id}
+                  onUpdate={onUpdateScene}
+                  onDelete={onDeleteScene}
+                  castMembers={castMembers}
+                  onUpdateSceneCast={onUpdateSceneCast}
+                  production={production}
+                />
+              </div>
             ))}
           </div>
 

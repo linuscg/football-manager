@@ -42,6 +42,7 @@ function LogRow({ row, actions }) {
       <td className="tr-td"><Cell key={`dr${row.id}${row.driver}`} value={row.driver} listId="tr-drivers" placeholder="Driver" onCommit={u('driver')} onCommitExtra={actions.rememberDriver} /></td>
       <td className="tr-td"><Cell key={`s${row.id}${row.supplier}`} value={row.supplier} listId="tr-suppliers" placeholder="Supplier" onCommit={u('supplier')} /></td>
       <td className="tr-td"><Cell key={`p${row.id}${row.po}`} value={row.po} placeholder="PO" onCommit={u('po')} /></td>
+      <td className="tr-td tr-td--wide"><Cell key={`no${row.id}${row.notes}`} value={row.notes} placeholder="Notes" onCommit={u('notes')} /></td>
       <td className="tr-td tr-td--cost">
         <Cell
           key={`c${row.id}${row.cost}`}
@@ -136,6 +137,7 @@ export default function TransportLog() {
                 <th className="crew-db-th">Driver</th>
                 <th className="crew-db-th">Supplier</th>
                 <th className="crew-db-th">PO</th>
+                <th className="crew-db-th">Notes</th>
                 <th className="crew-db-th">Cost</th>
                 <th className="crew-db-th" />
               </tr>
@@ -143,7 +145,7 @@ export default function TransportLog() {
             <tbody>
               {rows.map(row => <LogRow key={row.id} row={row} actions={store} />)}
               {rows.length === 0 && (
-                <tr key="empty"><td className="crew-db-cell" colSpan={11} style={{ color: '#9ca3af' }}>
+                <tr key="empty"><td className="crew-db-cell" colSpan={12} style={{ color: '#9ca3af' }}>
                   No trips yet — add one, and From/To/Driver fields will start autofilling from the databases as they grow.
                 </td></tr>
               )}

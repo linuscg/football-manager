@@ -51,6 +51,23 @@ export default function Schedule({ store, actions }) {
     localStorage.setItem('fm_schedule_view', v)
   }
 
+  // List view remembers the scroll position across module switches / reloads
+  const scrollRestoredRef = useRef(false)
+  useEffect(() => {
+    if (viewMode !== 'list') return
+    const el = document.querySelector('.pm-main')
+    if (!el) return
+    if (!scrollRestoredRef.current && store.shootDays.length > 0) {
+      const saved = sessionStorage.getItem('fm_sched_scroll')
+      if (saved) requestAnimationFrame(() => { el.scrollTop = parseInt(saved, 10) || 0 })
+      scrollRestoredRef.current = true
+    }
+    const onScroll = () => sessionStorage.setItem('fm_sched_scroll', String(el.scrollTop))
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [viewMode, store.shootDays.length])  // eslint-disable-line react-hooks/exhaustive-deps
+
+
   // ── AI PDF import ─────────────────────────────────────────────────────────────
   const [importOpen, setImportOpen] = useState(false)
 
@@ -401,6 +418,7 @@ export default function Schedule({ store, actions }) {
                       onAddScene={actions.addScene}
                       onDeleteScene={actions.deleteScene}
                       onUpdateScene={actions.updateScene}
+                      onReorderScenes={actions.reorderScenes}
                       onAddPrepDay={actions.addPrepDay}
                       onAddSplinterDay={actions.addSplinterDay}
                       onAddDayExtra={actions.addDayExtra}
