@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, Fragment } from 'react'
 import { useCrewStore }        from '../store/useCrewStore'
+import { useTransportStore, TRANSPORT_TYPES } from '../store/useTransportStore'
 import { useBudgetStore }      from '../store/useBudgetStore'
 import { useBudgetCodesStore } from '../store/useBudgetCodesStore'
 import CostCodeSelect          from '../components/CostCodeSelect'
@@ -347,11 +348,20 @@ export default function Budget({ store, onUpdate }) {
   const equipHold         = rosHold + addEquipHold
   const otherTotal     = otherItems.reduce((s, i)    => s + (parseFloat(i.amount) || 0), 0)
 
-  const grandConfirmed = crewConfirmed + equipConfirmed + otherTotal
+  const grandConfirmed = crewConfirmed + equipConfirmed + otherTotal + transportTotal
   const grandWithHolds = grandConfirmed + crewHold + equipHold
 
   // Converted totals for display
   const cv = n => n * fxRate
+
+  // Transport costs (from the Transport Log), broken out by type
+  const { log: transportLog } = useTransportStore()
+  const transportByType = TRANSPORT_TYPES.map(t => [
+    t,
+    transportLog.filter(r => r.type === t && Number.isFinite(Number(r.cost)))
+      .reduce((s2, r) => s2 + Number(r.cost), 0),
+  ])
+  const transportTotal = transportByType.reduce((s2, [, v]) => s2 + v, 0)
 
   // ── TSV builders for per-section copy (display currency, plain numbers) ──────
   function crewTSV(byDept) {
@@ -913,6 +923,38 @@ export default function Budget({ store, onUpdate }) {
               + Add line item
             </button>
           </div>
+        </BudgetSection>
+
+        {/* ── Transport (from the Transport Log) ────────────────────────────────── */}
+        <BudgetSection title="Transport" total={cv(transportTotal)} symbol={displaySymbol}>
+          <table className="budget-table">
+            <thead>
+              <tr>
+                <th className="budget-th">Type</th>
+                <th className="budget-th" style={{ width: 90 }}>Trips</th>
+                <th className="budget-th budget-th-cost">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transportByType.map(([t, amount]) => (
+                <tr key={t}>
+                  <td className="budget-td">{t}</td>
+                  <td className="budget-td">{transportLog.filter(r => r.type === t).length}</td>
+                  <td className="budget-td budget-td-cost">{fmtZero(cv(amount), displaySymbol)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="budget-subtotal-row">
+                <td className="budget-td budget-subtotal-label">Total transport</td>
+                <td className="budget-td" />
+                <td className="budget-td budget-td-cost budget-subtotal-value">{fmtZero(cv(transportTotal), displaySymbol)}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <p className="budget-empty" style={{ marginTop: 6 }}>
+            Pulled live from the Transport Log — edit trips there.
+          </p>
         </BudgetSection>
 
         {/* ── Grand total strip ─────────────────────────────────────────────────── */}

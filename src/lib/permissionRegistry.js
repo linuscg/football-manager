@@ -60,6 +60,16 @@ export const PERMISSION_TABS = [
     ],
   },
   {
+    id: 'transport',
+    label: 'Transport',
+    modules: [
+      { id: 'tr-log',       label: 'Transport Log'     },
+      { id: 'tr-sheet',     label: 'Transport Sheet'   },
+      { id: 'tr-drivers',   label: 'Driver Database'   },
+      { id: 'tr-locations', label: 'Location Database' },
+    ],
+  },
+  {
     id: 'dpr',
     label: 'DPR',
     modules: [

@@ -11215,3 +11215,71 @@ select.pm-input { cursor: pointer; }
   white-space: normal;
   word-break: break-word;
 }
+
+/* ── Transport module ───────────────────────────────────────────────────────── */
+.tr-input {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 4px 6px;
+}
+.tr-input:hover { border-color: #e5e7eb; }
+.tr-input:focus { border-color: #a5b4fc; background: #fff; outline: none; }
+.tr-select { cursor: pointer; }
+.tr-num { text-align: right; }
+.tr-td { padding: 2px 4px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+.tr-td--wide { min-width: 160px; }
+.tr-td--cost { width: 92px; }
+.tr-td--actions { white-space: nowrap; width: 64px; }
+.tr-table { width: 100%; }
+.tr-filter, .tr-date-pick {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  background: #fff;
+}
+.tr-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.tr-total-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 14px;
+  min-width: 110px;
+}
+.tr-total-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+}
+.tr-total-value { font-size: 15px; font-weight: 700; }
+.tr-total-sub { font-weight: 500; color: #6b7280; font-size: 12px; }
+.tr-sheet-section { margin-bottom: 18px; }
+.tr-sheet-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #111827;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  border-radius: 6px 6px 0 0;
+  padding: 6px 10px;
+}
+.tr-sheet-area {
+  resize: none;
+  min-height: 2.4em;
+  white-space: pre-wrap;
+}

@@ -31,6 +31,10 @@ import TravelTimes           from './modules/TravelTimes'
 import EquipmentDatabase     from './modules/EquipmentDatabase'
 import NewStarters           from './modules/NewStarters'
 import FeatureToggles        from './modules/FeatureToggles'
+import TransportLog          from './modules/TransportLog'
+import TransportSheet        from './modules/TransportSheet'
+import TransportDrivers      from './modules/TransportDrivers'
+import TransportLocations    from './modules/TransportLocations'
 import DPR                   from './modules/DPR'
 import WrapReport            from './modules/WrapReport'
 
@@ -42,6 +46,7 @@ const TOP_TABS = [
   { id: 'crew-times', label: 'Crew'             },
   { id: 'catering',   label: 'Catering'         },
   { id: 'accomm',     label: 'Accommodation'    },
+  { id: 'transport',  label: 'Transport'        },
   { id: 'dpr',        label: 'DPR'              },
 ]
 
@@ -133,6 +138,22 @@ const CT_MODULE_SUB = {
   'ct-starters':   'Weekly new starter onboarding',
 }
 
+// ─── Transport nav ────────────────────────────────────────────────────────────
+
+const TRANSPORT_NAV = [
+  { id: 'tr-log',       num: '01', label: 'Transport Log'     },
+  { id: 'tr-sheet',     num: '02', label: 'Transport Sheet'   },
+  { id: 'tr-drivers',   num: '03', label: 'Driver Database'   },
+  { id: 'tr-locations', num: '04', label: 'Location Database' },
+]
+
+const TRANSPORT_MODULE_SUB = {
+  'tr-log':       'All trips — costs by type feed Cost Tracking',
+  'tr-sheet':     'Per-day transport sheet',
+  'tr-drivers':   'Driver contacts & vehicles',
+  'tr-locations': 'Pickup & drop-off addresses',
+}
+
 // ─── DPR nav ──────────────────────────────────────────────────────────────────
 
 const DPR_NAV = [
@@ -179,6 +200,12 @@ function getInitialCatModule() {
   const saved = localStorage.getItem('fm_cat_module')
   if (saved && CAT_NAV.find(n => n.id === saved)) return saved
   return 'cat-list'
+}
+
+function getInitialTransportModule() {
+  const saved = localStorage.getItem('fm_transport_module')
+  if (saved && TRANSPORT_NAV.find(n => n.id === saved)) return saved
+  return 'tr-log'
 }
 
 function getInitialDprModule() {
@@ -300,6 +327,7 @@ function AppShell({ session, signOut }) {
   const [ctModule,     setCtModule]     = useState(getInitialCtModule)
   const [catModule,    setCatModule]    = useState(getInitialCatModule)
   const [dprModule,    setDprModule]    = useState(getInitialDprModule)
+  const [transportModule, setTransportModule] = useState(getInitialTransportModule)
   const [accommModule, setAccommModule] = useState(getInitialAccommModule)
   const [prodMenuOpen, setProdMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
@@ -328,6 +356,11 @@ function AppShell({ session, signOut }) {
   function navigateCat(id) {
     setCatModule(id)
     localStorage.setItem('fm_cat_module', id)
+  }
+
+  function navigateTransport(id) {
+    setTransportModule(id)
+    localStorage.setItem('fm_transport_module', id)
   }
 
   function navigateDpr(id) {
@@ -400,6 +433,7 @@ function AppShell({ session, signOut }) {
   const allowedCatNav    = CAT_NAV.filter(n => !deniedModules.has(n.id))
   const allowedAccommNav = ACCOMM_NAV.filter(n => !deniedModules.has(n.id))
   const allowedDprNav    = DPR_NAV.filter(n => !deniedModules.has(n.id))
+  const allowedTransportNav = TRANSPORT_NAV.filter(n => !deniedModules.has(n.id))
 
   // Never-stuck guarantee: if everything is denied, the Account page stays reachable.
   const effTopTabs  = allowedTopTabs.length > 0
@@ -415,6 +449,7 @@ function AppShell({ session, signOut }) {
     'crew-times': allowedCtNav,
     catering:     allowedCatNav,
     accomm:       allowedAccommNav,
+    transport:    allowedTransportNav,
     dpr:          allowedDprNav,
   }
   const moduleStateByTab = {
@@ -423,6 +458,7 @@ function AppShell({ session, signOut }) {
     'crew-times': ctModule,
     catering:     catModule,
     accomm:       accommModule,
+    transport:    transportModule,
     dpr:          dprModule,
   }
 
@@ -444,6 +480,7 @@ function AppShell({ session, signOut }) {
       if (effTopTab === 'crew-times') navigateCt(effModule)
       if (effTopTab === 'catering')   navigateCat(effModule)
       if (effTopTab === 'accomm')     navigateAccomm(effModule)
+      if (effTopTab === 'transport')  navigateTransport(effModule)
       if (effTopTab === 'dpr')        navigateDpr(effModule)
     }
   })
@@ -510,6 +547,7 @@ function AppShell({ session, signOut }) {
     if (effTopTab === 'catering')   navigateCat(id)
     if (effTopTab === 'dpr')        navigateDpr(id)
     if (effTopTab === 'accomm')     navigateAccomm(id)
+    if (effTopTab === 'transport')  navigateTransport(id)
   }
 
   const topbarEyebrow = (() => {
@@ -519,6 +557,7 @@ function AppShell({ session, signOut }) {
     if (effTopTab === 'catering')   return CAT_NAV.find(n => n.id === effModule)?.label ?? 'Catering'
     if (effTopTab === 'accomm')     return ACCOMM_NAV.find(n => n.id === effModule)?.label ?? 'Accommodation'
     if (effTopTab === 'dpr')        return DPR_NAV.find(n => n.id === effModule)?.label ?? 'DPR'
+    if (effTopTab === 'transport')  return TRANSPORT_NAV.find(n => n.id === effModule)?.label ?? 'Transport'
     return ''
   })()
 
@@ -534,6 +573,7 @@ function AppShell({ session, signOut }) {
     if (effTopTab === 'catering')   return CAT_MODULE_SUB[effModule] ?? ''
     if (effTopTab === 'accomm')     return ACCOMM_MODULE_SUB[effModule] ?? ''
     if (effTopTab === 'dpr')        return DPR_MODULE_SUB[effModule] ?? ''
+    if (effTopTab === 'transport')  return TRANSPORT_MODULE_SUB[effModule] ?? ''
     return ''
   })()
 
@@ -832,6 +872,14 @@ function AppShell({ session, signOut }) {
             )}
 
             {/* ── DPR tab ───────────────────────────────────────────────────── */}
+            {/* ── Transport tab ─────────────────────────────────────────────── */}
+            {effTopTab === 'transport' && effModule === 'tr-log' && <TransportLog />}
+            {effTopTab === 'transport' && effModule === 'tr-sheet' && (
+              <TransportSheet productionName={store.production.name} />
+            )}
+            {effTopTab === 'transport' && effModule === 'tr-drivers' && <TransportDrivers />}
+            {effTopTab === 'transport' && effModule === 'tr-locations' && <TransportLocations />}
+
             {effTopTab === 'dpr' && effModule === 'dpr-main' && (
               <DPR
                 productionName={store.production.name}
