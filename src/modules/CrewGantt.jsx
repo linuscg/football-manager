@@ -1022,16 +1022,31 @@ const ResourceRow = memo(function ResourceRow({
           <div className="gantt-name-cell">
             <div className="gantt-name-fields">
               <div className="gantt-name-input-wrap">
+                {activeTab === 'equipment' ? (
+                  /* Long kit names wrap onto a second line inside a fixed
+                     2-line box, so every row keeps the same height. */
+                  <textarea
+                    className="gantt-input gantt-input-name gantt-input-name--wrap"
+                    value={lName}
+                    rows={2}
+                    placeholder="Item name"
+                    title={lName}
+                    onChange={e => setLName(e.target.value.replace(/\n/g, ' '))}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } }}
+                    onBlur={handleNameBlur}
+                  />
+                ) : (
                 <input
                   className={`gantt-input gantt-input-name${sheetLocked ? ' is-sheet-locked' : ''}`}
                   value={lName}
-                  placeholder={activeTab === 'crew' ? 'Name' : 'Item name'}
+                  placeholder="Name"
                   readOnly={sheetLocked}
                   title={sheetLocked ? SHEET_LOCK_TOOLTIP : undefined}
-                  onChange={e => { if (sheetLocked) return; setLName(e.target.value); if (activeTab === 'crew') setShowPeopleDrop(true) }}
-                  onFocus={() => { if (!sheetLocked && activeTab === 'crew') setShowPeopleDrop(true) }}
+                  onChange={e => { if (sheetLocked) return; setLName(e.target.value); setShowPeopleDrop(true) }}
+                  onFocus={() => { if (!sheetLocked) setShowPeopleDrop(true) }}
                   onBlur={sheetLocked ? undefined : handleNameBlur}
                 />
+                )}
                 {activeTab === 'crew' && resource.sheetPending && (
                   <button
                     className="sheet-allow-btn"

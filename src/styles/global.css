@@ -11205,3 +11205,13 @@ select.pm-input { cursor: pointer; }
 .pm-cs-tbl--crew .cs-td-name, .pm-cs-tbl--equip .cs-td-name {
   white-space: normal;
 }
+
+/* Equipment names wrap to two lines in a fixed-height box (uniform rows) */
+.gantt-input-name--wrap {
+  resize: none;
+  overflow: hidden;
+  line-height: 1.25;
+  height: calc(2 * 1.25em + 4px);
+  white-space: normal;
+  word-break: break-word;
+}
