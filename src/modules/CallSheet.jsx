@@ -237,7 +237,9 @@ export default function CallSheet({ store, castMembers = [] }) {
   // Equipment grouped by category
   const equipGroups = useMemo(() => {
     const grouped = {}
-    for (const r of dayBookings.filter(r => r.type === 'equipment')) {
+    // Run-of-show kit is on hire for the whole production, so the call sheet
+    // lists ADDITIONAL equipment only.
+    for (const r of dayBookings.filter(r => r.type === 'equipment' && (r.equipClass ?? 'ros') === 'additional')) {
       const key = r.category.trim() || 'Uncategorised'
       if (!grouped[key]) grouped[key] = []
       grouped[key].push(r)

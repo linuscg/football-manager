@@ -1587,13 +1587,17 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     // on a main-unit cell. Painting cancelled/unavailable/hold triggers no hire-date update,
     // which avoids a race condition where the hire-date DB write triggers a
     // realtime reload that races with the (still in-flight) booking INSERT.
-    if (!dayId && (status === 'booked' || status === null)) {
-      // Fulltime crew: hire dates are the source of truth (they drive the
-      // auto-booking), so painting must never rewrite them — otherwise the
-      // date-driven weekday fill instantly undoes manual unpaints (feedback
-      // loop). Only additional crew derive their hire range from paint.
+    if (!dayId) {
       const res = latestRef.current.resources.find(r => r.id === resourceId)
-      if ((res?.crewClass ?? 'additional') !== 'fulltime') {
+      const isEquip = res?.type === 'equipment'
+      // Equipment: the gantt drives the hire window outright, so booked, hold
+      // and clear all resync the From/To dates. Crew: only booked/clear sync
+      // (a hold isn't a hire), and fulltime crew never sync — their dates are
+      // the source of truth for the weekday auto-fill (feedback loop).
+      const syncs = isEquip
+        ? (status === 'booked' || status === 'hold' || status === null)
+        : (status === 'booked' || status === null)
+      if (syncs && (isEquip || (res?.crewClass ?? 'additional') !== 'fulltime')) {
         dirtyResources.current.add(resourceId)
       }
     }
@@ -1737,8 +1741,10 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
     dirtyResources.current = new Set()
 
     for (const resourceId of toSync) {
+      const res0 = resources.find(r => r.id === resourceId)
+      const countedStatuses = res0?.type === 'equipment' ? ['booked', 'hold'] : ['booked']
       const myBookedDates = bookings
-        .filter(b => b.resourceId === resourceId && b.status === 'booked' && !b.dayId)
+        .filter(b => b.resourceId === resourceId && countedStatuses.includes(b.status) && !b.dayId)
         .map(b => b.date)
         .sort()
       const newStart = myBookedDates[0] ?? ''
