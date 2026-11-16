@@ -11166,3 +11166,23 @@ select.pm-input { cursor: pointer; }
   padding: 1px 5px;
   margin-left: 6px;
 }
+
+/* ── Welcome email formatting toolbar + preview ─────────────────────────────── */
+.ns-format-btn {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  padding: 2px 9px;
+  cursor: pointer;
+  color: #374151;
+}
+.ns-format-btn:hover { background: #f3f4f6; }
+.ns-format-btn.is-active { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+.ns-format-preview {
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #fafafa;
+  padding: 12px 14px;
+  margin-top: 8px;
+}

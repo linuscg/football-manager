@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { watermarkPdfBase64, isPdfAttachment } from '../lib/pdfWatermark'
+import { welcomeBodyToHtml, stripFormatMarkers } from '../lib/welcomeEmailFormat'
 import { getCurrentProductionId } from '../lib/productionContext'
 
 // API key + from address live in the Edge Function (supabase/functions/send-welcome-email)
@@ -217,6 +218,25 @@ function EmailConfigModal({ initial, onClose, onSaved }) {
     })
   }
 
+  // Wrap the current selection (or insert an empty pair) with a format marker.
+  function wrapSelection(marker) {
+    const el = bodyRef.current
+    if (!el) return
+    const start = el.selectionStart
+    const end   = el.selectionEnd
+    const current = cfg.body ?? ''
+    const sel = current.slice(start, end)
+    const next = current.slice(0, start) + marker + sel + marker + current.slice(end)
+    set('body', next)
+    requestAnimationFrame(() => {
+      el.focus()
+      if (sel) el.setSelectionRange(start, end + marker.length * 2)
+      else el.setSelectionRange(start + marker.length, start + marker.length)
+    })
+  }
+
+  const [showPreview, setShowPreview] = useState(false)
+
   function handleFileDrop(e) {
     e.preventDefault()
     setDragging(false)
@@ -266,7 +286,16 @@ function EmailConfigModal({ initial, onClose, onSaved }) {
               Email body
             </label>
             <div className="ns-placeholder-bar">
-              <span className="ns-placeholder-bar-label">Insert:</span>
+              <span className="ns-placeholder-bar-label">Format:</span>
+              <button type="button" className="ns-format-btn" style={{ fontWeight: 800 }} title="Bold — wraps the selection in **"
+                onMouseDown={e => { e.preventDefault(); wrapSelection('**') }}>B</button>
+              <button type="button" className="ns-format-btn" style={{ fontStyle: 'italic' }} title="Italic — wraps the selection in *"
+                onMouseDown={e => { e.preventDefault(); wrapSelection('*') }}>I</button>
+              <button type="button" className="ns-format-btn" style={{ textDecoration: 'underline' }} title="Underline — wraps the selection in __"
+                onMouseDown={e => { e.preventDefault(); wrapSelection('__') }}>U</button>
+              <button type="button" className={`ns-format-btn${showPreview ? ' is-active' : ''}`} title="Preview the formatted email"
+                onMouseDown={e => { e.preventDefault(); setShowPreview(v => !v) }}>👁 Preview</button>
+              <span className="ns-placeholder-bar-label" style={{ marginLeft: 10 }}>Insert:</span>
               {PLACEHOLDERS.map(p => (
                 <button
                   key={p.value}
@@ -290,6 +319,17 @@ function EmailConfigModal({ initial, onClose, onSaved }) {
               placeholder={`Hi {{name}},\n\nWe're excited to have you joining us on {{start_date}}.\n\nPlease find your contract and details attached.\n\nBest,\nThe Production Team`}
               onChange={e => set('body', e.target.value)}
             />
+            {showPreview && (
+              <div
+                className="ns-format-preview"
+                dangerouslySetInnerHTML={{ __html: welcomeBodyToHtml(
+                  (cfg.body ?? '')
+                    .replace(/\{\{name\}\}/gi, 'Jane Doe')
+                    .replace(/\{\{start_date\}\}/gi, 'Mon 23 Nov 2026')
+                    .replace(/\{\{end_date\}\}/gi, 'Fri 19 Feb 2027')
+                ) }}
+              />
+            )}
           </div>
 
           <div className="ns-field">
@@ -822,7 +862,7 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ to: [myEmail], productionId: getCurrentProductionId(), subject, text: body, attachments, personName: person.name || '', isTest: true }),
+        body: JSON.stringify({ to: [myEmail], productionId: getCurrentProductionId(), subject, text: stripFormatMarkers(body), html: welcomeBodyToHtml(body), attachments, personName: person.name || '', isTest: true }),
       })
       if (res.ok) setSendMsg({ type: 'ok', text: `Test of ${person.name || 'this'}’s welcome email sent to YOU (${myEmail}).` })
       else { const err = await res.json().catch(() => ({})); setSendMsg({ type: 'err', text: `Test send failed: ${err.error ?? err.message ?? res.statusText}` }) }
@@ -873,7 +913,8 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
       to:           [person.email],
       productionId: getCurrentProductionId(),
       subject,
-      text:    body,
+      text:    stripFormatMarkers(body),
+      html:    welcomeBodyToHtml(body),
       attachments,
       personName:   person.name || '',
       isTest:       false,

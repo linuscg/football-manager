@@ -191,6 +191,10 @@ serve(async (req) => {
       subject,
       text: text ?? '',
     }
+    // Optional rich body (built client-side from the template's **/*/__ markers)
+    if (typeof reqBody.html === 'string' && reqBody.html.length < 200000) {
+      payload.html = reqBody.html
+    }
 
     if (attachments && attachments.length > 0) {
       payload.attachments = attachments.map((a: { filename: string; content: string }) => ({
