@@ -305,7 +305,17 @@ export default function CallSheet({ store, castMembers = [] }) {
   const extrasWithEntries = useMemo(() => {
     if (!day?.extras) return []
     return Object.entries(EXTRAS_CATEGORY_LABELS)
-      .map(([key, label]) => ({ key, label, items: day.extras[key] ?? [] }))
+      .map(([key, label]) => ({
+        key,
+        label,
+        // Non-SA categories: a row with no text has nothing to say on a call
+        // sheet — drop it rather than printing "(no description)".
+        items: (day.extras[key] ?? []).filter(e =>
+          key === 'extras'
+            ? true
+            : String(e.description ?? '').trim() !== ''
+        ),
+      }))
       .filter(e => e.items.length > 0)
   }, [day])
 

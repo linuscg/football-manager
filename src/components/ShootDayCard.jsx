@@ -113,6 +113,13 @@ function formatDateDisplay(dateStr) {
 
 function ExtraSubRow({ dayId, extra, onUpdate, onDelete }) {
   const [lDesc, setLDesc] = useState(extra.description)
+  // Commit on unmount too — switching modules mid-type must not lose the text
+  const latest = useRef({ lDesc, extra, onUpdate, dayId })
+  latest.current = { lDesc, extra, onUpdate, dayId }
+  useEffect(() => () => {
+    const { lDesc: v, extra: e, onUpdate: u, dayId: d } = latest.current
+    if (v !== e.description) u(d, e.id, 'description', v)
+  }, [])
 
   return (
     <div className="extras-sub-row">
