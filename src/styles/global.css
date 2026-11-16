@@ -2400,7 +2400,8 @@ textarea.field-input {
 
 .scene-row {
   display: grid;
-  grid-template-columns: 60px 54px 1fr 64px 60px 1fr 72px 90px 28px;
+  /* Sc# | INT/EXT | location | DAY/NIGHT | story | description | pages | SA | cast | delete */
+  grid-template-columns: 52px 54px 1fr 64px 52px 1.3fr 52px 50px 88px 28px;
   gap: 5px;
   align-items: center;
   margin-bottom: 5px;
@@ -2408,8 +2409,10 @@ textarea.field-input {
 }
 
 .scene-row--tv {
-  grid-template-columns: 60px 54px 1fr 64px 60px 1fr 72px 64px 90px 28px;
+  grid-template-columns: 52px 54px 1fr 64px 52px 1.3fr 52px 64px 50px 88px 28px;
 }
+
+.scene-sa-badge { padding: 4px 4px; text-align: center; }
 
 .cast-cell {
   position: relative;
@@ -2531,11 +2534,15 @@ textarea.field-input {
 }
 
 /* ── Print styles ─────────────────────────────────────────── */
+@page { size: A4; margin: 11mm 12mm; }
+
 @media print {
   .no-print,
   .pm-tab-bar,
   .pm-sidebar,
   .pm-topbar { display: none !important; }
+
+  html, body { background: #fff !important; }
 
   .pm-app,
   .pm-shell,
@@ -2546,6 +2553,7 @@ textarea.field-input {
     height: auto !important;
     min-height: 0 !important;
     overflow: visible !important;
+    background: #fff !important;
   }
 
   .cs-wrap { display: block !important; overflow: visible !important; height: auto !important; }
@@ -2557,18 +2565,62 @@ textarea.field-input {
     box-shadow: none !important;
     max-width: 100% !important;
     overflow: visible !important;
+    background: #fff !important;
+    background-image: none !important;
   }
 
-  .cs-tr:nth-child(even) { background: #f9f9f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .pm-cs-strip,
-  .pm-cs-section-head,
-  .cs-group-header,
+  /* Header: ink-friendly masthead — dark band becomes black-on-white with rules */
+  .pm-cs-header {
+    background: #fff !important;
+    color: #111 !important;
+    border-top: 3px solid #111 !important;
+    border-bottom: 1.5px solid #111 !important;
+    padding: 14px 2px 12px !important;
+  }
+  .pm-cs-header .pm-cs-prod,
+  .pm-cs-header .cs-date-line,
+  .pm-cs-header .pm-cs-call-val,
+  .pm-cs-header .pm-cs-call-label,
+  .pm-cs-header .pm-cs-daynum { color: #111 !important; }
+  .pm-cs-stamp {
+    background: none !important;
+    color: #111 !important;
+    border-color: #111 !important;
+    outline-color: #111 !important;
+    transform: none !important;
+  }
+
+  /* Info strip: plain row with hairline rules */
+  .pm-cs-strip {
+    background: none !important;
+    border-bottom: 1px solid #bbb !important;
+  }
+  .pm-cs-strip-item { border-right: 1px solid #ddd !important; padding: 8px 10px !important; }
+  .pm-cs-strip-label { color: #666 !important; display: block !important; margin-bottom: 2px; }
+  .pm-cs-strip-val { color: #111 !important; }
+
+  /* Sections: tighter, full-width */
+  .pm-cs-section { padding: 12px 2px 14px !important; border-bottom: 1px solid #ddd !important; }
+  .pm-cs-section-head { color: #111 !important; margin-bottom: 8px !important; }
+
+  /* Tables: compact with visible shading */
+  .pm-cs-tbl td, .pm-cs-tbl th, .cs-td, .cs-th { padding: 4px 7px !important; font-size: 11px !important; }
+  .cs-tr:nth-child(even) { background: #f3f3f3 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .cs-group-header {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    border-bottom: 1px solid #999 !important;
+  }
   .cs-tag, .cs-status-badge {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    border: 1px solid #ccc;
   }
 
-  .pm-cs-section, .cs-group { page-break-inside: avoid; }
+  /* Page-break hygiene: keep rows and headers with their content */
+  .pm-cs-section { page-break-inside: auto; }
+  .cs-tr, .pm-cs-tbl tr { page-break-inside: avoid; }
+  .pm-cs-section-head, .cs-group-header { page-break-after: avoid; }
+  .cs-group { page-break-inside: avoid; }
+  .pm-cs-header, .pm-cs-strip { page-break-after: avoid; }
 }
 
 /* ── Empty state ─────────────────────────────────────────── */

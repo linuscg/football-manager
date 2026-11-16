@@ -86,7 +86,7 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
         type="text"
         value={scene.storyDay ?? ''}
         placeholder="Story"
-        style={{ width: 60, flexShrink: 0, textAlign: 'center' }}
+        style={{ textAlign: 'center' }}
         onChange={e => onUpdate(dayId, scene.id, 'storyDay', e.target.value)}
       />
 
