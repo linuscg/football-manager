@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import SceneRow from './SceneRow'
 
+import { castNumCompare } from '../lib/castNum'
 // ─── RehearsalCast — day-level cast attendance selector ──────────────────────
 function RehearsalCast({ day, castMembers = [], onUpdate }) {
   const [open, setOpen] = useState(false)
@@ -23,7 +24,7 @@ function RehearsalCast({ day, castMembers = [], onUpdate }) {
   const selected = castMembers
     .filter(c => selectedIds.includes(c.id))
     .slice()
-    .sort((a, b) => (a.castNumber ?? 999) - (b.castNumber ?? 999))
+    .sort((a, b) => castNumCompare(a.castNumber, b.castNumber))
 
   return (
     <div className="pm-scenes">

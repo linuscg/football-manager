@@ -5,6 +5,7 @@ import { useBackpageStore }       from '../store/useBackpageStore'
 import { saDayTotal, saDayGroups } from '../lib/saTotals'
 import { generatePreCallSummary } from '../lib/backpageSummary'
 
+import { castNumCompare } from '../lib/castNum'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUS_LABEL = { booked: 'Confirmed', hold: 'On Hold', unavailable: 'Unavailable', cancelled: 'Cancelled' }
@@ -314,7 +315,7 @@ export default function CallSheet({ store, castMembers = [] }) {
     if (!ids.length) return null
     return castMembers
       .filter(c => ids.includes(c.id))
-      .sort((a, b) => (a.castNumber ?? 999) - (b.castNumber ?? 999))
+      .sort((a, b) => castNumCompare(a.castNumber, b.castNumber))
       .map(c => c.castNumber != null ? String(c.castNumber) : (c.name || '?'))
       .join(', ')
   }

@@ -920,8 +920,11 @@ export function useScheduleStore() {
     const newId = crypto.randomUUID()
     const sortOrder = Date.now()   // timestamp: collision-safe vs concurrent adds
     // Auto-assign the next available cast number
-    const maxNum = store.castMembers.reduce((m, c) => Math.max(m, c.castNumber ?? 0), 0)
-    const castNumber = maxNum + 1
+    const maxNum = store.castMembers.reduce((m, c) => {
+      const n = parseInt(String(c.castNumber ?? ''), 10)
+      return Number.isFinite(n) ? Math.max(m, n) : m
+    }, 0)
+    const castNumber = String(maxNum + 1)
     const newMember = { id: newId, name: '', role: '', notes: '', sortOrder, castNumber }
     optimistic(s => ({ ...s, castMembers: [...s.castMembers, newMember] }))
     dbWrite(supabase.from('cast_members').insert({

@@ -1,3 +1,4 @@
+import { castNumCompare } from './castNum'
 // ─── AI Schedule import reconciliation ───────────────────────────────────────
 // Takes the parsed Gemini `result` and the current store snapshot, and produces
 // a *plan*: both machine-applyable commit lists (consumed by the store's
@@ -527,7 +528,7 @@ export function reconcileSchedule(parsed, existing) {
       }
     }),
   ].sort((a, b) =>
-    (parseInt(a.castNumber, 10) || 999) - (parseInt(b.castNumber, 10) || 999)
+    castNumCompare(a.castNumber, b.castNumber)
   )
 
   return {

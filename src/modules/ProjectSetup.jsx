@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useHodsStore } from '../store/useHodsStore'
 import CastListImportModal from './CastListImportModal'
 
+import { castNumCompare } from '../lib/castNum'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function daysBetween(startStr, endStr) {
@@ -85,18 +86,16 @@ function CastMemberRow({ member, onUpdate, onDelete, onDragStart, onDragOver, on
       <span className="cast-drag-handle" title="Drag to reorder">⠿</span>
       <input
         className="pm-input"
-        type="number"
-        min="1"
+        type="text"
         value={lNum}
         placeholder="#"
-        title="Cast ID number — list is sorted by this"
+        title="Cast ID — numbers or codes like 1st / 6bd; the list sorts by the numeric part"
         onChange={e => setLNum(e.target.value)}
         onBlur={() => {
-          const n = parseInt(lNum, 10)
-          const val = isNaN(n) ? null : n
-          if (val !== member.castNumber) onUpdate(member.id, 'castNumber', val)
+          const val = String(lNum).trim() || null
+          if (val !== (member.castNumber ?? null)) onUpdate(member.id, 'castNumber', val)
         }}
-        style={{ width: 52, flexShrink: 0 }}
+        style={{ width: 58, flexShrink: 0 }}
       />
       <input
         className="pm-input"
@@ -330,7 +329,7 @@ export default function ProjectSetup({
     const nameIdx = h.indexOf('name')
     const roleIdx = h.findIndex(x => x.includes('role') || x.includes('character'))
     const mapped  = dataRows.map(r => ({
-      castNumber: numIdx  >= 0 ? (parseInt(r[numIdx],  10) || null) : null,
+      castNumber: numIdx  >= 0 ? (String(r[numIdx] ?? '').trim() || null) : null,
       name:       nameIdx >= 0 ? (r[nameIdx] ?? '') : '',
       role:       roleIdx >= 0 ? (r[roleIdx] ?? '') : '',
     })).filter(r => r.name)
@@ -370,10 +369,7 @@ export default function ProjectSetup({
 
   // Sort cast by castNumber (nulls last)
   const sortedCast = [...castMembers].sort((a, b) => {
-    if (a.castNumber == null && b.castNumber == null) return 0
-    if (a.castNumber == null) return 1
-    if (b.castNumber == null) return -1
-    return a.castNumber - b.castNumber
+    return castNumCompare(a.castNumber, b.castNumber)
   })
 
   return (

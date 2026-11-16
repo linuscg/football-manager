@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 
+import { castNumCompare } from '../lib/castNum'
 const fmtDay = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', {
   weekday: 'short', day: '2-digit', month: 'short',
 })
@@ -48,7 +49,7 @@ export default function CastCalendar({ store }) {
   const workingCast = useMemo(
     () => castMembers
       .filter(c => castSpans[c.id])
-      .sort((a, b) => (parseInt(a.castNumber, 10) || 999) - (parseInt(b.castNumber, 10) || 999)),
+      .sort((a, b) => castNumCompare(a.castNumber, b.castNumber)),
     [castMembers, castSpans]
   )
 

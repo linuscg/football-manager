@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
+import { castNumCompare } from '../lib/castNum'
 export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers = [], onUpdateSceneCast, production }) {
   const [castOpen, setCastOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -138,7 +139,7 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
         >
           {selectedCast.length > 0
             ? selectedCast
-                .slice().sort((a, b) => (a.castNumber ?? 999) - (b.castNumber ?? 999))
+                .slice().sort((a, b) => castNumCompare(a.castNumber, b.castNumber))
                 .map(c => c.castNumber != null ? String(c.castNumber) : (c.name || '?'))
                 .join(', ')
             : <span style={{ color: '#d1d5db' }}>Cast</span>}

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { CATEGORY_STYLE, dayLabel, addDaysToDate, DayEditModal } from './CalendarView'
 
+import { castNumCompare } from '../lib/castNum'
 const LS_WEEK = 'fm_schedule_week'
 
 // Monday (ISO) of the week containing dateStr → 'YYYY-MM-DD'
@@ -65,7 +66,7 @@ function castSummary(scene, castById) {
     .map(id => castById[id])
     .filter(Boolean)
     .slice()
-    .sort((a, b) => (a.castNumber ?? 999) - (b.castNumber ?? 999))
+    .sort((a, b) => castNumCompare(a.castNumber, b.castNumber))
     .map(c => (c.castNumber != null ? String(c.castNumber) : (c.name || '?')))
     .join(', ')
 }
@@ -101,7 +102,7 @@ function DayContent({ day, castById, additionals, onClick }) {
           {(day.castMemberIds ?? [])
             .map(id => castById[id])
             .filter(Boolean)
-            .sort((a, b) => (a.castNumber ?? 999) - (b.castNumber ?? 999))
+            .sort((a, b) => castNumCompare(a.castNumber, b.castNumber))
             .map(c => c.name || (c.castNumber != null ? `#${c.castNumber}` : '?'))
             .join(', ')}
         </div>
