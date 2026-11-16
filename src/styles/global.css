@@ -2533,33 +2533,42 @@ textarea.field-input {
 /* ── Print styles ─────────────────────────────────────────── */
 @media print {
   .no-print,
-  .sidebar,
-  .top-bar { display: none !important; }
+  .pm-tab-bar,
+  .pm-sidebar,
+  .pm-topbar { display: none !important; }
 
-  .app-shell,
-  .main-area { display: block !important; }
+  .pm-app,
+  .pm-shell,
+  .pm-main,
+  .pm-content,
+  .pm-content--cs {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
 
-  .content-area,
-  .content-area--callsheet { overflow: visible !important; }
-
-  .cs-wrap { overflow: visible !important; height: auto !important; }
+  .cs-wrap { display: block !important; overflow: visible !important; height: auto !important; }
   .cs-scroll { overflow: visible !important; padding: 0 !important; background: none !important; }
 
-  .cs-doc {
+  .pm-cs-doc {
+    border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     max-width: 100% !important;
+    overflow: visible !important;
   }
 
   .cs-tr:nth-child(even) { background: #f9f9f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .cs-header             { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .cs-info-strip         { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .cs-tag, .cs-status-badge, .cs-group-header {
+  .pm-cs-strip,
+  .pm-cs-section-head,
+  .cs-group-header,
+  .cs-tag, .cs-status-badge {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  .cs-section { page-break-inside: avoid; }
+  .pm-cs-section, .cs-group { page-break-inside: avoid; }
 }
 
 /* ── Empty state ─────────────────────────────────────────── */
