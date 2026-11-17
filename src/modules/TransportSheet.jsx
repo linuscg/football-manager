@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { TRANSPORT_TYPES, useTransportStore } from '../store/useTransportStore'
 
 const SECTIONS = [
@@ -33,6 +33,13 @@ export default function TransportSheet({ productionName }) {
     return saved || new Date().toISOString().slice(0, 10)
   })
   function pickDate(d) { setDate(d); localStorage.setItem('fm_transport_sheet_day', d) }
+  const todayIso = () => new Date().toISOString().slice(0, 10)
+  function shiftDate(delta) {
+    const d = new Date(date + 'T00:00:00')
+    d.setDate(d.getDate() + delta)
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0')
+    pickDate(`${y}-${m}-${dd}`)
+  }
 
   const dayRows = useMemo(
     () => sheetRows.filter(r => r.date === date).sort((a, b) => a.sortOrder - b.sortOrder),
@@ -59,23 +66,36 @@ export default function TransportSheet({ productionName }) {
     return [d.name, d.phone, d.vehicleReg].filter(Boolean).join('\n')
   }
 
-  function importFromLog() {
-    const existingKeys = new Set(dayRows.map(r => `${r.description}|${r.fromLocation}|${r.toLocation}`))
-    let added = 0
+  // ── Auto-sync: every logged trip for this day gets a sheet row ─────────────
+  // Linked rows carry logId; a deleted linked row is parked in the hidden
+  // 'dismissed' section (not re-added) and log deletions cascade in the store.
+  const addedRef = useRef(new Set())
+  useEffect(() => {
+    if (store.loading) return
+    const linked = new Set(sheetRows.map(r => r.logId).filter(Boolean))
+    // Rows imported before auto-sync existed have no logId — match them by text
+    const legacyKeys = new Set(dayRows.filter(r => !r.logId).map(r => `${r.description}|${r.fromLocation}|${r.toLocation}`))
     for (const trip of dayLog) {
-      const key = `${trip.description}|${trip.fromLocation}|${trip.toLocation}`
-      if (existingKeys.has(key)) continue
-      existingKeys.add(key)
+      if (linked.has(trip.id) || addedRef.current.has(trip.id)) continue
+      if (legacyKeys.has(`${trip.description || trip.type}|${trip.fromLocation}|${trip.toLocation}`)) continue
+      addedRef.current.add(trip.id)
       store.addSheetRow(date, 'pickups', {
         time: trip.time,
         description: trip.description || trip.type,
         fromLocation: trip.fromLocation,
         toLocation: trip.toLocation,
         driverContact: expandDriver(trip.driver),
+        logId: trip.id,
       })
-      added++
     }
-    if (!added) window.alert(dayLog.length ? 'All of this day’s logged trips are already on the sheet.' : 'No trips logged for this day yet.')
+  }, [dayLog, sheetRows, store.loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function removeSheetRow(r) {
+    // A row linked to the log is dismissed, not deleted — otherwise the
+    // auto-sync would simply put it back. Delete the trip in the log to
+    // remove it everywhere.
+    if (r.logId) store.updateSheetRow(r.id, 'section', 'dismissed')
+    else store.deleteSheetRow(r.id)
   }
 
   // ── Export: print-window PDF modelled on the spreadsheet template ──────────
@@ -136,9 +156,15 @@ export default function TransportSheet({ productionName }) {
           <div className="pm-h1-sub">{fmtLong(date)}</div>
         </div>
         <div className="pm-module-head-actions">
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" title="Previous day" onClick={() => shiftDate(-1)}>←</button>
           <input className="tr-input tr-date-pick" type="date" value={date} onChange={e => pickDate(e.target.value)} />
-          <button className="pm-btn pm-btn--ghost" onClick={importFromLog} title="Add this day's logged trips to the sheet (skips ones already on it)">
-            ⇊ Import day's log
+          <button className="pm-btn pm-btn--ghost pm-btn--sm" title="Next day" onClick={() => shiftDate(1)}>→</button>
+          <button
+            className="pm-btn pm-btn--ghost pm-btn--sm"
+            disabled={date === todayIso()}
+            onClick={() => pickDate(todayIso())}
+          >
+            Today
           </button>
           <button className="pm-btn pm-btn--primary" onClick={exportPdf}>↓ Export sheet</button>
         </div>
@@ -197,7 +223,7 @@ export default function TransportSheet({ productionName }) {
                       />
                     </td>
                     <td className="tr-td tr-td--actions">
-                      <button className="pm-icon-btn danger" title="Delete row" onClick={() => store.deleteSheetRow(r.id)}>✕</button>
+                      <button className="pm-icon-btn danger" title={r.logId ? 'Remove from sheet (the trip stays in the Transport Log)' : 'Delete row'} onClick={() => removeSheetRow(r)}>✕</button>
                     </td>
                   </tr>
                 ))}

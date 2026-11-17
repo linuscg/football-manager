@@ -24,12 +24,17 @@ const mapSheetRow = r => ({
   id: r.id, date: r.date, section: r.section ?? 'pickups', time: r.time ?? '',
   description: r.description ?? '', fromLocation: r.from_location ?? '',
   toLocation: r.to_location ?? '', driverContact: r.driver_contact ?? '',
-  sortOrder: r.sort_order ?? 0,
+  sortOrder: r.sort_order ?? 0, logId: r.log_id ?? null,
 })
 const SHEET_COLS = {
   date: 'date', section: 'section', time: 'time', description: 'description',
   fromLocation: 'from_location', toLocation: 'to_location',
-  driverContact: 'driver_contact', sortOrder: 'sort_order',
+  driverContact: 'driver_contact', sortOrder: 'sort_order', logId: 'log_id',
+}
+// Log fields that flow through to a linked transport-sheet row
+const LOG_TO_SHEET = {
+  time: 'time', description: 'description',
+  fromLocation: 'fromLocation', toLocation: 'toLocation', driver: 'driverContact',
 }
 
 export function useTransportStore() {
@@ -117,9 +122,21 @@ export function useTransportStore() {
                 : field === 'cost' ? (value === '' || value == null ? null : value)
                 : value
     dbWrite(supabase.from('transport_log').update({ [col]: dbVal }).eq('id', id))
+    // Flow the change through to the linked transport-sheet row
+    const sheetField = LOG_TO_SHEET[field]
+    if (sheetField) {
+      const sv = field === 'driver' ? expandDriverContact(value) : value
+      setSheetRows(rs => rs.map(r => r.logId === id ? { ...r, [sheetField]: sv } : r))
+      dbWrite(supabase.from('transport_sheet_rows').update({ [SHEET_COLS[sheetField]]: sv }).eq('log_id', id))
+    } else if (field === 'date') {
+      setSheetRows(rs => rs.map(r => r.logId === id ? { ...r, date: value } : r))
+      dbWrite(supabase.from('transport_sheet_rows').update({ date: value || null }).eq('log_id', id))
+    }
   }
   function deleteLogRow(id) {
     setLog(ls => ls.filter(r => r.id !== id))
+    setSheetRows(rs => rs.filter(r => r.logId !== id))
+    dbWrite(supabase.from('transport_sheet_rows').delete().eq('log_id', id))
     dbWrite(supabase.from('transport_log').delete().eq('id', id))
   }
 
@@ -142,6 +159,12 @@ export function useTransportStore() {
   function deleteDriver(id) {
     setDrivers(ds => ds.filter(r => r.id !== id))
     dbWrite(supabase.from('transport_drivers').delete().eq('id', id))
+  }
+  // "Name" → "Name\nPhone\nReg" when the driver is in the database
+  function expandDriverContact(value) {
+    const d = drivers.find(x => x.name.trim().toLowerCase() === String(value ?? '').trim().toLowerCase())
+    if (!d) return value ?? ''
+    return [d.name, d.phone, d.vehicleReg].filter(Boolean).join('\n')
   }
   // Remember a driver typed into the log / sheet (dedup case-insensitive)
   function rememberDriver(name) {
@@ -180,13 +203,14 @@ export function useTransportStore() {
     const id = crypto.randomUUID()
     const row = {
       id, date, section, time: '', description: '', fromLocation: '',
-      toLocation: '', driverContact: '', sortOrder: Date.now(), ...initial,
+      toLocation: '', driverContact: '', sortOrder: Date.now(), logId: null, ...initial,
     }
     setSheetRows(rs => [...rs, row])
     dbWrite(supabase.from('transport_sheet_rows').insert({
       id, production_id: getCurrentProductionId(), date, section: row.section,
       time: row.time, description: row.description, from_location: row.fromLocation,
       to_location: row.toLocation, driver_contact: row.driverContact, sort_order: row.sortOrder,
+      log_id: row.logId,
     }))
     return id
   }
@@ -202,7 +226,7 @@ export function useTransportStore() {
   return {
     log, drivers, locations, sheetRows, loading,
     addLogRow, copyLogRow, updateLogRow, deleteLogRow,
-    addDriver, updateDriver, deleteDriver, rememberDriver,
+    addDriver, updateDriver, deleteDriver, rememberDriver, expandDriverContact,
     addLocation, updateLocation, deleteLocation, rememberLocation,
     addSheetRow, updateSheetRow, deleteSheetRow,
   }
