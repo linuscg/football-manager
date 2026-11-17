@@ -146,9 +146,12 @@ export default function CallSheet({ store, castMembers = [] }) {
   const isRehearsal = day?.dayCategory === 'rehearsal'
   const isOther     = day?.dayCategory === 'other'
 
-  // Wrap time for the selected day
+  // Wrap time for the selected day. Main unit days calculate it (General Call
+  // + work hours + lunch); every other day type uses the manually entered
+  // Wrap Time field — same as the schedule cards.
   const wrapTime = useMemo(() => {
     if (!day) return null
+    if ((day.dayCategory ?? 'main') !== 'main') return day.wrapTime ? day.wrapTime.slice(0, 5) : null
     const effectiveDayType = day.dayType || production.defaultDayType || 'SWD'
     const lunchMinutes = effectiveDayType === 'CWD'  ? (production.cwdLunch  ?? 0)
                        : effectiveDayType === 'SCWD' ? (production.scwdLunch ?? 30)
@@ -467,7 +470,7 @@ export default function CallSheet({ store, castMembers = [] }) {
                 )}
                 {wrapTime && (
                   <div className="pm-cs-call-block cs-wrap-block">
-                    <span className="pm-cs-call-label">Est. Wrap</span>
+                    <span className="pm-cs-call-label">{isMain ? 'Est. Wrap' : 'Wrap'}</span>
                     <span className="pm-cs-call-val cs-wrap-value">{wrapTime}</span>
                   </div>
                 )}
