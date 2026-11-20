@@ -139,14 +139,61 @@ function EmailHistoryModal({ onClose }) {
     return () => { cancelled = true }
   }, [])
   const fmt = ts => new Date(ts).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+
+  // Preview of exactly what was sent: stored body, or fetched once from Resend
+  const [open,    setOpen]    = useState(null)   // the log row being previewed
+  const [preview, setPreview] = useState(null)   // { html, text, attachments } | { unavailable } | { error }
+  async function openRow(r) {
+    setOpen(r)
+    if (r.html || r.body_text) {
+      setPreview({ html: r.html, text: r.body_text, attachments: r.attachment_names ?? [] })
+      return
+    }
+    setPreview(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({ action: 'view-email', logId: r.id, productionId: getCurrentProductionId() }),
+      })
+      const body = await res.json().catch(() => ({}))
+      setPreview(res.ok ? body : { error: body.error ?? res.statusText })
+    } catch (err) {
+      setPreview({ error: err.message })
+    }
+  }
+
   return (
     <div className="ns-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="ns-modal" style={{ maxWidth: 820 }}>
         <div className="ns-modal-head">
-          <h2 className="ns-modal-title">Welcome Email History</h2>
+          <h2 className="ns-modal-title">{open ? 'Sent Email' : 'Welcome Email History'}</h2>
           <button className="pm-icon-btn" onClick={onClose}>✕</button>
         </div>
-        <div style={{ padding: '0 20px 20px', maxHeight: '65vh', overflow: 'auto' }}>
+        {open && (
+          <div style={{ padding: '0 20px 20px' }}>
+            <button className="pm-btn pm-btn--ghost pm-btn--sm" onClick={() => { setOpen(null); setPreview(null) }}>← Back to history</button>
+            <div className="ns-preview-meta">
+              <div><span>Sent</span>{fmt(open.created_at)} by {open.sent_by_email}{open.is_test && <span className="ns-history-test"> TEST</span>}</div>
+              <div><span>To</span>{open.recipient}</div>
+              <div><span>Subject</span>{open.subject}</div>
+              {preview?.attachments?.length > 0 && (
+                <div><span>Attached</span>{preview.attachments.map(a => `📎 ${a}`).join('   ')}</div>
+              )}
+            </div>
+            {preview === null && <p className="admin-loading">Loading…</p>}
+            {preview?.unavailable && (
+              <p className="admin-empty">The body of this email wasn't saved and is no longer available from the mail service. Emails sent from now on are kept in full.</p>
+            )}
+            {preview?.error && <p className="admin-empty">Couldn't load this email: {preview.error}</p>}
+            {preview?.html && (
+              <iframe className="ns-preview-frame" title="Sent email" sandbox="" srcDoc={preview.html} />
+            )}
+            {!preview?.html && preview?.text && <pre className="ns-preview-text">{preview.text}</pre>}
+          </div>
+        )}
+        <div style={{ padding: '0 20px 20px', maxHeight: '65vh', overflow: 'auto', display: open ? 'none' : undefined }}>
           {rows === null && <p className="admin-loading">Loading…</p>}
           {rows?.length === 0 && (
             <p className="admin-empty">No welcome emails logged yet — sends are recorded from today onwards.</p>
@@ -165,7 +212,7 @@ function EmailHistoryModal({ onClose }) {
               </thead>
               <tbody>
                 {rows.map(r => (
-                  <tr key={r.id} className="crew-db-row">
+                  <tr key={r.id} className="crew-db-row ns-history-row" onClick={() => openRow(r)} title="Click to see exactly what was sent">
                     <td className="crew-db-cell" style={{ whiteSpace: 'nowrap' }}>{fmt(r.created_at)}</td>
                     <td className="crew-db-cell">{r.sent_by_email}</td>
                     <td className="crew-db-cell">{r.person_name || '—'}{r.is_test && <span className="ns-history-test"> TEST</span>}</td>

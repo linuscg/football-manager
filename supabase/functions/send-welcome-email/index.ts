@@ -25,7 +25,8 @@ serve(async (req) => {
     const reqBody = await req.json()
     const { to, subject, text, attachments, productionId } = reqBody
 
-    if (reqBody.action !== 'send-report' && (!to || !subject || !productionId)) {
+    const isAction = reqBody.action === 'send-report' || reqBody.action === 'view-email'
+    if (!productionId || (!isAction && (!to || !subject))) {
       return new Response(JSON.stringify({ error: 'Missing required fields: to, subject, productionId' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -58,6 +59,37 @@ serve(async (req) => {
       .eq('production_id', productionId)
       .eq('user_id', user.id)
       .maybeSingle()
+    // ── View-email action ───────────────────────────────────────────────────
+    // Any member can read the history, so any member can preview a row. Rows
+    // logged before bodies were stored are fetched once from Resend and cached.
+    if (reqBody.action === 'view-email') {
+      const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), {
+        status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+      if (!membership) return json({ error: 'Not a member of this production.' }, 403)
+      const { data: row } = await adminClient
+        .from('welcome_email_log')
+        .select('id, production_id, resend_id, html, body_text, attachment_names')
+        .eq('id', String(reqBody.logId ?? ''))
+        .maybeSingle()
+      if (!row || row.production_id !== productionId) return json({ error: 'Email not found.' }, 404)
+      if (row.html || row.body_text) {
+        return json({ html: row.html, text: row.body_text, attachments: row.attachment_names ?? [] })
+      }
+      const id = String(row.resend_id ?? '')
+      if (!/^[0-9a-f-]{20,}$/i.test(id)) return json({ unavailable: true })
+      const r = await fetch(`https://api.resend.com/emails/${id}`, {
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+      })
+      if (!r.ok) return json({ unavailable: true })
+      const e = await r.json()
+      const html = typeof e.html === 'string' ? e.html : null
+      const text = typeof e.text === 'string' ? e.text : null
+      if (!html && !text) return json({ unavailable: true })
+      await adminClient.from('welcome_email_log').update({ html, body_text: text }).eq('id', row.id)
+      return json({ html, text, attachments: row.attachment_names ?? [] })
+    }
+
     const canSend = !!membership && (
       ['owner', 'admin'].includes(membership.role) ||
       membership.permissions?.allowWelcomeEmailEdit === true
@@ -230,6 +262,9 @@ serve(async (req) => {
           subject:       String(subject ?? '').slice(0, 300),
           is_test:       reqBody.isTest === true,
           resend_id:     sentBody?.id ?? null,
+          html:          typeof payload.html === 'string' ? payload.html : null,
+          body_text:     String(payload.text ?? ''),
+          attachment_names: (attachments ?? []).map((a: { filename: string }) => String(a?.filename ?? '')),
         })
       } catch (err) {
         console.error('send-welcome-email: history log failed', err)
