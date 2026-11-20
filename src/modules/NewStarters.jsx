@@ -145,11 +145,13 @@ function EmailHistoryModal({ onClose }) {
   const [preview, setPreview] = useState(null)   // { html, text, attachments } | { unavailable } | { error }
   async function openRow(r) {
     setOpen(r)
-    if (r.html || r.body_text) {
-      setPreview({ html: r.html, text: r.body_text, attachments: r.attachment_names ?? [] })
-      return
-    }
-    setPreview(null)
+    const stored = (r.html || r.body_text)
+      ? { html: r.html, text: r.body_text, attachments: r.attachment_names ?? [] }
+      : null
+    setPreview(stored)
+    // Fully stored rows need no server trip; otherwise the function fills in
+    // the body and/or attachment names from Resend (and caches them)
+    if (stored && stored.attachments.length) return
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
@@ -158,9 +160,19 @@ function EmailHistoryModal({ onClose }) {
         body: JSON.stringify({ action: 'view-email', logId: r.id, productionId: getCurrentProductionId() }),
       })
       const body = await res.json().catch(() => ({}))
-      setPreview(res.ok ? body : { error: body.error ?? res.statusText })
+      if (res.ok) {
+        setPreview(body)
+        // Keep the list's copy current so reopening the row is instant
+        setRows(rs => rs.map(x => x.id === r.id ? {
+          ...x,
+          html: body.html ?? x.html, body_text: body.text ?? x.body_text,
+          attachment_names: body.attachments ?? x.attachment_names,
+        } : x))
+      } else if (!stored) {
+        setPreview({ error: body.error ?? res.statusText })
+      }
     } catch (err) {
-      setPreview({ error: err.message })
+      if (!stored) setPreview({ error: err.message })
     }
   }
 

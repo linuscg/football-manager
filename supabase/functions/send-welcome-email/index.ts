@@ -73,21 +73,37 @@ serve(async (req) => {
         .eq('id', String(reqBody.logId ?? ''))
         .maybeSingle()
       if (!row || row.production_id !== productionId) return json({ error: 'Email not found.' }, 404)
-      if (row.html || row.body_text) {
-        return json({ html: row.html, text: row.body_text, attachments: row.attachment_names ?? [] })
-      }
       const id = String(row.resend_id ?? '')
-      if (!/^[0-9a-f-]{20,}$/i.test(id)) return json({ unavailable: true })
-      const r = await fetch(`https://api.resend.com/emails/${id}`, {
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
-      })
-      if (!r.ok) return json({ unavailable: true })
-      const e = await r.json()
-      const html = typeof e.html === 'string' ? e.html : null
-      const text = typeof e.text === 'string' ? e.text : null
-      if (!html && !text) return json({ unavailable: true })
-      await adminClient.from('welcome_email_log').update({ html, body_text: text }).eq('id', row.id)
-      return json({ html, text, attachments: row.attachment_names ?? [] })
+      const hasId = /^[0-9a-f-]{20,}$/i.test(id)
+      const auth = { headers: { Authorization: `Bearer ${RESEND_API_KEY}` } }
+      let html: string | null = row.html ?? null
+      let text: string | null = row.body_text ?? null
+      let attachments: string[] = Array.isArray(row.attachment_names) ? row.attachment_names : []
+      const patch: Record<string, unknown> = {}
+      if (!html && !text && hasId) {
+        const r = await fetch(`https://api.resend.com/emails/${id}`, auth)
+        if (r.ok) {
+          const e = await r.json()
+          html = typeof e.html === 'string' ? e.html : null
+          text = typeof e.text === 'string' ? e.text : null
+          if (html || text) Object.assign(patch, { html, body_text: text })
+        }
+      }
+      // Filenames only — Resend lists what was attached to the sent email
+      if (!attachments.length && hasId) {
+        const r = await fetch(`https://api.resend.com/emails/${id}/attachments`, auth)
+        if (r.ok) {
+          const list = await r.json()
+          attachments = (Array.isArray(list?.data) ? list.data : [])
+            .map((a: { filename?: string }) => String(a?.filename ?? '')).filter(Boolean)
+          if (attachments.length) patch.attachment_names = attachments
+        }
+      }
+      if (Object.keys(patch).length) {
+        await adminClient.from('welcome_email_log').update(patch).eq('id', row.id)
+      }
+      if (!html && !text) return json({ unavailable: true, attachments })
+      return json({ html, text, attachments })
     }
 
     const canSend = !!membership && (
