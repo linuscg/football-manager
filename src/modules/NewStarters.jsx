@@ -191,7 +191,12 @@ function EmailHistoryModal({ onClose }) {
               <div><span>To</span>{open.recipient}</div>
               <div><span>Subject</span>{open.subject}</div>
               {preview?.attachments?.length > 0 && (
-                <div><span>Attached</span>{preview.attachments.map(a => `📎 ${a}`).join('   ')}</div>
+                <div className="ns-preview-attach">
+                  <span>Attached</span>
+                  <div>
+                    {[...preview.attachments].sort((a, b) => a.localeCompare(b)).map(a => <div key={a}>📎 {a}</div>)}
+                  </div>
+                </div>
               )}
             </div>
             {preview === null && <p className="admin-loading">Loading…</p>}
