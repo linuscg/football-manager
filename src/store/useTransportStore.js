@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
 
-export const TRANSPORT_TYPES = ['Cab', 'Courier', 'Unit Driver', 'Airport Transfer', 'Man & Van', 'Minibus', 'Car Hire', 'Truck Hire']
+export const TRANSPORT_TYPES = ['Cab', 'Courier', 'Unit Driver', 'Airport Transfer', 'Man & Van', 'Minibus', 'Car Hire', 'Truck Hire', 'Tech Vehicle']
 
 const mapLog = r => ({
   id: r.id, type: r.type ?? 'Cab', date: r.date ?? '', time: r.time ?? '',
