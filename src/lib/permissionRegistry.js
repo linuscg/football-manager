@@ -105,8 +105,8 @@ export const FEATURE_FLAGS = [
   {
     id: 'allowWelcomeEmailEdit',
     grant: true,   // grant flag: UNCHECKED by default, ticking writes true
-    label: 'Can edit the welcome email template',
-    hint: 'Lets this member change the New Starters welcome email (subject, body, attachments). Admins always can.',
+    label: 'Edit and send welcome email',
+    hint: 'Lets this member send New Starters welcome emails (to crew on this production only) and change the template (subject, body, attachments). Admins always can.',
   },
 ]
 

@@ -385,9 +385,11 @@ function EmailConfigModal({ initial, onClose, onSaved }) {
   )
 }
 
+const NO_SEND_TIP = 'Sending needs admin access, or the "Edit and send welcome email" permission — ask the production owner'
+
 // ─── Starter row ───────────────────────────────────────────────────────────────
 
-function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, onSendTestMenu, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true }) {
+function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, onSendTestMenu, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true, canSend = true }) {
   const [lNotes, setLNotes] = useState(status?.notes ?? '')
 
   function toggle(field) {
@@ -422,14 +424,14 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, onS
           contextmenu events) */}
       <td
         className="ns-cell ns-cell--action"
-        onContextMenu={e => { e.preventDefault(); onSendTestMenu?.(person, e.clientX, e.clientY) }}
-        title="Right-click for a test send (to yourself)"
+        onContextMenu={e => { e.preventDefault(); if (canSend) onSendTestMenu?.(person, e.clientX, e.clientY) }}
+        title={canSend ? 'Right-click for a test send (to yourself)' : NO_SEND_TIP}
       >
         <button
           className={`pm-btn pm-btn--sm ${status?.emailSent ? 'pm-btn--ghost' : 'pm-btn--primary'}`}
           onClick={() => onSendEmail(person)}
-          disabled={isSending || !person.email}
-          title={!person.email ? 'No email address on file' : 'Right-click for a test send (to yourself)'}
+          disabled={!canSend || isSending || !person.email}
+          title={!canSend ? NO_SEND_TIP : !person.email ? 'No email address on file' : 'Right-click for a test send (to yourself)'}
         >
           {isSending ? 'Sending…' : status?.emailSent ? 'Resend' : 'Send'}
         </button>
@@ -460,8 +462,8 @@ function StarterRow({ person, status, crewType, onStatusChange, onSendEmail, onS
         <button
           className={`pm-btn pm-btn--sm ${memoSent ? 'pm-btn--ghost' : 'pm-btn--primary'}`}
           onClick={() => onSendMemo(person)}
-          disabled={!person.email}
-          title={!person.email ? 'No email address on file' : 'Send the checked deal memo as a PDF'}
+          disabled={!canSend || !person.email}
+          title={!canSend ? NO_SEND_TIP : !person.email ? 'No email address on file' : 'Send the checked deal memo as a PDF'}
         >
           {memoSent ? 'Resend' : 'Send'}
         </button>
@@ -632,7 +634,7 @@ function DealMemoSendModal({ person, resource, production, onClose, onSent }) {
 
 // ─── Table section ─────────────────────────────────────────────────────────────
 
-function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusChange, onSendEmail, onSendTestMenu, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true }) {
+function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusChange, onSendEmail, onSendTestMenu, sendingId, onGenerateMemo, onSendMemo, memoBusyId, memoSentIds, memoEnabled = true, canSend = true }) {
   if (!rows.length) return null
   return (
     <div className="ns-section">
@@ -669,6 +671,7 @@ function StarterTable({ title, rows, crewType, hasReturning, statuses, onStatusC
                 status={statuses.find(s => s.crewId === person.id)}
                 crewType={crewType}
                 memoEnabled={memoEnabled}
+                canSend={canSend}
                 onSendTestMenu={onSendTestMenu}
                 onStatusChange={onStatusChange}
                 onSendEmail={onSendEmail}
@@ -1036,6 +1039,7 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
         <div className="ns-content">
           <StarterTable
             memoEnabled={memoEnabled}
+            canSend={canEditWelcomeEmail}
             onSendTestMenu={(person, x, y) => setTestMenu({ person, x, y })}
             title="Fulltime Crew"
             rows={taggedFulltime}
@@ -1051,6 +1055,7 @@ export default function NewStarters({ featureFlags = {}, canEditWelcomeEmail = t
           />
           <StarterTable
             memoEnabled={memoEnabled}
+            canSend={canEditWelcomeEmail}
             onSendTestMenu={(person, x, y) => setTestMenu({ person, x, y })}
             title="Additional Crew"
             rows={taggedAdditional}

@@ -32,7 +32,8 @@ serve(async (req) => {
       })
     }
 
-    // ── Caller must be a signed-in owner/admin of the production ───────────
+    // ── Caller must be a signed-in owner/admin of the production, or a member
+    // granted the welcome-email permission ─────────────────────────────────
     // Without this check the function is an open mail relay for the domain.
     const authClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -53,12 +54,16 @@ serve(async (req) => {
     )
     const { data: membership } = await adminClient
       .from('production_members')
-      .select('role')
+      .select('role, permissions')
       .eq('production_id', productionId)
       .eq('user_id', user.id)
       .maybeSingle()
-    if (!membership || !['owner', 'admin'].includes(membership.role)) {
-      console.error('send-welcome-email: caller is not owner/admin', user.id, productionId, membership?.role)
+    const canSend = !!membership && (
+      ['owner', 'admin'].includes(membership.role) ||
+      membership.permissions?.allowWelcomeEmailEdit === true
+    )
+    if (!canSend) {
+      console.error('send-welcome-email: caller lacks send permission', user.id, productionId, membership?.role)
       return new Response(JSON.stringify({ error: 'You do not have permission to send emails for this production.' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
