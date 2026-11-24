@@ -10,6 +10,7 @@ export const EXTRAS_CATEGORIES = [
   { key: 'stunts',   label: 'Stunts',             callSheet: true },
   { key: 'vfx',      label: 'VFX',                callSheet: true },
   { key: 'extras',   label: 'Supporting Artists', callSheet: true },
+  { key: 'standins', label: 'Stand-ins',          callSheet: true },   // crew, not in SA counts
   { key: 'other',    label: 'Other',              callSheet: true },
   { key: 'visitors', label: 'Visitors',           callSheet: true },
   { key: 'props',    label: 'Props',              callSheet: false },

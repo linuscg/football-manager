@@ -32,6 +32,20 @@ function Cell({ value, onCommit, type = 'text', placeholder, width }) {
 function DayCard({ day, actions }) {
   const rows = saRowsForDay(day).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
   const total = saDayTotal(day)
+  // Stand-ins are crew (not counted as SAs) but useful to see alongside them:
+  // one entry per person, with every scene they're in that day.
+  const standIns = (() => {
+    const byName = new Map()
+    for (const r of day.extras?.standins ?? []) {
+      const name = String(r.description ?? '').trim()
+      if (!name) continue
+      const sc = day.scenes?.find(s => s.id === r.sceneId)?.sceneNumber
+      const e = byName.get(name.toLowerCase()) ?? { name, scenes: [] }
+      if (sc && !e.scenes.includes(sc)) e.scenes.push(sc)
+      byName.set(name.toLowerCase(), e)
+    }
+    return [...byName.values()]
+  })()
 
   // The ID is the Movie Magic / DooD background number: rows sharing an ID
   // are the same people, linked so they count once in the day total.
@@ -83,6 +97,16 @@ function DayCard({ day, actions }) {
           + SA group
         </button>
       </div>
+      {standIns.length > 0 && (
+        <div className="sa-standins" title="Stand-ins are crew — listed here for reference, not counted in the SA total">
+          <span className="sa-standins-label">Stand-ins</span>
+          {standIns.map(si => (
+            <span key={si.name} className="sa-standin-chip">
+              {si.name}{si.scenes.length ? <em> · Sc. {si.scenes.join(', ')}</em> : null}
+            </span>
+          ))}
+        </div>
+      )}
       {rows.length > 0 && (
         <table className="crew-db-table sa-table">
           <thead>
@@ -406,7 +430,7 @@ export default function SupportingArtists({ store, actions }) {
       )}
 
       {view === 'list' && days.map(day => (
-        (saRowsForDay(day).length > 0 || day.dayCategory === 'main') &&
+        (saRowsForDay(day).length > 0 || (day.extras?.standins?.length ?? 0) > 0 || day.dayCategory === 'main') &&
           <DayCard key={day.id} day={day} actions={actions} />
       ))}
 

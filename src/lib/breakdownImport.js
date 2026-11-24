@@ -323,8 +323,10 @@ export function buildBreakdownPlan(parsedScenes, { shootDays, castMembers }) {
     for (const h of homes) {
       if (hasSa && placeholderSa[h.sceneId]) saPlaceholdersToDelete.push(...placeholderSa[h.sceneId])
       for (const dept of p.depts) {
-        const { cat, prefix } = deptToCategory(dept.heading)
+        const { cat: deptCat, prefix } = deptToCategory(dept.heading)
         for (const it of dept.items) {
+          // Stand-ins are listed as background but are crew: own section, not counted as SAs
+          const cat = deptCat === 'extras' && /\bstand[\s-]?ins?\b/i.test(it.text) ? 'standins' : deptCat
           const row = { id: crypto.randomUUID(), dayId: h.dayId, sceneId: h.sceneId, category: cat, sortOrder: sort++ }
           if (cat === 'extras') {
             const { name, total } = splitSaCount(it.text)
