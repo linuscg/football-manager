@@ -227,12 +227,20 @@ export function buildBreakdownPlan(parsedScenes, { shootDays, castMembers }) {
   // never removes them and skips breakdown items with the same text.
   const itemKey = (cat, text) => `${cat}|${String(text ?? '').trim().toLowerCase()}`
   const handItems = {}   // sceneId → Set(itemKey)
+  const placeholderSa = {}   // sceneId → [day_extras ids]
+  const saPlaceholdersToDelete = []
   for (const d of shootDays) {
     for (const [cat, rows] of Object.entries(d.extras ?? {})) {
       for (const r of rows) {
         if (!r.sceneId || r.source === 'breakdown') continue
         const t = cat === 'extras' ? (r.saName || r.description) : r.description
         ;(handItems[r.sceneId] ??= new Set()).add(itemKey(cat, t))
+        if (cat === 'extras' && r.doodId) handItems[r.sceneId].add(`dood|${r.doodId}`)
+        // Unnamed SA count from the one-line schedule import ("SAs ×6"):
+        // superseded by the breakdown's named, numbered groups
+        if (cat === 'extras' && !String(r.saName ?? '').trim() && !String(r.description ?? '').trim() && !r.doodId) {
+          (placeholderSa[r.sceneId] ??= []).push(r.id)
+        }
       }
     }
   }
@@ -311,14 +319,25 @@ export function buildBreakdownPlan(parsedScenes, { shootDays, castMembers }) {
     }
 
     const sceneCats = {}
+    const hasSa = p.depts.some(d => deptToCategory(d.heading).cat === 'extras' && d.items.length)
     for (const h of homes) {
+      if (hasSa && placeholderSa[h.sceneId]) saPlaceholdersToDelete.push(...placeholderSa[h.sceneId])
       for (const dept of p.depts) {
         const { cat, prefix } = deptToCategory(dept.heading)
         for (const it of dept.items) {
           const row = { id: crypto.randomUUID(), dayId: h.dayId, sceneId: h.sceneId, category: cat, sortOrder: sort++ }
           if (cat === 'extras') {
             const { name, total } = splitSaCount(it.text)
-            Object.assign(row, { saName: name, totalNumber: total, scene: h.sceneNumber, description: '' })
+            // Movie Magic's background number = the DooD group number: link on
+            // it so the same people count once per day across scenes & imports
+            Object.assign(row, {
+              saName: name, totalNumber: total, scene: h.sceneNumber, description: '',
+              doodId: it.num ?? null, linkKey: it.num ? `dood-${it.num}` : null,
+            })
+            if (it.num && handItems[h.sceneId]?.has(`dood|${it.num}`)) {
+              if (h === homes[0]) skippedDupes++
+              continue
+            }
           } else {
             row.description = prefix ? `${prefix}: ${it.text}` : it.text
           }
@@ -347,7 +366,7 @@ export function buildBreakdownPlan(parsedScenes, { shootDays, castMembers }) {
   const catSummary = EXTRAS_CATEGORIES.filter(c => catCounts[c.key]).map(c => ({ ...c, count: catCounts[c.key] }))
 
   return {
-    plan: { castToInsert, dayToInsert, scenesToInsert, sceneUpdates, replaceSceneIds, extrasToInsert },
+    plan: { castToInsert, dayToInsert, scenesToInsert, sceneUpdates, replaceSceneIds, extrasToInsert, saPlaceholdersToDelete },
     preview,
     summary: {
       total: parsedScenes.length,
@@ -357,6 +376,8 @@ export function buildBreakdownPlan(parsedScenes, { shootDays, castMembers }) {
       newCast: castToInsert.length,
       items: extrasToInsert.length,
       skippedDupes,
+      saGroups: new Set(extrasToInsert.filter(e => e.category === 'extras' && e.doodId).map(e => e.doodId)).size,
+      saPlaceholders: saPlaceholdersToDelete.length,
       catSummary,
       notInBreakdown,
     },

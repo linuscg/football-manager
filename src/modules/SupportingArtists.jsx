@@ -33,6 +33,15 @@ function DayCard({ day, actions }) {
   const rows = saRowsForDay(day).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
   const total = saDayTotal(day)
 
+  // The ID is the Movie Magic / DooD background number: rows sharing an ID
+  // are the same people, linked so they count once in the day total.
+  function setId(row, raw) {
+    const id = String(raw ?? '').trim().replace(/^#/, '') || null
+    actions.updateDayExtra(day.id, row.id, 'doodId', id)
+    const key = id ? `dood-${id}` : (row.linkKey?.startsWith('dood-') ? null : row.linkKey ?? null)
+    if (key !== (row.linkKey ?? null)) actions.updateDayExtra(day.id, row.id, 'linkKey', key)
+  }
+
   function linkRows(row, otherId) {
     if (!otherId) {   // unlink
       actions.updateDayExtra(day.id, row.id, 'linkKey', null)
@@ -40,6 +49,15 @@ function DayCard({ day, actions }) {
     }
     const other = rows.find(r => r.id === otherId)
     if (!other) return
+    // Linking to a row that has an ID → this row takes the same ID
+    const id = other.doodId ?? row.doodId
+    if (id) {
+      for (const r of [row, other]) {
+        if (r.doodId !== id) actions.updateDayExtra(day.id, r.id, 'doodId', id)
+        if (r.linkKey !== `dood-${id}`) actions.updateDayExtra(day.id, r.id, 'linkKey', `dood-${id}`)
+      }
+      return
+    }
     const key = other.linkKey ?? row.linkKey ?? crypto.randomUUID()
     if (other.linkKey !== key) actions.updateDayExtra(day.id, other.id, 'linkKey', key)
     if (row.linkKey !== key)   actions.updateDayExtra(day.id, row.id, 'linkKey', key)
@@ -69,10 +87,10 @@ function DayCard({ day, actions }) {
         <table className="crew-db-table sa-table">
           <thead>
             <tr>
+              <th className="crew-db-th" style={{ width: 70 }} title="Movie Magic / DooD background number — rows with the same ID are the same people and count once per day">ID</th>
               <th className="crew-db-th" style={{ width: 64 }}>Sc.</th>
               <th className="crew-db-th">Description</th>
               <th className="crew-db-th" style={{ width: 64 }}>No.</th>
-              <th className="crew-db-th" style={{ width: 70 }}>DooD</th>
               <th className="crew-db-th" style={{ width: 230 }}>Same people as…</th>
               <th className="crew-db-th" style={{ width: 36 }} />
             </tr>
@@ -80,10 +98,10 @@ function DayCard({ day, actions }) {
           <tbody>
             {rows.map(r => (
               <tr key={r.id} className="tr-row">
+                <td className="tr-td"><Cell key={`i${r.id}${r.doodId ?? ''}`} value={r.doodId ?? ''} placeholder="#" onCommit={v => setId(r, v)} /></td>
                 <td className="tr-td"><Cell key={`s${r.id}${r.scene}`} value={r.scene} placeholder="Sc." onCommit={v => actions.updateDayExtra(day.id, r.id, 'scene', v)} /></td>
                 <td className="tr-td"><Cell key={`n${r.id}${r.saName}`} value={r.saName} placeholder="SA description…" onCommit={v => actions.updateDayExtra(day.id, r.id, 'saName', v)} /></td>
                 <td className="tr-td"><Cell key={`t${r.id}${r.totalNumber ?? ''}`} value={r.totalNumber == null ? '' : String(r.totalNumber)} type="number" onCommit={v => actions.updateDayExtra(day.id, r.id, 'totalNumber', v === '' ? null : parseInt(v, 10))} /></td>
-                <td className="tr-td sa-dood-cell">{r.doodId ? `#${r.doodId}` : ''}</td>
                 <td className="tr-td">
                   <div className="sa-link-wrap">
                     {r.linkKey && (
@@ -249,7 +267,10 @@ export default function SupportingArtists({ store, actions }) {
           let suggestion = 'create'
           const exact = rows.filter(r => Number(r.totalNumber) === Number(g.total))
           const byName = rows.filter(r => similar(r.saName, g.description) >= 0.5)
-          const best = exact.length === 1 ? exact[0]
+          // Same Movie Magic number (e.g. from the breakdown) is a sure match
+          const sameId = rows.filter(r => String(r.doodId ?? '') === String(g.doodId))
+          const best = sameId.length ? sameId[0]
+                     : exact.length === 1 ? exact[0]
                      : byName.length === 1 ? byName[0]
                      : exact.find(r => similar(r.saName, g.description) >= 0.3) ?? null
           if (best) { suggestion = best.id; claimed.add(best.id) }

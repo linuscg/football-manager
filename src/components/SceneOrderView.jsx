@@ -219,7 +219,7 @@ export default function SceneOrderView({ shootDays, production, actions, castMem
 }
 
 // ─── Additional Info cells ───────────────────────────────────────────────────
-const saText = r => `${r.saName || r.description || 'SAs'}${r.totalNumber != null && r.totalNumber !== 1 ? ` ×${r.totalNumber}` : ''}`
+const saText = r => `${r.doodId ? `#${r.doodId} ` : ''}${r.saName || r.description || 'SAs'}${r.totalNumber != null && r.totalNumber !== 1 ? ` ×${r.totalNumber}` : ''}`
 const rowText = (cat, r) => (cat === 'extras' ? saText(r) : r.description ?? '')
 
 function ExtrasCell({ day, scene, cat, rows, onEdit }) {
@@ -248,17 +248,23 @@ function ExtrasEditor({ editing, rows, actions, onClose }) {
   function commit() {
     const { text: t, rows: rs } = latest.current
     const lines = t.split('\n').map(l => l.trim()).filter(Boolean)
-    const parse = l => {
+    const parse = (l, r) => {
       if (!isSa) return { description: l }
-      const m = l.match(/^(.*?)\s*(?:[×x]\s*(\d+)|\((\d+)\))\s*$/i)
-      return m ? { saName: m[1].trim(), totalNumber: parseInt(m[2] ?? m[3], 10) } : { saName: l, totalNumber: 1 }
+      // "#104 Subway commuters ×30" — #ID links the group (same people, counted once a day)
+      const idm = l.match(/^#(\S+)\s*(.*)$/)
+      const doodId = idm ? idm[1] : null
+      const rest = idm ? idm[2] : l
+      const m = rest.match(/^(.*?)\s*(?:[×x]\s*(\d+)|\((\d+)\))\s*$/i)
+      const base = m ? { saName: m[1].trim(), totalNumber: parseInt(m[2] ?? m[3], 10) } : { saName: rest.trim(), totalNumber: 1 }
+      const linkKey = doodId ? `dood-${doodId}` : (r?.linkKey?.startsWith('dood-') ? null : r?.linkKey ?? null)
+      return { ...base, doodId, linkKey }
     }
     lines.forEach((l, i) => {
-      const f = parse(l)
       const r = rs[i]
+      const f = parse(l, r)
       if (!r) { actions.addSceneExtra(day.id, scene.id, cat.key, f); return }
       if (rowText(cat.key, r) === l) return
-      for (const [k, v] of Object.entries(f)) if (r[k] !== v) actions.updateDayExtra(day.id, r.id, k, v)
+      for (const [k, v] of Object.entries(f)) if ((r[k] ?? null) !== (v ?? null)) actions.updateDayExtra(day.id, r.id, k, v)
       // Edited by hand → no longer a breakdown item, so a re-upload keeps it
       if (r.source) actions.updateDayExtra(day.id, r.id, 'source', null)
     })
@@ -284,7 +290,7 @@ function ExtrasEditor({ editing, rows, actions, onClose }) {
         className="sceneorder-xeditor-text"
         value={text}
         rows={7}
-        placeholder={isSa ? 'One per line — e.g. Commuters ×20' : 'One item per line'}
+        placeholder={isSa ? 'One per line — e.g. #104 Commuters ×20' : 'One item per line'}
         onChange={e => setText(e.target.value)}
         onKeyDown={e => {
           if (e.key === 'Escape') { onClose() }
@@ -292,7 +298,7 @@ function ExtrasEditor({ editing, rows, actions, onClose }) {
         }}
       />
       <div className="sceneorder-xeditor-foot">
-        <span>{isSa ? 'Name ×count' : 'One per line'} · ⌘↵ save · Esc cancel</span>
+        <span>{isSa ? '#ID Name ×count' : 'One per line'} · ⌘↵ save · Esc cancel</span>
         <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={() => { commit(); onClose() }}>Save</button>
       </div>
     </div>

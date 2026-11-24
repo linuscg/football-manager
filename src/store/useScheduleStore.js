@@ -1282,6 +1282,7 @@ export function useScheduleStore() {
           id: e.id, day_id: e.dayId, scene_id: e.sceneId, category: e.category,
           description: e.description ?? '', scene: e.scene ?? '', sa_name: e.saName ?? '',
           total_number: e.totalNumber ?? null, sort_order: e.sortOrder, source: 'breakdown:new',
+          dood_id: e.doodId ?? null, link_key: e.linkKey ?? null,
         }))), 'additional info')
         created.extras.push(...part.map(e => e.id))
       }
@@ -1290,6 +1291,10 @@ export function useScheduleStore() {
       }
       for (const part of chunks(created.extras, 300)) {
         chk(await supabase.from('day_extras').update({ source: 'breakdown' }).in('id', part), 'finalise')
+      }
+      // Unnamed one-liner SA counts on these scenes → replaced by named groups
+      for (const part of chunks(plan.saPlaceholdersToDelete ?? [], 300)) {
+        chk(await supabase.from('day_extras').delete().in('id', part), 'replace unnamed SA counts')
       }
       for (const u of (plan.sceneUpdates ?? [])) {
         chk(await supabase.from('scenes').update(u.patch).eq('id', u.id), 'scene update')
@@ -1317,7 +1322,7 @@ export function useScheduleStore() {
       id: newId, description: fields.description ?? '', sortOrder,
       scene: category === 'extras' ? String(scene?.sceneNumber ?? '') : '',
       saName: fields.saName ?? '', totalNumber: fields.totalNumber ?? null,
-      linkKey: null, doodId: null, sceneId,
+      linkKey: fields.linkKey ?? null, doodId: fields.doodId ?? null, sceneId,
     }
     optimistic(s => ({
       ...s,
@@ -1327,6 +1332,7 @@ export function useScheduleStore() {
     dbWrite(supabase.from('day_extras').insert({
       id: newId, day_id: dayId, scene_id: sceneId, category, description: row.description,
       sort_order: sortOrder, scene: row.scene, sa_name: row.saName, total_number: row.totalNumber,
+      dood_id: row.doodId, link_key: row.linkKey,
     }))
     return newId
   }

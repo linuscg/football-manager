@@ -93,6 +93,7 @@ export default function BreakdownImportModal({ shootDays, castMembers, onApply, 
                 <span><strong>{s.added}</strong> new → Unscheduled</span>
                 <span><strong>{s.items}</strong> items</span>
                 {s.newCast > 0 && <span><strong>{s.newCast}</strong> new cast</span>}
+                {s.saGroups > 0 && <span><strong>{s.saGroups}</strong> SA groups linked</span>}
               </div>
               <div className="bd-cats">
                 {s.catSummary.map(c => <span key={c.key} className="bd-cat-chip">{c.label} <strong>{c.count}</strong></span>)}
@@ -100,6 +101,8 @@ export default function BreakdownImportModal({ shootDays, castMembers, onApply, 
               <div className="sched-import-tip">
                 Matched scenes keep everything already typed on the schedule; only blank fields are filled.
                 Re-uploading a newer breakdown replaces the items from the previous upload — items added or edited by hand are always kept{s.skippedDupes > 0 ? <>, and {s.skippedDupes} breakdown item{s.skippedDupes === 1 ? '' : 's'} already typed by hand won&rsquo;t be added twice</> : null}.
+                {' '}Supporting artists keep their Movie Magic number and are linked to the DooD group with the same number, so each group counts once per day.
+                {s.saPlaceholders > 0 && <> {s.saPlaceholders} unnamed SA count{s.saPlaceholders === 1 ? '' : 's'} from the schedule import will be replaced by the named groups.</>}
                 {s.notInBreakdown.length > 0 && <> {s.notInBreakdown.length} scheduled scene{s.notInBreakdown.length === 1 ? '' : 's'} aren&rsquo;t in this breakdown and are left as they are.</>}
               </div>
 
