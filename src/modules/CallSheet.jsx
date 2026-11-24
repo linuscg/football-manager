@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { EXTRAS_CATEGORIES } from '../lib/extrasCategories'
 import { useCrewStore }           from '../store/useCrewStore'
 import { useFullCrewList } from '../store/useFullCrewList'
 import { useBackpageStore }       from '../store/useBackpageStore'
@@ -11,15 +12,7 @@ import { castNumCompare } from '../lib/castNum'
 const STATUS_LABEL = { booked: 'Confirmed', hold: 'On Hold', unavailable: 'Unavailable', cancelled: 'Cancelled' }
 const STATUS_ICON  = { booked: '✓',         hold: 'H',        unavailable: '✕',           cancelled: '✕' }
 
-const EXTRAS_CATEGORY_LABELS = {
-  animals:  'Animals',
-  risk:     'Risk Assessments',
-  stunts:   'Stunts',
-  vfx:      'VFX',
-  extras:   'Supporting Artists',
-  visitors: 'Visitors',
-  other:    'Other',
-}
+const EXTRAS_CATEGORY_LABELS = Object.fromEntries(EXTRAS_CATEGORIES.filter(c => c.callSheet).map(c => [c.key, c.label]))
 
 function formatDateFull(dateStr) {
   if (!dateStr) return '—'

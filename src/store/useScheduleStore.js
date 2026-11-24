@@ -24,6 +24,7 @@ function groupExtrasByCategory(extras) {
       linkKey: e.link_key ?? null,
       doodId: e.dood_id ?? null,
       sceneId: e.scene_id ?? null,
+      source: e.source ?? null,
     })
   }
   return out
@@ -704,13 +705,17 @@ export function useScheduleStore() {
   // their SA rows (day_extras category 'extras', matched by the row's scene-
   // number text) move with them. sceneNumbers is a Set of number strings, or
   // null to move every SA row on the day (used when all scenes move).
-  function moveSaRowsForScenes(fromDay, toDayId, sceneNumbers) {
+  // Rows of ANY category linked by scene_id (e.g. breakdown props) move too;
+  // sceneIds is a Set of scene ids, or null alongside sceneNumbers=null.
+  function moveSaRowsForScenes(fromDay, toDayId, sceneNumbers, sceneIds = null) {
     const moves = []  // { id, category, row }
     for (const [cat, rows] of Object.entries(fromDay.extras ?? {})) {
-      if (cat.toLowerCase() !== 'extras') continue
+      const isSa = cat.toLowerCase() === 'extras'
       for (const row of rows) {
         const sc = String(row.scene ?? '').trim()
-        if (sceneNumbers === null || (sc && sceneNumbers.has(sc))) {
+        const bySceneId = row.sceneId && (sceneNumbers === null || sceneIds?.has(row.sceneId))
+        const bySaNum = isSa && (sceneNumbers === null || (!row.sceneId && sc && sceneNumbers.has(sc)))
+        if (bySceneId || bySaNum) {
           moves.push({ id: row.id, category: cat, row })
         }
       }
@@ -763,7 +768,7 @@ export function useScheduleStore() {
     }))
     dbWrite(supabase.from('scenes').update({ day_id: toDayId, sort_order: sortOrder }).eq('id', sceneId))
     const num = String(scene.sceneNumber ?? '').trim()
-    if (num) moveSaRowsForScenes(from, toDayId, new Set([num]))
+    moveSaRowsForScenes(from, toDayId, num ? new Set([num]) : new Set(), new Set([sceneId]))
   }
 
   // Reorder scenes within one day (list-view drag): write 0..n sort orders.
@@ -900,6 +905,7 @@ export function useScheduleStore() {
     linkKey:     'link_key',
     doodId:      'dood_id',
     sceneId:     'scene_id',
+    source:      'source',
   }
 
   function updateDayExtra(dayId, extraId, field, value) {
@@ -1215,6 +1221,13 @@ export function useScheduleStore() {
         }
       }
 
+      // 8a'. Rows linked by scene_id (breakdown items, any category) follow
+      // their scene to its new day.
+      for (const s of (plan.scenesToUpdate ?? [])) {
+        if (!s.dayId) continue
+        await supabase.from('day_extras').update({ day_id: s.dayId }).eq('scene_id', s.id).neq('day_id', s.dayId)
+      }
+
       // 8b. Update changed Supporting-Artist extras rows (blank-name rows only)
       for (const e of (plan.extrasToUpdate ?? [])) {
         await supabase.from('day_extras').update({ total_number: e.totalNumber }).eq('id', e.id)
@@ -1228,10 +1241,99 @@ export function useScheduleStore() {
     }
   }
 
+  // ── Breakdown import (Scene Order view) ─────────────────────────────────────
+  // Commits a plan from src/lib/breakdownImport.js. Breakdown-sourced Additional
+  // Info rows carry source 'breakdown', so a re-import replaces exactly those
+  // rows on the matched scenes and never touches hand-entered ones.
+  async function applyBreakdownImport(plan) {
+    const prodId = getCurrentProductionId()
+    const chk = (res, what) => { if (res.error) throw new Error(`${what}: ${res.error.message}`) }
+    const chunks = (arr, n = 500) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
+    const created = { cast: [], day: null, scenes: [], extras: [] }
+    try {
+      if (plan.castToInsert?.length) {
+        chk(await supabase.from('cast_members').insert(plan.castToInsert.map(c => ({
+          id: c.id, production_id: prodId, name: c.name ?? '', role: '',
+          notes: '', cast_number: c.castNumber, sort_order: c.sortOrder,
+        }))), 'cast')
+        created.cast = plan.castToInsert.map(c => c.id)
+      }
+      if (plan.dayToInsert) {
+        const d = plan.dayToInsert
+        chk(await supabase.from('shoot_days').insert({
+          id: d.id, production_id: prodId, day_number: null, date: null,
+          locations: [], location: null, unit_base: '', is_non_shoot_day: true, notes: '',
+          sort_order: d.sortOrder, day_category: 'unscheduled', day_label: 'UNSCHEDULED',
+        }), 'unscheduled day')
+        created.day = d.id
+      }
+      for (const part of chunks(plan.scenesToInsert ?? [])) {
+        chk(await supabase.from('scenes').insert(part.map(s => ({
+          id: s.id, day_id: s.dayId, scene_number: s.sceneNumber, int_ext: s.intExt,
+          location: s.location, day_night: s.dayNight, description: s.description,
+          pages: s.pages, story_day: s.storyDay ?? '', cast_member_ids: s.castMemberIds, sort_order: s.sortOrder,
+        }))), 'scenes')
+        created.scenes.push(...part.map(s => s.id))
+      }
+      // New rows go in as 'breakdown:new' so the old upload's rows can be
+      // cleared without touching them, then they're promoted.
+      for (const part of chunks(plan.extrasToInsert ?? [])) {
+        chk(await supabase.from('day_extras').insert(part.map(e => ({
+          id: e.id, day_id: e.dayId, scene_id: e.sceneId, category: e.category,
+          description: e.description ?? '', scene: e.scene ?? '', sa_name: e.saName ?? '',
+          total_number: e.totalNumber ?? null, sort_order: e.sortOrder, source: 'breakdown:new',
+        }))), 'additional info')
+        created.extras.push(...part.map(e => e.id))
+      }
+      for (const part of chunks(plan.replaceSceneIds ?? [], 200)) {
+        chk(await supabase.from('day_extras').delete().eq('source', 'breakdown').in('scene_id', part), 'clear previous breakdown')
+      }
+      for (const part of chunks(created.extras, 300)) {
+        chk(await supabase.from('day_extras').update({ source: 'breakdown' }).in('id', part), 'finalise')
+      }
+      for (const u of (plan.sceneUpdates ?? [])) {
+        chk(await supabase.from('scenes').update(u.patch).eq('id', u.id), 'scene update')
+      }
+      await loadAll()
+      return { ok: true }
+    } catch (err) {
+      console.error('[applyBreakdownImport]', err)
+      // Roll back what this run created (fill-blank scene updates run last)
+      for (const part of chunks(created.extras, 300)) await supabase.from('day_extras').delete().in('id', part)
+      for (const part of chunks(created.scenes, 300)) await supabase.from('scenes').delete().in('id', part)
+      if (created.day) await supabase.from('shoot_days').delete().eq('id', created.day)
+      if (created.cast.length) await supabase.from('cast_members').delete().in('id', created.cast)
+      await loadAll()
+      return { ok: false, error: `${err.message} — nothing was changed.` }
+    }
+  }
+
+  // Add an Additional Info row tied to one scene (Scene Order cell editor).
+  function addSceneExtra(dayId, sceneId, category, fields = {}) {
+    const newId = crypto.randomUUID()
+    const sortOrder = Date.now()
+    const scene = store.shootDays.find(d => d.id === dayId)?.scenes.find(sc => sc.id === sceneId)
+    const row = {
+      id: newId, description: fields.description ?? '', sortOrder,
+      scene: category === 'extras' ? String(scene?.sceneNumber ?? '') : '',
+      saName: fields.saName ?? '', totalNumber: fields.totalNumber ?? null,
+      linkKey: null, doodId: null, sceneId,
+    }
+    optimistic(s => ({
+      ...s,
+      shootDays: s.shootDays.map(d => d.id !== dayId ? d
+        : { ...d, extras: { ...d.extras, [category]: [...(d.extras?.[category] ?? []), row] } }),
+    }))
+    dbWrite(supabase.from('day_extras').insert({
+      id: newId, day_id: dayId, scene_id: sceneId, category, description: row.description,
+      sort_order: sortOrder, scene: row.scene, sa_name: row.saName, total_number: row.totalNumber,
+    }))
+    return newId
+  }
+
   // ── AI Cast-list import ──────────────────────────────────────────────────────
   // Commits a cast-list reconciliation plan (see src/lib/reconcileCastList.js)
-  // to the DB, then reloads everything. `cast_number` is an integer column, so
-  // the plan carries an already-parsed integer (or null) in `castNumber`.
+  // to the DB, then reloads everything. `cast_number` is TEXT ("1", "1st").
   async function applyCastListImport(plan) {
     const prodId = getCurrentProductionId()
     try {
@@ -1268,7 +1370,7 @@ export function useScheduleStore() {
     addScene, deleteScene, updateScene,
     moveSceneToDay, moveAllScenes, reorderScenes,
     updateSceneCast,
-    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow,
+    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow, addSceneExtra, applyBreakdownImport,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
     applyScheduleImport, applyCastListImport,
   }

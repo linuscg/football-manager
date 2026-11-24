@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { EXTRAS_CATEGORIES } from '../lib/extrasCategories'
 import SceneRow from './SceneRow'
 
 import { castNumCompare } from '../lib/castNum'
@@ -75,15 +76,6 @@ const DAY_TYPES = [
   { value: 'SCWD', label: 'SCWD — Semi-Continuous' },
 ]
 
-const EXTRAS_CATEGORIES = [
-  { key: 'animals',  label: 'Animals' },
-  { key: 'risk',     label: 'Risk Assessments' },
-  { key: 'stunts',   label: 'Stunts' },
-  { key: 'vfx',      label: 'VFX' },
-  { key: 'extras',   label: 'Supporting Artists' },
-  { key: 'other',    label: 'Other' },
-  { key: 'visitors', label: 'Visitors' },
-]
 
 const STATUS_LABEL = { booked: 'Confirmed', hold: 'On Hold', unavailable: 'Unavailable' }
 const STATUS_ICON  = { booked: '✓',         hold: 'H',         unavailable: '✕' }

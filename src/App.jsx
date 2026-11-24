@@ -392,7 +392,7 @@ function AppShell({ session, signOut }) {
     addScene, deleteScene, updateScene,
     moveSceneToDay, moveAllScenes,
     updateSceneCast,
-    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow, reorderScenes,
+    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow, addSceneExtra, applyBreakdownImport, reorderScenes,
     addCastMember, deleteCastMember, updateCastMember, reorderCastMembers, importCastMembers,
     applyScheduleImport, applyCastListImport,
   } = useScheduleStore()
@@ -507,8 +507,8 @@ function AppShell({ session, signOut }) {
     addScene, deleteScene, updateScene,
     moveSceneToDay, moveAllScenes,
     updateSceneCast,
-    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow, reorderScenes,
-    applyScheduleImport,
+    addDayExtra, deleteDayExtra, updateDayExtra, addSaRow, addSceneExtra, reorderScenes,
+    applyScheduleImport, applyBreakdownImport,
   }
 
   useEffect(() => {

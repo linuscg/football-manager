@@ -329,7 +329,7 @@ export default function Schedule({ store, actions }) {
         </div>
       </div>
 
-      {shootDays.length === 0 ? (
+      {shootDays.length === 0 && viewMode !== 'sceneorder' ? (
         <div className="empty-state">
           <div className="empty-state-icon">📋</div>
           <div className="empty-state-text">No shoot days yet.</div>
@@ -347,6 +347,7 @@ export default function Schedule({ store, actions }) {
           shootDays={shootDays}
           production={production}
           actions={actions}
+          castMembers={castMembers ?? []}
         />
 
       ) : viewMode === 'week' ? (

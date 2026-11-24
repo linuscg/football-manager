@@ -13,6 +13,7 @@
     "@supabase/supabase-js": "^2.105.3",
     "docxtemplater": "^3.71.1",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.10.38",
     "pizzip": "^3.3.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

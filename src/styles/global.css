@@ -11561,3 +11561,56 @@ textarea.crewd-notes:focus { background: #fff; }
 }
 .scene-sa-badge.has-sas { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
 .scene-sa-badge:hover { border-color: #6366f1; }
+
+/* ── Scene Order: Additional Info columns + breakdown upload ───────────────── */
+.sceneorder-table--wide { overflow: auto; max-height: calc(100vh - 210px); }
+.sceneorder-table--wide .sceneorder-row { width: max-content; min-width: 100%; align-items: start; background: #fff; }
+.sceneorder-table--wide .sceneorder-row--head { align-items: center; background: #f9fafb; }
+/* Scene number stays visible while scrolling across the breakdown columns */
+.sceneorder-table--wide .sceneorder-row > :first-child {
+  position: sticky; left: 0; z-index: 1; background: inherit;
+  box-shadow: 1px 0 0 #f3f4f6;
+  align-self: stretch;   /* cover the full row height so scrolled cells don't show through */
+}
+.sceneorder-table--wide .sceneorder-row--head > :first-child { z-index: 3; }
+.sceneorder-table--wide .sceneorder-section { position: sticky; left: 0; }
+.sceneorder-summary { align-items: center; }
+.sceneorder-bd-btn { order: 99; margin-left: auto; }
+.sceneorder-xcell {
+  display: flex; flex-direction: column; gap: 2px; align-items: stretch;
+  width: 100%; min-height: 28px; max-height: 96px; overflow: hidden;
+  padding: 4px 6px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; text-align: left; cursor: pointer;
+  font: inherit; font-size: 11.5px; line-height: 1.3; color: #374151;
+}
+.sceneorder-xcell:hover { border-color: #d1d5db; background: #f9fafb; }
+.sceneorder-xcell.is-empty { align-items: center; justify-content: center; }
+.sceneorder-xitem { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sceneorder-xitem + .sceneorder-xitem { border-top: 1px dashed #eef0f3; padding-top: 2px; }
+.sceneorder-xadd { color: transparent; font-size: 14px; }
+.sceneorder-row:hover .sceneorder-xadd { color: #e5e7eb; }
+.sceneorder-xcell:hover .sceneorder-xadd { color: #6b7280; }
+.sceneorder-xeditor {
+  z-index: 1000; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.15); padding: 10px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.sceneorder-xeditor-head { font-size: 12px; font-weight: 600; color: #111827; }
+.sceneorder-xeditor-text {
+  width: 100%; box-sizing: border-box; resize: vertical; font: inherit; font-size: 12.5px;
+  border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 8px; line-height: 1.45;
+}
+.sceneorder-xeditor-text:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+.sceneorder-xeditor-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: #9ca3af; }
+.bd-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.bd-cat-chip { font-size: 11.5px; background: #f3f4f6; border-radius: 999px; padding: 3px 9px; color: #374151; }
+.bd-filter { display: inline-flex; gap: 0; margin: 8px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+.bd-status { font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; min-width: 64px; text-align: center; }
+.bd-status--new { background: #dcfce7; color: #166534; }
+.bd-status--matched { background: #eef2ff; color: #3730a3; }
+.bd-spinner { width: 28px; height: 28px; border: 3px solid #e5e7eb; border-top-color: #6366f1; border-radius: 50%; animation: bd-spin .8s linear infinite; margin-bottom: 8px; }
+@keyframes bd-spin { to { transform: rotate(360deg); } }
+.sceneorder-table--wide .sceneorder-row--dup    { background: #fef2f2; }
+.sceneorder-table--wide .sceneorder-row--dupnum { background: #fffbeb; }
+.sceneorder-table--wide .sceneorder-row--gap.is-missing { background: #fef2f2; }
+.sceneorder-table--wide .sceneorder-row--gap.is-omitted { background: #f9fafb; }

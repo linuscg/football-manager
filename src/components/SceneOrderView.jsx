@@ -1,5 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { dayLabel } from './CalendarView'
+import { EXTRAS_CATEGORIES } from '../lib/extrasCategories'
+import BreakdownImportModal from '../modules/BreakdownImportModal'
+
+// Base columns + one per Additional Info category (Scene Order only)
+const BASE_COLS = '96px 74px 180px 260px 96px 52px 58px 170px 108px 160px'
+const EXTRA_COL_W = 190
+const gridStyle = { gridTemplateColumns: `${BASE_COLS} repeat(${EXTRAS_CATEGORIES.length}, ${EXTRA_COL_W}px)` }
 
 // ─── Scene-number parsing ─────────────────────────────────────────────────────
 // "12"→{num:12,suffix:""}, "12A"→{num:12,suffix:"A"}, "92 pt 1 of 2"→{num:92,...}
@@ -11,7 +18,7 @@ function parseSceneNum(raw) {
   return { num: parseInt(m[1], 10), suffix: m[2].trim() }
 }
 
-const DAY_NIGHT = ['MORNING', 'DAY', 'DUSK', 'EVENING', 'NIGHT']
+const DAY_NIGHT = ['DAWN', 'MORNING', 'DAY', 'DUSK', 'EVENING', 'NIGHT', 'DFN']
 
 function fmtShort(dateStr) {
   if (!dateStr) return ''
@@ -19,7 +26,33 @@ function fmtShort(dateStr) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function SceneOrderView({ shootDays, production, actions }) {
+export default function SceneOrderView({ shootDays, production, actions, castMembers = [] }) {
+  const [bdOpen, setBdOpen] = useState(false)
+  const [editing, setEditing] = useState(null)   // { day, scene, cat, rect }
+
+  // sceneId → { category: [rows] } from each day's Additional Info
+  const extrasByScene = useMemo(() => {
+    const m = {}
+    for (const d of shootDays) {
+      for (const [cat, rows] of Object.entries(d.extras ?? {})) {
+        for (const r of rows) {
+          if (!r.sceneId) continue
+          ;((m[r.sceneId] ??= {})[cat] ??= []).push(r)
+        }
+      }
+    }
+    for (const cats of Object.values(m)) for (const rows of Object.values(cats)) rows.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    return m
+  }, [shootDays])
+  const extrasCols = { byScene: extrasByScene, onEdit: (day, scene, cat, rect) => setEditing({ day, scene, cat, rect }) }
+  const bdModal = bdOpen && (
+    <BreakdownImportModal
+      shootDays={shootDays}
+      castMembers={castMembers}
+      onApply={plan => actions.applyBreakdownImport(plan)}
+      onClose={() => setBdOpen(false)}
+    />
+  )
   const omitted = useMemo(
     () => new Set((production.omittedScenes ?? []).map(String)),
     [production.omittedScenes]
@@ -96,7 +129,9 @@ export default function SceneOrderView({ shootDays, production, actions }) {
       <div className="empty-state">
         <div className="empty-state-icon">🎬</div>
         <div className="empty-state-text">No scenes yet.</div>
-        <div className="empty-state-sub">Add scenes to shoot days, or import a schedule PDF.</div>
+        <div className="empty-state-sub">Add scenes to shoot days, import a schedule PDF, or upload a breakdown.</div>
+        <button className="pm-btn pm-btn--ghost" style={{ marginTop: 12 }} onClick={() => setBdOpen(true)}>↑ Upload breakdown</button>
+        {bdModal}
       </div>
     )
   }
@@ -104,14 +139,16 @@ export default function SceneOrderView({ shootDays, production, actions }) {
   return (
     <div className="sceneorder-root">
       <div className="sceneorder-summary">
+        <button className="pm-btn pm-btn--ghost pm-btn--sm sceneorder-bd-btn" onClick={() => setBdOpen(true)}
+          title="Upload a Movie Magic breakdown PDF — fills each scene's Additional Info">↑ Upload breakdown</button>
         <span><strong>{rows.filter(r => r.kind === 'scene').length + unnumbered.length}</strong> scenes</span>
         {missingCount > 0 && <span className="sceneorder-summary-missing"><strong>{missingCount}</strong> missing</span>}
         {dupCount > 0 && <span className="sceneorder-summary-missing"><strong>{dupCount}</strong> duplicated</span>}
         {omittedCount > 0 && <span className="sceneorder-summary-omitted"><strong>{omittedCount}</strong> omitted</span>}
       </div>
 
-      <div className="sceneorder-table">
-        <div className="sceneorder-row sceneorder-row--head">
+      <div className="sceneorder-table sceneorder-table--wide">
+        <div className="sceneorder-row sceneorder-row--head" style={gridStyle}>
           <span>#</span>
           <span>Int/Ext</span>
           <span>Set</span>
@@ -122,11 +159,13 @@ export default function SceneOrderView({ shootDays, production, actions }) {
           <span>Scheduled</span>
           <span>Date</span>
           <span>Day location</span>
+          {EXTRAS_CATEGORIES.map(c => <span key={c.key}>{c.label}</span>)}
         </div>
 
         {rows.map(r => r.kind === 'gap' ? (
           <div
             key={`gap-${r.num}`}
+            style={gridStyle}
             className={`sceneorder-row sceneorder-row--gap${omitted.has(String(r.num)) ? ' is-omitted' : ' is-missing'}`}
           >
             <span className="sceneorder-gap-num">{r.num}</span>
@@ -152,6 +191,7 @@ export default function SceneOrderView({ shootDays, production, actions }) {
             dayOptions={dayOptions}
             upd={upd}
             actions={actions}
+            extrasCols={extrasCols}
           />
         ))}
 
@@ -159,10 +199,101 @@ export default function SceneOrderView({ shootDays, production, actions }) {
           <>
             <div className="sceneorder-section">Unnumbered scenes</div>
             {unnumbered.map(r => (
-              <SceneRow key={r.scene.id} r={r} dayOptions={dayOptions} upd={upd} actions={actions} dup={dupInfo(r)} />
+              <SceneRow key={r.scene.id} r={r} dayOptions={dayOptions} upd={upd} actions={actions} dup={dupInfo(r)} extrasCols={extrasCols} />
             ))}
           </>
         )}
+      </div>
+      {editing && (
+        <ExtrasEditor
+          key={`${editing.scene.id}-${editing.cat.key}`}
+          editing={editing}
+          rows={extrasByScene[editing.scene.id]?.[editing.cat.key] ?? []}
+          actions={actions}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {bdModal}
+    </div>
+  )
+}
+
+// ─── Additional Info cells ───────────────────────────────────────────────────
+const saText = r => `${r.saName || r.description || 'SAs'}${r.totalNumber != null && r.totalNumber !== 1 ? ` ×${r.totalNumber}` : ''}`
+const rowText = (cat, r) => (cat === 'extras' ? saText(r) : r.description ?? '')
+
+function ExtrasCell({ day, scene, cat, rows, onEdit }) {
+  const lines = rows.map(r => rowText(cat.key, r)).filter(t => t.trim())
+  return (
+    <button
+      type="button"
+      className={`sceneorder-xcell${lines.length ? '' : ' is-empty'}`}
+      title={lines.length ? lines.join('\n') : `Add ${cat.label}`}
+      onClick={e => onEdit(day, scene, cat, e.currentTarget.getBoundingClientRect())}
+    >
+      {lines.length ? lines.map((t, i) => <span key={i} className="sceneorder-xitem">{t}</span>) : <span className="sceneorder-xadd">+</span>}
+    </button>
+  )
+}
+
+// Popover editor: one item per line. SAs take "Name ×N" (or "Name (N)").
+function ExtrasEditor({ editing, rows, actions, onClose }) {
+  const { day, scene, cat, rect } = editing
+  const isSa = cat.key === 'extras'
+  const [text, setText] = useState(() => rows.map(r => rowText(cat.key, r)).join('\n'))
+  const ref = useRef(null)
+  const latest = useRef(null)
+  latest.current = { text, rows }
+
+  function commit() {
+    const { text: t, rows: rs } = latest.current
+    const lines = t.split('\n').map(l => l.trim()).filter(Boolean)
+    const parse = l => {
+      if (!isSa) return { description: l }
+      const m = l.match(/^(.*?)\s*(?:[×x]\s*(\d+)|\((\d+)\))\s*$/i)
+      return m ? { saName: m[1].trim(), totalNumber: parseInt(m[2] ?? m[3], 10) } : { saName: l, totalNumber: 1 }
+    }
+    lines.forEach((l, i) => {
+      const f = parse(l)
+      const r = rs[i]
+      if (!r) { actions.addSceneExtra(day.id, scene.id, cat.key, f); return }
+      if (rowText(cat.key, r) === l) return
+      for (const [k, v] of Object.entries(f)) if (r[k] !== v) actions.updateDayExtra(day.id, r.id, k, v)
+      // Edited by hand → no longer a breakdown item, so a re-upload keeps it
+      if (r.source) actions.updateDayExtra(day.id, r.id, 'source', null)
+    })
+    for (const r of rs.slice(lines.length)) actions.deleteDayExtra(day.id, r.id)
+  }
+
+  useEffect(() => {
+    ref.current?.focus()
+    function onDown(e) { if (!e.target.closest?.('.sceneorder-xeditor')) { commit(); onClose() } }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const W = 300
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - W - 8))
+  const below = rect.bottom + 4
+  const top = below + 220 > window.innerHeight ? Math.max(8, rect.top - 224) : below
+  return (
+    <div className="sceneorder-xeditor" style={{ position: 'fixed', left, top, width: W }}>
+      <div className="sceneorder-xeditor-head">Sc {scene.sceneNumber || '—'} · {cat.label}</div>
+      <textarea
+        ref={ref}
+        className="sceneorder-xeditor-text"
+        value={text}
+        rows={7}
+        placeholder={isSa ? 'One per line — e.g. Commuters ×20' : 'One item per line'}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { onClose() }
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { commit(); onClose() }
+        }}
+      />
+      <div className="sceneorder-xeditor-foot">
+        <span>{isSa ? 'Name ×count' : 'One per line'} · ⌘↵ save · Esc cancel</span>
+        <button className="pm-btn pm-btn--primary pm-btn--sm" onClick={() => { commit(); onClose() }}>Save</button>
       </div>
     </div>
   )
@@ -183,10 +314,11 @@ export function buildDayOptions(shootDays) {
 
 export { parseSceneNum, fmtShort }
 
-export function SceneRow({ r, dayOptions, upd, actions, dup = null }) {
+export function SceneRow({ r, dayOptions, upd, actions, dup = null, extrasCols = null }) {
   const { scene, day } = r
   return (
     <div
+      style={extrasCols ? gridStyle : undefined}
       className={`sceneorder-row${dup === 'hard' ? ' sceneorder-row--dup' : dup === 'soft' ? ' sceneorder-row--dupnum' : ''}`}
       title={dup === 'hard' ? 'Duplicate: this scene number AND description appear more than once'
            : dup === 'soft' ? 'This scene number appears more than once (different descriptions)' : undefined}
@@ -236,6 +368,10 @@ export function SceneRow({ r, dayOptions, upd, actions, dup = null }) {
       </select>
       <span className="sceneorder-ro">{fmtShort(day.date) || '—'}</span>
       <span className="sceneorder-ro" title={day.location || ''}>{day.location || '—'}</span>
+      {extrasCols && EXTRAS_CATEGORIES.map(c => (
+        <ExtrasCell key={c.key} day={day} scene={scene} cat={c}
+          rows={extrasCols.byScene[scene.id]?.[c.key] ?? []} onEdit={extrasCols.onEdit} />
+      ))}
     </div>
   )
 }

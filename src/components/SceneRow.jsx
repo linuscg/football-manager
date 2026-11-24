@@ -5,7 +5,7 @@ export default function SceneRow({ scene, dayId, onUpdate, onDelete, castMembers
   const [castOpen, setCastOpen] = useState(false)
   const dropdownRef = useRef(null)
 
-  const DAY_NIGHT_CYCLE = ['MORNING', 'DAY', 'DUSK', 'EVENING', 'NIGHT']
+  const DAY_NIGHT_CYCLE = ['DAWN', 'MORNING', 'DAY', 'DUSK', 'EVENING', 'NIGHT', 'DFN']
 
   function cycle(field) {
     if (field === 'intExt') {

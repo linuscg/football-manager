@@ -9,11 +9,8 @@
 // updates; unmatched entries become inserts. We never blank out an existing
 // value with an empty incoming one.
 //
-// Cast number handling: the DB `cast_number` column is an INTEGER (see
-// addCastMember / CSV import, which both parseInt it). The cast list can carry
-// values like "X26", which won't fit an int column — so each commit row carries
-// BOTH `castNumber` (parsed integer or null, for the DB write) and
-// `castNumberLabel` (the original string, for display).
+// Cast numbers are free text (cast_members.cast_number is TEXT): "1", "1st",
+// "X26" are all stored exactly as printed. `castNumberLabel` is kept for display.
 
 // Parse the leading integer of a cast-number string. "26" → 26, "X26" → 26,
 // "" / non-numeric → null.
@@ -58,7 +55,7 @@ export function reconcileCastList(parsed, existingCast = []) {
           id:              match.id,
           name:            newName,
           role:            newRole,
-          castNumber:      parseCastInt(numLabel),
+          castNumber:      numLabel || null,
           castNumberLabel: numLabel,
         })
         changedCast++
@@ -86,7 +83,7 @@ export function reconcileCastList(parsed, existingCast = []) {
         name:            artist,
         role:            character,
         notes:           '',
-        castNumber:      parseCastInt(numLabel),
+        castNumber:      numLabel || null,
         castNumberLabel: numLabel,
         sortOrder:       existingCast.length + newCast,
       })
