@@ -1279,6 +1279,7 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
   const [detailsOpen, setDetailsOpen] = useState(() =>
     localStorage.getItem('fm_gantt_details_open') === '1'
   )
+  const [search, setSearch] = useState('')
   const [crewClassTab, setCrewClassTab] = useState(() => {
     const saved = localStorage.getItem('fm_gantt_crew_class')
     return saved === 'fulltime' || saved === 'additional' ? saved : 'fulltime'
@@ -1504,30 +1505,49 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
 
   // ── Filter + group resources ───────────────────────────────────────────────
 
+  // Search spans BOTH sub-tabs (Full-Time + Additional / Run of Show +
+  // Additional): while it has text the class filter is ignored and each
+  // group heading says which tab the rows belong to.
+  const q = search.trim().toLowerCase()
+  const qDigits = q.replace(/\D/g, '')
+  const classOf = r => effTab === 'crew' ? (r.crewClass ?? 'additional') : (r.equipClass ?? 'ros')
+  const CLASS_ORDER = effTab === 'crew' ? ['fulltime', 'additional'] : ['ros', 'additional']
+  const CLASS_LABEL = effTab === 'crew'
+    ? { fulltime: 'Full-Time', additional: 'Additional' }
+    : { ros: 'Run of Show', additional: 'Additional' }
+  function matchesSearch(r) {
+    const text = [r.name, r.role, r.department, r.category, r.contactEmail, r.contactPhone, r.vendor]
+      .filter(Boolean).join('\n').toLowerCase()
+    if (text.includes(q)) return true
+    // Phone numbers: ignore spaces / dashes / brackets on both sides
+    return qDigits.length >= 3 && String(r.contactPhone ?? '').replace(/\D/g, '').includes(qDigits)
+  }
+
   const filtered = resources.filter(r =>
     r.type === effTab &&
-    (!classFilter || (effTab === 'crew'
-      ? (r.crewClass ?? 'additional') === classFilter
-      : (r.equipClass ?? 'ros') === classFilter))
+    (q ? matchesSearch(r) : (!classFilter || classOf(r) === classFilter))
   )
   const groupKey = effTab === 'crew' ? 'department' : 'category'
   const FALLBACK = effTab === 'crew' ? 'Unassigned' : 'Uncategorised'
 
   const groupMap = {}
   for (const r of filtered) {
-    const key = r[groupKey].trim() || FALLBACK
-    if (!groupMap[key]) groupMap[key] = []
-    groupMap[key].push(r)
+    const dept = r[groupKey].trim() || FALLBACK
+    const cls = q ? classOf(r) : ''
+    const key = `${cls}\u0000${dept}`
+    if (!groupMap[key]) groupMap[key] = { cls, dept, rows: [] }
+    groupMap[key].rows.push(r)
   }
-  const groups = Object.entries(groupMap).sort(([a], [b]) => {
-    if (a === FALLBACK) return 1
-    if (b === FALLBACK) return -1
+  const groups = Object.values(groupMap).sort((a, b) => {
+    if (a.cls !== b.cls) return CLASS_ORDER.indexOf(a.cls) - CLASS_ORDER.indexOf(b.cls)
+    if (a.dept === FALLBACK) return 1
+    if (b.dept === FALLBACK) return -1
     if (effTab === 'crew') {
-      const pa = deptPriority(a), pb = deptPriority(b)
+      const pa = deptPriority(a.dept), pb = deptPriority(b.dept)
       if (pa !== pb) return pa - pb
     }
-    return a.localeCompare(b)
-  })
+    return a.dept.localeCompare(b.dept)
+  }).map(g => [q ? `${CLASS_LABEL[g.cls] ?? g.cls} · ${g.dept}` : g.dept, g.rows])
 
   // ── Phase toggle ───────────────────────────────────────────────────────────
 
@@ -2113,6 +2133,25 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
               onClick={() => switchEquipClassTab('additional')}>Additional</button>
           </div>
         )}
+        {(mode === 'crew' || mode === 'equipment') && (
+          <div className={`gantt-search${search ? ' is-active' : ''}`}>
+            <input
+              type="search"
+              className="gantt-search-input"
+              value={search}
+              placeholder={mode === 'crew'
+                ? 'Search both tabs — name, role, dept, email, phone'
+                : 'Search both tabs — name, category, supplier, email, phone'}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') setSearch('') }}
+            />
+            {search && (
+              <span className="gantt-search-count">
+                {filtered.length} match{filtered.length === 1 ? '' : 'es'}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="gantt-toolbar">
           {/* Add / import resource */}
@@ -2377,10 +2416,11 @@ export default function CrewGantt({ production, shootDays, mode = 'both', onUpda
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={colSpecs.length + 1 + extraCols} className="gantt-empty-row">
+                    {q ? <>No matches for “{search.trim()}” in either tab.</> : <>
                     No {effTab === 'crew'
                       ? (classFilter ? `${crewClassLabel} crew` : 'crew members')
                       : 'equipment'} yet —
-                    click + Add above.
+                    click + Add above.</>}
                   </td>
                 </tr>
               ) : (
