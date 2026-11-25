@@ -176,7 +176,12 @@ function parseGrid(cell, lastRow, lastCol) {
     const name = strVal(at(r, 'name'))
     if (!name) continue                       // no Name value → skip
     const role = strVal(at(r, 'role'))
-    if (!role) {                              // Name set, Role empty → department header
+    // Name set, Role empty → department header — unless the row carries
+    // person details (agent, contact, shoot-crew flag, dates), e.g.
+    // "TBC SECURITY #1" with a start date, or a person whose role is blank.
+    const hasPersonData = ['email', 'phone', 'agent', 'shootCrew', 'rtwCheck', 'startDate', 'endDate']
+      .some(k => strVal(at(r, k)) && !/^n\/?a$/i.test(strVal(at(r, k))))
+    if (!role && !hasPersonData) {
       department = name
       continue
     }

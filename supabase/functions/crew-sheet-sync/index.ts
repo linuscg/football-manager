@@ -182,7 +182,11 @@ function parsePeople(values: any[][], formulas: any[][]): any[] {
     const name = sv(at(r, 'name'))
     if (!name) continue
     const role = sv(at(r, 'role'))
-    if (!role) { department = name; continue }
+    // Role empty → department header, unless the row carries person details
+    // (agent / contact / shoot-crew flag / dates) — mirrors crewXlsxImport.js
+    const hasPersonData = ['email', 'phone', 'agent', 'shootCrew', 'rtwCheck', 'startDate', 'endDate']
+      .some(k => { const v = sv(at(r, k)); return v && !/^n\/?a$/i.test(v) })
+    if (!role && !hasPersonData) { department = name; continue }
     people.push({
       name, role, department,
       email: sv(at(r, 'email')), phone: sv(at(r, 'phone')), agent: sv(at(r, 'agent')),
