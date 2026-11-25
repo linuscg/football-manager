@@ -319,42 +319,68 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
   // screen. Browsers drop a wake lock whenever the page is hidden, so it's
   // re-requested when the page becomes visible again.
   const [isFull, setIsFull] = useState(false)
-  const [awake, setAwake] = useState(false)
-  useEffect(() => {
-    let lock = null
-    let cancelled = false
-    async function acquire() {
-      if (!document.fullscreenElement || document.visibilityState !== 'visible' || lock) return
-      try {
-        lock = await navigator.wakeLock?.request('screen')
-        if (!lock) return
-        if (cancelled) { lock.release(); lock = null; return }
-        setAwake(true)
-        lock.addEventListener('release', () => { lock = null; setAwake(false) })
-      } catch (e) { console.warn('[train brain] wake lock', e) }
-    }
-    function onFullscreen() {
-      const full = document.fullscreenElement === rootRef.current
-      setIsFull(full)
-      if (full) acquire()
-      else if (lock) { lock.release(); lock = null }
-    }
-    function onVisible() { if (document.visibilityState === 'visible') acquire() }
-    document.addEventListener('fullscreenchange', onFullscreen)
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      cancelled = true
-      document.removeEventListener('fullscreenchange', onFullscreen)
-      document.removeEventListener('visibilitychange', onVisible)
-      lock?.release()
+  // 'on' | 'off' | 'unsupported' (no Wake Lock API, e.g. iPadOS < 16.4) |
+  // 'denied' (browser refused — Safari only grants it from a tap)
+  const [awake, setAwake] = useState('off')
+  const lockRef = useRef(null)
+  const fsEl = () => document.fullscreenElement ?? document.webkitFullscreenElement ?? null
+
+  // Must be callable straight from a tap: Safari / iPadOS refuse wake locks
+  // requested outside a user gesture.
+  const pendingRef = useRef(false)
+  const acquireWake = useCallback(async () => {
+    if (lockRef.current || pendingRef.current) return
+    if (!('wakeLock' in navigator)) { setAwake('unsupported'); return }
+    pendingRef.current = true
+    try {
+      const lock = await navigator.wakeLock.request('screen')
+      lockRef.current = lock
+      setAwake('on')
+      lock.addEventListener('release', () => {
+        if (lockRef.current === lock) lockRef.current = null
+        setAwake(a => (a === 'on' ? 'off' : a))
+      })
+    } catch (e) {
+      console.warn('[train brain] wake lock', e)
+      setAwake('denied')
+    } finally {
+      pendingRef.current = false
     }
   }, [])
+  const releaseWake = useCallback(() => {
+    lockRef.current?.release(); lockRef.current = null; setAwake('off')
+  }, [])
+
+  useEffect(() => {
+    function onFullscreen() {
+      const full = fsEl() === rootRef.current
+      setIsFull(full)
+      if (full) acquireWake()        // desktop browsers allow this; Safari got it from the tap
+      else releaseWake()
+    }
+    // The browser drops the lock when the page is hidden — take it back
+    function onVisible() { if (document.visibilityState === 'visible' && fsEl()) acquireWake() }
+    document.addEventListener('fullscreenchange', onFullscreen)
+    document.addEventListener('webkitfullscreenchange', onFullscreen)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreen)
+      document.removeEventListener('webkitfullscreenchange', onFullscreen)
+      document.removeEventListener('visibilitychange', onVisible)
+      lockRef.current?.release()
+    }
+  }, [acquireWake, releaseWake])
 
   function fullscreen() {
     const el = rootRef.current
-    if (!document.fullscreenElement) el?.requestFullscreen?.()
-    else document.exitFullscreen?.()
+    if (!fsEl()) {
+      acquireWake()                  // inside the tap — what Safari needs
+      ;(el?.requestFullscreen ?? el?.webkitRequestFullscreen)?.call(el)
+    } else {
+      ;(document.exitFullscreen ?? document.webkitExitFullscreen)?.call(document)
+    }
   }
+
 
   const remaining = meetings.filter(m => meetingState(m, nowMin) !== 'past' && m.status !== 'cancelled').length
   const notConfigured = data && data.configured === false
@@ -502,10 +528,12 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
       )}
 
       <footer className="db-foot">
-        {isFull && (
-          <span className={`db-foot-awake${awake ? '' : ' is-off'}`}>
-            {awake ? '● Screen kept awake' : '○ This browser can’t keep the screen awake — check the computer’s sleep settings'}
-          </span>
+        {isFull && awake === 'on' && <span className="db-foot-awake">● Screen kept awake</span>}
+        {isFull && awake === 'denied' && (
+          <button className="db-foot-awake is-off db-wake-btn" onClick={acquireWake}>○ Tap here to keep the screen awake</button>
+        )}
+        {isFull && awake === 'unsupported' && (
+          <span className="db-foot-awake is-off">○ This browser can’t keep the screen awake (iPad needs iPadOS 16.4+) — set Auto-Lock to Never</span>
         )}
         {error
           ? <span className="db-foot-err">⚠ {error}</span>

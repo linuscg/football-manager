@@ -11759,3 +11759,4 @@ table.sa-table { display: table; width: 100%; }
 .db-tmrw-row.has-cat .db-tmrw-time, .db-tmrw-row.has-cat .db-tmrw-title { color: var(--db-cat); }
 .db-foot-awake { color: #34d39988; }
 .db-foot-awake.is-off { color: #fca5a5; }
+.db-wake-btn { background: none; border: 1px solid currentColor; border-radius: 999px; padding: .2em .8em; font: inherit; cursor: pointer; }
