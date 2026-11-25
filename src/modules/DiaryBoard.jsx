@@ -315,6 +315,41 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
   useAutoScroll(travelRef, [travel.length])
   useAutoScroll(notesRef, [notes.length, todayDay?.logistics?.length, hires.length])
 
+  // Keep the screen (and so the computer) awake while the board is full
+  // screen. Browsers drop a wake lock whenever the page is hidden, so it's
+  // re-requested when the page becomes visible again.
+  const [isFull, setIsFull] = useState(false)
+  const [awake, setAwake] = useState(false)
+  useEffect(() => {
+    let lock = null
+    let cancelled = false
+    async function acquire() {
+      if (!document.fullscreenElement || document.visibilityState !== 'visible' || lock) return
+      try {
+        lock = await navigator.wakeLock?.request('screen')
+        if (!lock) return
+        if (cancelled) { lock.release(); lock = null; return }
+        setAwake(true)
+        lock.addEventListener('release', () => { lock = null; setAwake(false) })
+      } catch (e) { console.warn('[train brain] wake lock', e) }
+    }
+    function onFullscreen() {
+      const full = document.fullscreenElement === rootRef.current
+      setIsFull(full)
+      if (full) acquire()
+      else if (lock) { lock.release(); lock = null }
+    }
+    function onVisible() { if (document.visibilityState === 'visible') acquire() }
+    document.addEventListener('fullscreenchange', onFullscreen)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      document.removeEventListener('fullscreenchange', onFullscreen)
+      document.removeEventListener('visibilitychange', onVisible)
+      lock?.release()
+    }
+  }, [])
+
   function fullscreen() {
     const el = rootRef.current
     if (!document.fullscreenElement) el?.requestFullscreen?.()
@@ -467,6 +502,11 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
       )}
 
       <footer className="db-foot">
+        {isFull && (
+          <span className={`db-foot-awake${awake ? '' : ' is-off'}`}>
+            {awake ? '● Screen kept awake' : '○ This browser can’t keep the screen awake — check the computer’s sleep settings'}
+          </span>
+        )}
         {error
           ? <span className="db-foot-err">⚠ {error}</span>
           : data?.errors?.length ? <span className="db-foot-err">⚠ {data.errors.join(' · ')}</span>

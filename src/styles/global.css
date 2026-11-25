@@ -11757,3 +11757,5 @@ table.sa-table { display: table; width: 100%; }
 .db-meet.is-unavail .db-meet-title, .db-note.is-unavail .db-note-title { color: var(--db-cat, #fca5a5); }
 .db-meet-pre { display: block; font-size: .5em; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--db-dim); }
 .db-tmrw-row.has-cat .db-tmrw-time, .db-tmrw-row.has-cat .db-tmrw-title { color: var(--db-cat); }
+.db-foot-awake { color: #34d39988; }
+.db-foot-awake.is-off { color: #fca5a5; }
