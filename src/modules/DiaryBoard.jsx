@@ -145,6 +145,7 @@ function Meetings({ meetings, nowMin }) {
         return (
           <div key={i} className={`db-meet db-meet--${st}${m.unavailable ? ' is-unavail' : ''}${m.category ? ' has-cat' : ''}`} style={catStyle(m.category)}>
             <div className="db-meet-time">
+              {m.timePrefix && <span className="db-meet-pre">{m.timePrefix}</span>}
               {m.start != null ? fmtHM(m.start) : (m.approx || 'TBC')}
               {m.end != null && <span className="db-meet-end">– {fmtHM(m.end)}</span>}
               {m.tbc && m.start != null && <span className="db-tag">TBC</span>}
@@ -448,7 +449,7 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
             <div className="db-tmrw">
               {tomorrow.meetings.length === 0 && tomorrow.notes.length === 0 && !startsHires.tomorrow.on.length && !startsHires.tomorrow.off.length && <div className="db-empty db-empty--sm">Nothing in the diary yet</div>}
               {tomorrow.meetings.slice(0, 6).map((m, i) => (
-                <div key={i} className="db-tmrw-row">
+                <div key={i} className={`db-tmrw-row${isPlainMeeting(m.category) ? '' : ' has-cat'}`} style={catStyle(m.category)}>
                   <span className="db-tmrw-time">{m.start != null ? fmtHM(m.start) : (m.approx || 'TBC')}</span>
                   <span className="db-tmrw-title">{m.title}</span>
                 </div>

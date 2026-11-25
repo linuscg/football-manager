@@ -98,17 +98,33 @@ export function parseColourKey(grid, colours) {
   return []
 }
 
-const rgb = h => [1, 3, 5].map(i => parseInt(String(h).slice(i, i + 2), 16))
-function nearestCategory(hex, key) {
+// Match by colour family (hue) first, brightness second — diary writers use
+// shades ("dark orange 2" for Unavailable) rather than the key's exact colour.
+// Greys / black / slate (low saturation) are matched on lightness instead.
+function hsl(hex) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(String(hex).slice(i, i + 2), 16) / 255)
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min
+  if (!d) return [0, 0, l]
+  const s = d / (1 - Math.abs(2 * l - 1))
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  h = (h * 60 + 360) % 360
+  return [h, s, l]
+}
+export function nearestCategory(hex, key) {
   if (!hex || !key?.length) return null
-  const [r, g, b] = rgb(hex)
-  let best = null, bestD = Infinity
+  const [h, s, l] = hsl(hex)
+  const grey = s < 0.22
+  let best = null, bestScore = Infinity
   for (const k of key) {
-    const [r2, g2, b2] = rgb(k.hex)
-    const d = Math.hypot(r - r2, g - g2, b - b2)
-    if (d < bestD) { bestD = d; best = k }
+    const [h2, s2, l2] = hsl(k.hex)
+    const kGrey = s2 < 0.22
+    let score
+    if (grey !== kGrey) score = Infinity
+    else if (grey) score = Math.abs(l - l2) * 100 + Math.abs(s - s2) * 60
+    else { const dh = Math.min(Math.abs(h - h2), 360 - Math.abs(h - h2)); score = dh + Math.abs(l - l2) * 30 + Math.abs(s - s2) * 20 }
+    if (score < bestScore) { bestScore = score; best = k }
   }
-  return bestD <= 60 ? best : null
+  return bestScore <= 45 ? best : null
 }
 
 // One diary entry (a blank-line-separated block of a cell)
@@ -118,6 +134,9 @@ function parseEntry(block, key, category = null) {
   let first = lines[0]
   let start = null, end = null, tbc = false, approx = null
 
+  const pre = first.match(/^(after|from|by|before|approx\.?|around|c\.)\s+(?=\d{1,2}[:.]\d{2})/i)
+  const timePrefix = pre ? pre[1].replace(/^./, ch => ch.toUpperCase()) : ''
+  if (pre) first = first.slice(pre[0].length)
   const tm = first.match(/^(\d{1,2}[:.]\d{2})\s*(?:(?:-|–|—|to)\s*(\d{1,2}[:.]\d{2}))?\s*(onwards)?\s*(?:UK\b)?\s*(TBC\b)?\s*(?:[-–—:|]\s*)?(.*)$/i)
   if (tm) {
     start = toMin(tm[1]); end = tm[2] ? toMin(tm[2]) : null
@@ -146,6 +165,7 @@ function parseEntry(block, key, category = null) {
   const text = lines.join(' ')
   const status = /\b(cancel+ed|postponed)\b/i.test(text) ? 'cancelled' : null
   return {
+    timePrefix,
     title: expandLeading(expandPeopleLine(first.replace(URL_RE, '').replace(/\s*[—–-]\s*$/, '').trim(), key), key),
     category,   // { label, hex } from the diary's colour key, or null
     unavailable: /unavailable/i.test(category?.label ?? '') || /\b(unavailable|wfh|not available)\b/i.test(first),
