@@ -1,5 +1,44 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { TRANSPORT_TYPES, useTransportStore } from '../store/useTransportStore'
+import { supabase } from '../lib/supabase'
+import { getCurrentProductionId, onProductionChange } from '../lib/productionContext'
+
+const UNASSIGNED = '__none__'
+
+// Producers/Executives → Directors → Production → rest alphabetical
+function deptPriority(dept) {
+  const d = (dept || '').toLowerCase().trim()
+  if (/^(producers?|executives?)$/.test(d)) return 0
+  if (/^directors?$/.test(d))               return 1
+  if (d === 'production')                   return 2
+  return 3
+}
+const byDept = (a, b) => deptPriority(a) - deptPriority(b) || a.localeCompare(b)
+
+// Department names used on the crew tracker, for the Department autofill.
+function useCrewDepartments() {
+  const [depts, setDepts] = useState([])
+  useEffect(() => {
+    let gen = 0
+    async function load() {
+      const my = ++gen
+      const pid = getCurrentProductionId()
+      if (!pid) { setDepts([]); return }
+      const found = new Set()
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase.from('resources').select('department')
+          .eq('production_id', pid).neq('department', '').range(from, from + 999)
+        if (error || !data) break
+        data.forEach(r => r.department?.trim() && found.add(r.department.trim()))
+        if (data.length < 1000) break
+      }
+      if (my === gen) setDepts([...found])
+    }
+    load()
+    return onProductionChange(load)
+  }, [])
+  return depts
+}
 
 const fmtCost = v => (v == null || v === '' ? '' : Number(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
 
@@ -34,6 +73,7 @@ function LogRow({ row, actions }) {
           {TRANSPORT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </td>
+      <td className="tr-td tr-td--dept"><Cell key={`dp${row.id}${row.department}`} value={row.department} listId="tr-departments" placeholder="Department" onCommit={v => actions.updateLogRow(row.id, 'department', v.trim())} /></td>
       <td className="tr-td"><Cell key={`d${row.id}${row.date}`} value={row.date} type="date" onCommit={u('date')} /></td>
       <td className="tr-td"><Cell key={`t${row.id}${row.time}`} value={row.time} placeholder="09:00" onCommit={u('time')} /></td>
       <td className="tr-td tr-td--wide"><Cell key={`de${row.id}${row.description}`} value={row.description} placeholder="Description" onCommit={u('description')} /></td>
@@ -69,10 +109,36 @@ export default function TransportLog() {
   const store = useTransportStore()
   const { log, drivers, locations, loading } = store
   const [filterType, setFilterType] = useState('')
+  const [filterDept, setFilterDept] = useState('')
+  const crewDepts = useCrewDepartments()
 
   const rows = useMemo(
-    () => (filterType ? log.filter(r => r.type === filterType) : log),
-    [log, filterType]
+    () => log.filter(r =>
+      (!filterType || r.type === filterType) &&
+      (!filterDept || (filterDept === UNASSIGNED ? !r.department.trim() : r.department.trim() === filterDept))),
+    [log, filterType, filterDept]
+  )
+
+  // Spend per department (trips with no department → Unassigned)
+  const deptTotals = useMemo(() => {
+    const m = new Map()
+    for (const r of log) {
+      const d = r.department.trim() || UNASSIGNED
+      const e = m.get(d) ?? { total: 0, trips: 0 }
+      e.trips += 1
+      const c = Number(r.cost)
+      if (Number.isFinite(c)) e.total += c
+      m.set(d, e)
+    }
+    const named = [...m.keys()].filter(k => k !== UNASSIGNED).sort(byDept)
+    const out = named.map(k => ({ key: k, label: k, ...m.get(k) }))
+    if (m.has(UNASSIGNED)) out.push({ key: UNASSIGNED, label: 'Unassigned', ...m.get(UNASSIGNED) })
+    return out
+  }, [log])
+
+  const deptSuggestions = useMemo(
+    () => [...new Set([...crewDepts, ...log.map(r => r.department.trim()).filter(Boolean)])].sort(byDept),
+    [crewDepts, log]
   )
 
   const totals = useMemo(() => {
@@ -105,11 +171,16 @@ export default function TransportLog() {
             <option value="">All types</option>
             {TRANSPORT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-          <button className="pm-btn pm-btn--primary" onClick={() => store.addLogRow()}>+ Add trip</button>
+          <select className="tr-filter" value={filterDept} onChange={e => setFilterDept(e.target.value)}>
+            <option value="">All departments</option>
+            {deptTotals.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+          </select>
+          <button className="pm-btn pm-btn--primary" onClick={() => store.addLogRow(filterDept && filterDept !== UNASSIGNED ? { department: filterDept } : {})}>+ Add trip</button>
         </div>
       </div>
 
       {/* Totals by type (these feed Cost Tracking) */}
+      <div className="tr-totals-head">By type</div>
       <div className="tr-totals">
         {TRANSPORT_TYPES.map(t => (
           <div key={t} className="tr-total-card">
@@ -119,6 +190,29 @@ export default function TransportLog() {
         ))}
       </div>
 
+      {/* Totals by department — click one to filter the log */}
+      {deptTotals.length > 0 && (
+        <>
+          <div className="tr-totals-head">By department</div>
+          <div className="tr-totals">
+            {deptTotals.map(d => (
+              <button
+                key={d.key}
+                type="button"
+                className={`tr-total-card tr-total-card--dept${filterDept === d.key ? ' is-active' : ''}${d.key === UNASSIGNED ? ' is-unassigned' : ''}`}
+                title={filterDept === d.key ? 'Show all departments' : `Show only ${d.label}`}
+                onClick={() => setFilterDept(f => (f === d.key ? '' : d.key))}
+              >
+                <div className="tr-total-label">{d.label}</div>
+                <div className="tr-total-value">£{fmtCost(d.total)}</div>
+                <div className="tr-total-sub">{d.trips} trip{d.trips === 1 ? '' : 's'}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <datalist id="tr-departments">{deptSuggestions.map(d => <option key={d} value={d} />)}</datalist>
       <datalist id="tr-locations">{locations.map(l => <option key={l.id} value={l.name} />)}</datalist>
       <datalist id="tr-drivers">{drivers.map(d => <option key={d.id} value={d.name} />)}</datalist>
       <datalist id="tr-suppliers">{supplierSuggestions.map(s => <option key={s} value={s} />)}</datalist>
@@ -129,6 +223,7 @@ export default function TransportLog() {
             <thead>
               <tr>
                 <th className="crew-db-th">Type</th>
+                <th className="crew-db-th">Department</th>
                 <th className="crew-db-th">Date</th>
                 <th className="crew-db-th">Time</th>
                 <th className="crew-db-th">Description</th>
@@ -145,7 +240,7 @@ export default function TransportLog() {
             <tbody>
               {rows.map(row => <LogRow key={row.id} row={row} actions={store} />)}
               {rows.length === 0 && (
-                <tr key="empty"><td className="crew-db-cell" colSpan={12} style={{ color: '#9ca3af' }}>
+                <tr key="empty"><td className="crew-db-cell" colSpan={13} style={{ color: '#9ca3af' }}>
                   No trips yet — add one, and From/To/Driver fields will start autofilling from the databases as they grow.
                 </td></tr>
               )}

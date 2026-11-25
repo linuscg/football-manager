@@ -11760,3 +11760,24 @@ table.sa-table { display: table; width: 100%; }
 .db-foot-awake { color: #34d39988; }
 .db-foot-awake.is-off { color: #fca5a5; }
 .db-wake-btn { background: none; border: 1px solid currentColor; border-radius: 999px; padding: .2em .8em; font: inherit; cursor: pointer; }
+
+/* Transport log: per-department totals */
+.tr-totals-head {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  margin: 0 0 6px;
+}
+.tr-total-card--dept {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: border-color .12s, box-shadow .12s;
+}
+.tr-total-card--dept:hover { border-color: #9ca3af; }
+.tr-total-card--dept.is-active { border-color: #111827; box-shadow: 0 0 0 1px #111827; }
+.tr-total-card--dept.is-unassigned .tr-total-label { color: #b45309; }
+.tr-td--dept { min-width: 130px; }
