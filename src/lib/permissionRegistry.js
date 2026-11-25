@@ -79,6 +79,13 @@ export const PERMISSION_TABS = [
       { id: 'dpr-wrap', label: 'Wrap Report' },
     ],
   },
+  {
+    id: 'diary',
+    label: 'Diary',
+    modules: [
+      { id: 'diary-board', label: 'Diary Board' },
+    ],
+  },
 ]
 
 // Modules gated by production role regardless of the checkbox permissions.

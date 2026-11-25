@@ -11620,3 +11620,112 @@ textarea.crewd-notes:focus { background: #fff; }
 .sa-standin-chip em { font-style: normal; color: #5eaaa0; }
 /* The SA tab's <table> shares .sa-table with the day card's flex list — keep it a real table */
 table.sa-table { display: table; width: 100%; }
+
+/* ── Diary board (TV / large monitor) ───────────────────────────────────── */
+.db-root {
+  --db-bg: #0b0f17; --db-panel: #121826; --db-line: #1f2937; --db-text: #e5e7eb;
+  --db-dim: #8b95a7; --db-accent: #f5b942; --db-now: #34d399; --db-next: #60a5fa;
+  position: relative; display: flex; flex-direction: column; gap: 1.2vh;
+  height: calc(100vh - 42px); padding: 2vh 2vw 1.4vh; box-sizing: border-box;
+  background: var(--db-bg); color: var(--db-text); overflow: hidden;
+  font-size: clamp(13px, 1.05vw, 26px);
+}
+.db-root:fullscreen { height: 100vh; }
+.db-head { display: grid; grid-template-columns: 1fr auto auto; align-items: end; gap: 2vw; position: relative; }
+.db-eyebrow { font-size: .8em; letter-spacing: .18em; text-transform: uppercase; color: var(--db-dim); }
+.db-week { display: flex; align-items: center; gap: .8em; margin-top: .5em; flex-wrap: wrap; }
+.db-week-chip { background: var(--db-accent); color: #111; font-weight: 800; letter-spacing: .06em; padding: .2em .7em; border-radius: .4em; font-size: 1.15em; }
+.db-week-note { color: var(--db-dim); font-size: 1em; }
+.db-clock { text-align: right; }
+.db-time { font-size: 4.4em; font-weight: 800; line-height: .95; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.db-secs { font-size: .35em; color: var(--db-dim); margin-left: .25em; vertical-align: top; }
+.db-date { font-size: 1.25em; color: var(--db-dim); margin-top: .2em; }
+.db-tools { display: flex; gap: .4em; align-self: start; opacity: .35; transition: opacity .2s; }
+.db-root:hover .db-tools { opacity: 1; }
+.db-tool { background: var(--db-panel); color: var(--db-text); border: 1px solid var(--db-line); border-radius: .5em; width: 2.2em; height: 2.2em; font-size: .9em; cursor: pointer; }
+.db-root:fullscreen .db-tools { display: none; }
+
+.db-grid {
+  flex: 1; min-height: 0; display: grid; gap: 1.2vw;
+  grid-template-columns: 1.25fr 1fr 0.9fr;
+  grid-template-rows: 1fr auto;
+  grid-template-areas: "meet travel notes" "meet travel tmrw";
+}
+.db-panel { background: var(--db-panel); border: 1px solid var(--db-line); border-radius: 1em; padding: 1.1em 1.2em; min-height: 0; display: flex; flex-direction: column; }
+.db-panel--meet { grid-area: meet; } .db-panel--travel { grid-area: travel; }
+.db-panel--notes { grid-area: notes; } .db-panel--tomorrow { grid-area: tmrw; }
+.db-panel-head { display: flex; justify-content: space-between; align-items: baseline; font-size: .85em; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--db-accent); margin-bottom: .8em; }
+.db-panel-count { color: var(--db-dim); font-weight: 600; letter-spacing: .06em; }
+.db-scroll, .db-meet-list { overflow: hidden; min-height: 0; flex: 1; position: relative; }
+.db-empty { color: var(--db-dim); font-size: 1.3em; padding: 1.5em 0; text-align: center; }
+.db-empty--sm { font-size: 1em; padding: .8em 0; text-align: left; }
+
+/* meetings */
+.db-meet { display: grid; grid-template-columns: 6.2em 1fr; gap: 1em; padding: .85em .8em; border-radius: .7em; border-left: .3em solid transparent; transition: opacity .6s, background .6s; }
+.db-meet + .db-meet { margin-top: .35em; }
+.db-meet-time { font-size: 1.45em; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.db-meet-end { display: block; font-size: .62em; font-weight: 600; color: var(--db-dim); margin-top: .15em; }
+.db-meet-title { font-size: 1.45em; font-weight: 700; line-height: 1.2; display: flex; flex-wrap: wrap; align-items: center; gap: .45em; }
+.db-meet-meta { margin-top: .35em; color: var(--db-dim); font-size: 1em; line-height: 1.35; }
+.db-meet-loc { color: #cbd5e1; }
+.db-meet-detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-meet--past { opacity: .32; padding-top: .45em; padding-bottom: .45em; }
+.db-meet--past .db-meet-time, .db-meet--past .db-meet-title { font-size: 1.1em; }
+.db-meet--now { background: rgba(52, 211, 153, .1); border-left-color: var(--db-now); }
+.db-meet--upcoming { background: rgba(255, 255, 255, .025); }
+.db-meet--tbc { background: rgba(255, 255, 255, .02); border-left-color: #4b5563; }
+.db-meet--tbc .db-meet-time { color: var(--db-dim); font-size: 1.1em; }
+.db-meet--cancelled { opacity: .35; } .db-meet--cancelled .db-meet-title { text-decoration: line-through; }
+.db-meet.is-unavail .db-meet-title { color: #fca5a5; }
+.db-pill { font-size: .55em; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: .25em .6em; border-radius: 999px; }
+.db-pill--now { background: var(--db-now); color: #052e1f; animation: db-pulse 2s ease-in-out infinite; }
+.db-pill--next { background: rgba(96, 165, 250, .18); color: var(--db-next); }
+.db-pill--off { background: #374151; color: #d1d5db; }
+.db-tag { font-size: .5em; margin-left: .4em; color: var(--db-accent); vertical-align: middle; }
+.db-progress { margin-top: .6em; height: .3em; background: rgba(255,255,255,.08); border-radius: 999px; overflow: hidden; }
+.db-progress span { display: block; height: 100%; background: var(--db-now); transition: width 1s; }
+@keyframes db-pulse { 50% { opacity: .55; } }
+
+/* travel */
+.db-person { padding: .8em .9em; border-radius: .7em; background: rgba(255,255,255,.03); border: 1px solid transparent; }
+.db-person + .db-person { margin-top: .6em; }
+.db-person.is-today { border-color: rgba(245, 185, 66, .45); background: rgba(245, 185, 66, .06); }
+.db-person-head { display: flex; align-items: baseline; gap: .6em; margin-bottom: .35em; flex-wrap: wrap; }
+.db-person-name { font-size: 1.3em; font-weight: 800; }
+.db-person-role { color: var(--db-dim); font-size: .9em; }
+.db-trv-ev { display: grid; grid-template-columns: 1.6em 6.6em 1fr; gap: .4em; align-items: baseline; padding: .25em 0; font-size: 1.05em; }
+.db-trv-ev.is-today .db-trv-when { color: var(--db-accent); font-weight: 800; }
+.db-trv-icon { text-align: center; }
+.db-trv-when { color: #cbd5e1; font-weight: 600; }
+.db-trv-what strong { font-weight: 700; margin-right: .4em; }
+.db-trv-num { color: var(--db-next); font-weight: 700; margin-right: .5em; }
+.db-trv-times, .db-trv-place { color: var(--db-dim); }
+
+/* notes + tomorrow */
+.db-note { padding: .6em .2em; border-bottom: 1px solid var(--db-line); }
+.db-note:last-child { border-bottom: none; }
+.db-note-title { font-size: 1.15em; font-weight: 600; line-height: 1.3; }
+.db-note-time { color: var(--db-accent); font-weight: 800; margin-right: .5em; font-variant-numeric: tabular-nums; }
+.db-note-detail { color: var(--db-dim); font-size: .92em; margin-top: .15em; }
+.db-note--logi .db-note-title::before { content: '📦 '; }
+.db-note.is-unavail .db-note-title { color: #fca5a5; }
+.db-tmrw-row { display: grid; grid-template-columns: 4em 1fr; gap: .6em; padding: .28em 0; font-size: 1.05em; }
+.db-tmrw-time { color: var(--db-dim); font-weight: 700; font-variant-numeric: tabular-nums; }
+.db-tmrw-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-tmrw-more { color: var(--db-dim); font-size: .9em; margin-top: .3em; }
+
+.db-foot { display: flex; justify-content: space-between; color: #4b5563; font-size: .8em; }
+.db-foot-err { color: #fca5a5; }
+.db-setup { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: .6em; }
+.db-setup-title { font-size: 2em; font-weight: 800; }
+.db-setup-sub { color: var(--db-dim); font-size: 1.2em; }
+.db-settings {
+  position: absolute; right: 0; top: 100%; z-index: 20; width: 460px; margin-top: 8px;
+  background: #fff; color: #111827; border-radius: 12px; padding: 16px; font-size: 13px;
+  box-shadow: 0 20px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 10px;
+}
+.db-settings-title { font-weight: 700; font-size: 14px; }
+.db-settings label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; color: #374151; }
+.db-settings input { border: 1px solid #d1d5db; border-radius: 6px; padding: 7px 9px; font: inherit; font-weight: 400; }
+.db-settings-note { color: #6b7280; font-size: 12px; line-height: 1.4; }
+.db-settings-foot { display: flex; justify-content: flex-end; gap: 8px; }

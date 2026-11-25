@@ -39,6 +39,7 @@ import SupportingArtists     from './modules/SupportingArtists'
 import CastCalendar          from './modules/CastCalendar'
 import DPR                   from './modules/DPR'
 import WrapReport            from './modules/WrapReport'
+import DiaryBoard            from './modules/DiaryBoard'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ const TOP_TABS = [
   { id: 'accomm',     label: 'Accommodation'    },
   { id: 'transport',  label: 'Transport'        },
   { id: 'dpr',        label: 'DPR'              },
+  { id: 'diary',      label: 'Diary'            },
 ]
 
 // ─── Project Setup nav ────────────────────────────────────────────────────────
@@ -165,6 +167,12 @@ const TRANSPORT_MODULE_SUB = {
 const DPR_NAV = [
   { id: 'dpr-main', num: '01', label: 'DPR'         },
   { id: 'dpr-wrap', num: '02', label: 'Wrap Report' },
+]
+
+// ─── Diary nav (single full-screen board) ─────────────────────────────────────
+
+const DIARY_NAV = [
+  { id: 'diary-board', num: '01', label: 'Diary Board' },
 ]
 
 const DPR_MODULE_SUB = {
@@ -440,6 +448,7 @@ function AppShell({ session, signOut }) {
   const allowedAccommNav = ACCOMM_NAV.filter(n => !deniedModules.has(n.id))
   const allowedDprNav    = DPR_NAV.filter(n => !deniedModules.has(n.id))
   const allowedTransportNav = TRANSPORT_NAV.filter(n => !deniedModules.has(n.id))
+  const allowedDiaryNav  = DIARY_NAV.filter(n => !deniedModules.has(n.id))
 
   // Never-stuck guarantee: if everything is denied, the Account page stays reachable.
   const effTopTabs  = allowedTopTabs.length > 0
@@ -457,6 +466,7 @@ function AppShell({ session, signOut }) {
     accomm:       allowedAccommNav,
     transport:    allowedTransportNav,
     dpr:          allowedDprNav,
+    diary:        allowedDiaryNav,
   }
   const moduleStateByTab = {
     setup:        setupModule,
@@ -466,6 +476,7 @@ function AppShell({ session, signOut }) {
     accomm:       accommModule,
     transport:    transportModule,
     dpr:          dprModule,
+    diary:        'diary-board',
   }
 
   // Effective tab/module used for rendering — never points at a denied target,
@@ -622,8 +633,17 @@ function AppShell({ session, signOut }) {
         </div>
       </nav>
 
+      {/* ── Diary board: full-width TV view, no sidebar ─────────────────────── */}
+      {effTopTab === 'diary' && effModule === 'diary-board' && (
+        <DiaryBoard
+          production={store.production}
+          onUpdateProduction={updateProduction}
+          canEdit={isAppOwner || ['owner', 'admin'].includes(memberRole)}
+        />
+      )}
+
       {/* ── Shell (sidebar + main) ───────────────────────────────────────────── */}
-      <div className="pm-shell">
+      <div className="pm-shell" style={effTopTab === 'diary' ? { display: 'none' } : undefined}>
 
         {/* ── Sidebar ───────────────────────────────────────────────────────── */}
         <aside className="pm-sidebar">
