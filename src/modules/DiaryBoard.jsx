@@ -308,7 +308,7 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
     <div className="db-root" ref={rootRef}>
       <header className="db-head">
         <div className="db-head-l">
-          <div className="db-eyebrow">{production.name || 'Production'} · Production Diary</div>
+          <div className="db-eyebrow">{production.name || 'Production'} · Train Brain</div>
           <div className="db-week">
             {todayDay?.weekLabel && <span className="db-week-chip">{todayDay.weekLabel}</span>}
             {todayDay?.weekNote && <span className="db-week-note">{todayDay.weekNote}</span>}
