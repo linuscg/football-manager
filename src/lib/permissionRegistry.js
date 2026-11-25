@@ -81,9 +81,9 @@ export const PERMISSION_TABS = [
   },
   {
     id: 'diary',
-    label: 'Diary',
+    label: 'Train Brain',
     modules: [
-      { id: 'diary-board', label: 'Diary Board' },
+      { id: 'diary-board', label: 'Train Brain board' },
     ],
   },
 ]

@@ -51,7 +51,7 @@ const TOP_TABS = [
   { id: 'accomm',     label: 'Accommodation'    },
   { id: 'transport',  label: 'Transport'        },
   { id: 'dpr',        label: 'DPR'              },
-  { id: 'diary',      label: 'Diary'            },
+  { id: 'diary',      label: 'Train Brain'      },
 ]
 
 // ─── Project Setup nav ────────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ const DPR_NAV = [
 // ─── Diary nav (single full-screen board) ─────────────────────────────────────
 
 const DIARY_NAV = [
-  { id: 'diary-board', num: '01', label: 'Diary Board' },
+  { id: 'diary-board', num: '01', label: 'Train Brain' },
 ]
 
 const DPR_MODULE_SUB = {
