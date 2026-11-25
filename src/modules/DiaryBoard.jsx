@@ -194,9 +194,24 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
   const today = isoOf(now)
   const nowMin = now.getHours() * 60 + now.getMinutes()
 
+  // Crew starts + additional equipment on/off-hires (from the app, not the sheets)
+  const [hires, setHires] = useState([])
+  const loadHires = useCallback(async () => {
+    const productionId = getCurrentProductionId()
+    if (!productionId) return
+    const t = isoOf(new Date()), t1 = addDaysIso(t, 1)
+    const { data: rows, error: err } = await supabase.from('resources')
+      .select('id, type, name, role, department, category, vendor, hire_start_date, hire_end_date, equip_class, crew_class')
+      .eq('production_id', productionId)
+      .or(`hire_start_date.in.(${t},${t1}),hire_end_date.in.(${t},${t1})`)
+    if (err) { console.error('[diary] hires', err); return }
+    setHires(rows ?? [])
+  }, [])
+
   const load = useCallback(async () => {
     const productionId = getCurrentProductionId()
     if (!productionId) return
+    loadHires()
     try {
       const { data: res, error: err } = await supabase.functions.invoke('diary-board', { body: { productionId } })
       if (err || res?.error) {
@@ -210,7 +225,7 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [loadHires])
 
   useEffect(() => {
     load()
@@ -225,6 +240,24 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
   const tomorrowIso = addDaysIso(today, 1)
   const tomorrow = useMemo(() => splitDay(days[tomorrowIso]), [days, tomorrowIso])
   const travel = useMemo(() => buildTravel(data?.travel ?? [], data?.accom ?? [], today, TRAVEL_DAYS), [data, today])
+
+  // Crew starting + additional equipment going on / off hire, today & tomorrow
+  const startsHires = useMemo(() => {
+    const out = { today: { starts: [], on: [], off: [] }, tomorrow: { starts: [], on: [], off: [] } }
+    for (const r of hires) {
+      for (const [when, iso] of [['today', today], ['tomorrow', tomorrowIso]]) {
+        if (r.type === 'crew' && r.hire_start_date === iso) out[when].starts.push(r)
+        if (r.type === 'equipment' && r.equip_class === 'additional') {
+          if (r.hire_start_date === iso) out[when].on.push(r)
+          if (r.hire_end_date === iso) out[when].off.push(r)
+        }
+      }
+    }
+    for (const g of Object.values(out)) for (const l of Object.values(g)) l.sort((a, b) => String(a.department || a.category).localeCompare(String(b.department || b.category)) || a.name.localeCompare(b.name))
+    return out
+  }, [hires, today, tomorrowIso])
+  const hiresRef = useRef(null)
+  useAutoScroll(hiresRef, [hires.length])
 
   useAutoScroll(travelRef, [travel.length])
   useAutoScroll(notesRef, [notes.length, todayDay?.logistics?.length])
@@ -319,6 +352,45 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
                   {n.details.slice(0, 2).map((d, j) => <div key={j} className="db-note-detail">{d}</div>)}
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section className="db-panel db-panel--hires">
+            <div className="db-panel-head"><span>Starts &amp; hires</span></div>
+            <div className="db-scroll" ref={hiresRef}>
+              {['today', 'tomorrow'].map(when => {
+                const g = startsHires[when]
+                const empty = !g.starts.length && !g.on.length && !g.off.length
+                if (when === 'tomorrow' && empty) return null
+                return (
+                  <div key={when} className={`db-hires-day${when === 'tomorrow' ? ' is-tmrw' : ''}`}>
+                    {when === 'tomorrow' && <div className="db-hires-when">Tomorrow</div>}
+                    {when === 'today' && empty && <div className="db-empty db-empty--sm">No crew starts or equipment hires today</div>}
+                    {g.starts.length > 0 && (
+                      <div className="db-hires-group">
+                        <div className="db-hires-label">👋 Crew starting</div>
+                        {g.starts.map(r => (
+                          <div key={r.id} className="db-hires-row">
+                            <strong>{r.name}</strong>
+                            <span>{[r.role, r.department].filter(Boolean).join(' · ')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {[['on', '⬆ On hire'], ['off', '⬇ Off hire']].map(([k, label]) => g[k].length > 0 && (
+                      <div key={k} className={`db-hires-group db-hires-group--${k}`}>
+                        <div className="db-hires-label">{label}</div>
+                        {g[k].map(r => (
+                          <div key={r.id} className="db-hires-row">
+                            <strong>{r.name}</strong>
+                            <span>{[r.category, r.vendor].filter(Boolean).join(' · ')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
             </div>
           </section>
 

@@ -11648,8 +11648,8 @@ table.sa-table { display: table; width: 100%; }
 .db-grid {
   flex: 1; min-height: 0; display: grid; gap: 1.2vw;
   grid-template-columns: 1.25fr 1fr 0.9fr;
-  grid-template-rows: 1fr auto;
-  grid-template-areas: "meet travel notes" "meet travel tmrw";
+  grid-template-rows: 1fr 1fr auto;
+  grid-template-areas: "meet travel notes" "meet travel hires" "meet travel tmrw";
 }
 .db-panel { background: var(--db-panel); border: 1px solid var(--db-line); border-radius: 1em; padding: 1.1em 1.2em; min-height: 0; display: flex; flex-direction: column; }
 .db-panel--meet { grid-area: meet; } .db-panel--travel { grid-area: travel; }
@@ -11729,3 +11729,14 @@ table.sa-table { display: table; width: 100%; }
 .db-settings input { border: 1px solid #d1d5db; border-radius: 6px; padding: 7px 9px; font: inherit; font-weight: 400; }
 .db-settings-note { color: #6b7280; font-size: 12px; line-height: 1.4; }
 .db-settings-foot { display: flex; justify-content: flex-end; gap: 8px; }
+
+.db-panel--hires { grid-area: hires; }
+.db-hires-day.is-tmrw { opacity: .55; margin-top: .8em; padding-top: .6em; border-top: 1px solid var(--db-line); }
+.db-hires-when { font-size: .8em; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--db-dim); margin-bottom: .3em; }
+.db-hires-group + .db-hires-group { margin-top: .6em; }
+.db-hires-label { font-size: .85em; font-weight: 700; color: var(--db-dim); margin-bottom: .2em; }
+.db-hires-group--on .db-hires-label { color: var(--db-now); }
+.db-hires-group--off .db-hires-label { color: #fca5a5; }
+.db-hires-row { display: flex; flex-direction: column; padding: .2em 0; line-height: 1.25; }
+.db-hires-row strong { font-size: 1.1em; font-weight: 700; }
+.db-hires-row span { color: var(--db-dim); font-size: .9em; }
