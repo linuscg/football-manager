@@ -11781,3 +11781,60 @@ table.sa-table { display: table; width: 100%; }
 .tr-total-card--dept.is-active { border-color: #111827; box-shadow: 0 0 0 1px #111827; }
 .tr-total-card--dept.is-unassigned .tr-total-label { color: #b45309; }
 .tr-td--dept { min-width: 130px; }
+
+/* ── OAuth consent (Claude / ChatGPT connector) ─────────────────────────── */
+.oauth-card { max-width: 460px; }
+.oauth-logos { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 18px; }
+.oauth-logo { width: 48px; height: 48px; border-radius: 12px; object-fit: contain; background: #f3f4f6; }
+.oauth-logo--blank { display: flex; align-items: center; justify-content: center; font-weight: 700; color: #6b7280; font-size: 15px; }
+.oauth-link { color: #9ca3af; font-size: 20px; }
+.oauth-list { margin: 14px 0 20px; padding-left: 18px; font-size: 13.5px; line-height: 1.55; color: #374151; }
+.oauth-list li { margin-bottom: 6px; }
+.oauth-actions { display: flex; flex-direction: column; gap: 8px; }
+.oauth-deny {
+  background: none; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;
+  font-family: inherit; font-size: 14px; color: #374151; cursor: pointer;
+}
+.oauth-deny:hover:not(:disabled) { background: #f9fafb; }
+.oauth-switch {
+  display: block; margin: 14px auto 0; background: none; border: none; font-family: inherit;
+  font-size: 12.5px; color: #6b7280; cursor: pointer; text-decoration: underline; text-align: center;
+}
+
+/* ── Account → AI assistants ────────────────────────────────────────────── */
+.ai-url-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.ai-url { flex: 1; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.ai-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 18px; }
+.ai-steps-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+.ai-steps ol { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; color: #374151; }
+.ai-grants { display: flex; flex-direction: column; gap: 8px; }
+.ai-grant { display: flex; align-items: center; gap: 12px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; background: #fff; }
+.ai-grant-logo { width: 32px; height: 32px; border-radius: 8px; object-fit: contain; background: #f3f4f6; }
+.ai-grant-logo--blank { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #6b7280; }
+.ai-grant-main { flex: 1; min-width: 0; }
+.ai-grant-name { font-weight: 600; font-size: 14px; }
+
+/* ── Admin → Activity Log ───────────────────────────────────────────────── */
+.al-list { max-width: 980px; }
+.al-day { margin-bottom: 18px; }
+.al-day-head {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: #6b7280; padding: 6px 0; border-bottom: 1px solid #e5e7eb; margin-bottom: 4px;
+}
+.al-row { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 7px 0 7px 10px; border-bottom: 1px solid #f3f4f6; border-left: 3px solid transparent; font-size: 13.5px; }
+.al-row--insert { border-left-color: #10b981; }
+.al-row--update { border-left-color: #6366f1; }
+.al-row--delete { border-left-color: #ef4444; }
+.al-time { color: #6b7280; font-size: 12px; padding-top: 1px; white-space: nowrap; }
+.al-main { min-width: 0; }
+.al-line { line-height: 1.5; }
+.al-who { font-weight: 600; }
+.al-dim { color: #9ca3af; }
+.al-badge { display: inline-block; margin-left: 8px; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; vertical-align: 1px; }
+.al-badge--ai { background: #ede9fe; color: #6d28d9; }
+.al-badge--sys { background: #f3f4f6; color: #4b5563; }
+.al-more { margin-left: 8px; background: none; border: none; padding: 0; font-family: inherit; font-size: 12px; color: #6366f1; cursor: pointer; }
+.al-details { margin-top: 4px; font-size: 12.5px; color: #4b5563; font-family: ui-monospace, Menlo, monospace; background: #f9fafb; border-radius: 6px; padding: 6px 10px; overflow-wrap: anywhere; }
+.al-sub { padding: 1px 0; }
+.al-empty { color: #9ca3af; padding: 20px 0; font-size: 14px; }
+.al-load-more { margin-top: 12px; }

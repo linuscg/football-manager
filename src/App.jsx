@@ -40,6 +40,8 @@ import CastCalendar          from './modules/CastCalendar'
 import DPR                   from './modules/DPR'
 import WrapReport            from './modules/WrapReport'
 import DiaryBoard            from './modules/DiaryBoard'
+import OAuthConsent          from './modules/OAuthConsent'
+import ActivityLog           from './modules/ActivityLog'
 
 // ─── Top-level tab definitions ────────────────────────────────────────────────
 
@@ -65,6 +67,7 @@ const SETUP_NAV = [
   { id: 'setup-requests', num: '06', label: 'Invite Requests' },
   { id: 'setup-owner',    num: '07', label: 'Owner Admin'     },
   { id: 'setup-features', num: '08', label: 'Feature Toggles' },
+  { id: 'setup-activity', num: '09', label: 'Activity Log'    },
 ]
 
 const SETUP_MODULE_SUB = {
@@ -76,6 +79,7 @@ const SETUP_MODULE_SUB = {
   'setup-requests': 'Invite requests',
   'setup-owner':    'All users & projects',
   'setup-features': 'Owner feature switches',
+  'setup-activity': 'Who changed what',
 }
 
 // ─── Football Manager nav ─────────────────────────────────────────────────────
@@ -302,6 +306,20 @@ export default function App() {
     return <SetNewPassword />
   }
 
+  // Claude / ChatGPT connector sign-in (Supabase OAuth server → /oauth/consent).
+  // Signed-out users log in here first; the URL (authorization_id) is kept.
+  if (window.location.pathname.startsWith('/oauth/consent')) {
+    if (session) return <OAuthConsent session={session} signOut={signOut} />
+    return (
+      <Login
+        onSignIn={signIn}
+        loading={authLoading}
+        error={authError}
+        onBack={() => window.location.assign('/')}
+      />
+    )
+  }
+
   // If there's a valid invite token and the user is authenticated (via magic link), show accept flow
   if ((inviteToken || pendingInviteToken) && session) {
     return <AcceptInvite token={inviteToken ?? pendingInviteToken} session={session} />
@@ -422,6 +440,7 @@ function AppShell({ session, signOut }) {
   const visibleSetupNav = SETUP_NAV.filter(n => {
     if (n.id === 'setup-owner')    return profile?.is_owner === true
     if (n.id === 'setup-features') return profile?.is_owner === true
+    if (n.id === 'setup-activity') return profile?.is_owner === true || roleAllowsModule(memberRole, n.id)
     return roleAllowsModule(memberRole, n.id)
   })
 
@@ -825,6 +844,9 @@ function AppShell({ session, signOut }) {
             )}
             {effTopTab === 'setup' && effModule === 'setup-features' && (
               <FeatureToggles />
+            )}
+            {effTopTab === 'setup' && effModule === 'setup-activity' && (
+              <ActivityLog production={store.production} />
             )}
             {effTopTab === 'setup' && effModule === 'setup-requests' && (
               <InviteRequestsPage

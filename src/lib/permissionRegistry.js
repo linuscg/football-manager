@@ -17,6 +17,7 @@ export const PERMISSION_TABS = [
       { id: 'setup-settings', label: 'Settings'        },
       { id: 'setup-admin',    label: 'User Management' },
       { id: 'setup-requests', label: 'Invite Requests' },
+      { id: 'setup-activity', label: 'Activity Log'    },
     ],
   },
   {
@@ -93,6 +94,7 @@ export const PERMISSION_TABS = [
 export const ROLE_GATED_MODULES = {
   'setup-admin':    { roles: ['owner', 'admin'], label: 'Admins only' },
   'setup-requests': { roles: ['owner'],          label: 'Owner only'  },
+  'setup-activity': { roles: ['owner', 'admin'], label: 'Admins only' },
 }
 
 // Whether a member's role grants access to a module at all (before denials).
