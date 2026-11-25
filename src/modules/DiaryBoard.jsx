@@ -58,6 +58,39 @@ function Clock() {
   )
 }
 
+// One-line text that, if it doesn't fit, scrolls sideways in a slow loop
+// (long attendee lists stay readable on a TV without growing the card).
+function Ticker({ text }) {
+  const boxRef = useRef(null)
+  const innerRef = useRef(null)
+  const [scroll, setScroll] = useState(0)   // px width of one copy when overflowing
+  useEffect(() => {
+    const measure = () => {
+      const box = boxRef.current, inner = innerRef.current
+      if (!box || !inner) return
+      const w = inner.firstChild?.offsetWidth ?? 0
+      setScroll(w > box.clientWidth + 2 ? w : 0)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (boxRef.current) ro.observe(boxRef.current)
+    return () => ro.disconnect()
+  }, [text])
+  const gap = 48
+  return (
+    <div className={`db-meet-detail db-ticker${scroll ? ' is-moving' : ''}`} ref={boxRef}>
+      <div
+        className="db-ticker-inner"
+        ref={innerRef}
+        style={scroll ? { '--db-tick-dist': `-${scroll + gap}px`, animationDuration: `${Math.max(8, (scroll + gap) / 40)}s` } : undefined}
+      >
+        <span>{text}</span>
+        {scroll > 0 && <span style={{ paddingLeft: gap }} aria-hidden>{text}</span>}
+      </div>
+    </div>
+  )
+}
+
 // ── Meetings timeline ────────────────────────────────────────────────────────
 function meetingState(m, nowMin) {
   if (m.status === 'cancelled') return 'cancelled'
@@ -110,7 +143,7 @@ function Meetings({ meetings, nowMin }) {
               {st !== 'past' && (m.location || m.details.length > 0) && (
                 <div className="db-meet-meta">
                   {m.location && <div className="db-meet-loc">📍 {m.location}</div>}
-                  {m.details.slice(0, 2).map((d, j) => <div key={j} className="db-meet-detail">{d}</div>)}
+                  {m.details.slice(0, 2).map((d, j) => <Ticker key={j} text={d} />)}
                 </div>
               )}
               {st === 'now' && <div className="db-progress"><span style={{ width: `${pct}%` }} /></div>}
