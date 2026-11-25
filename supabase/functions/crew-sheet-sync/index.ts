@@ -149,6 +149,56 @@ const SHEET_MATCHERS: Array<[string, (h: string) => boolean]> = [
   ['rtwCheck',        h => h === 'rtw check' || h === 'rtw'],
 ]
 
+// ─── Day columns (M T W Th F Sa Su …) → ISO dates ───────────────────────────
+// The tracker has one column per day after End Date: weekday letters on the
+// header row, day-of-month numbers on a row near it, month names above. An "X"
+// (any non-empty, non-"n/a" mark) in a person's row = booked that day.
+const WEEKDAY_LABELS: Record<string, number> = { m: 1, mon: 1, t: 2, tu: 2, tue: 2, w: 3, wed: 3, th: 4, thu: 4, f: 5, fri: 5, sa: 6, sat: 6, su: 0, sun: 0 }
+const MONTH_NAMES = ['january','february','march','april','may','june','july','august','september','october','november','december']
+
+// deno-lint-ignore no-explicit-any
+function dayColumnDates(values: any[][], headerRow: number): Map<number, string> {
+  const out = new Map<number, string>()
+  const head = values[headerRow] ?? []
+  const wkCols: number[] = []
+  head.forEach((v, c) => { if (String(v ?? '').trim().toLowerCase() in WEEKDAY_LABELS) wkCols.push(c) })
+  if (wkCols.length < 7) return out
+  // Row holding day-of-month numbers for those columns
+  let numRow = -1
+  for (let r = 0; r <= Math.min(values.length - 1, headerRow + 3); r++) {
+    if (r === headerRow) continue
+    const ok = wkCols.filter(c => { const n = Number(values[r]?.[c]); return Number.isInteger(n) && n >= 1 && n <= 31 }).length
+    if (ok >= wkCols.length * 0.7) { numRow = r; break }
+  }
+  if (numRow < 0) return out
+  const monthAt = (c: number) => {
+    for (let r = 0; r < headerRow; r++) {
+      const i = MONTH_NAMES.indexOf(String(values[r]?.[c] ?? '').trim().toLowerCase())
+      if (i >= 0) return i
+    }
+    return -1
+  }
+  // Year: the one (around now) where the first column's date falls on its weekday letter
+  const first = wkCols[0]
+  let month = monthAt(first)
+  if (month < 0) return out
+  const firstDay = Number(values[numRow][first])
+  const wantDow = WEEKDAY_LABELS[String(head[first]).trim().toLowerCase()]
+  const nowY = new Date().getUTCFullYear()
+  let year = [nowY, nowY - 1, nowY + 1].find(y => new Date(Date.UTC(y, month, firstDay)).getUTCDay() === wantDow) ?? nowY
+  let prevDay = 0
+  for (const c of wkCols) {
+    const day = Number(values[numRow]?.[c])
+    if (!Number.isInteger(day) || day < 1 || day > 31) continue
+    const m = monthAt(c)
+    if (m >= 0 && m !== month) { if (m < month) year++; month = m }
+    else if (day < prevDay) { month++; if (month > 11) { month = 0; year++ } }
+    prevDay = day
+    out.set(c, `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
+  }
+  return out
+}
+
 // deno-lint-ignore no-explicit-any
 function parsePeople(values: any[][], formulas: any[][]): any[] {
   const cell = (r: number, c: number): Cell => {
@@ -176,6 +226,8 @@ function parsePeople(values: any[][], formulas: any[][]): any[] {
   if (headerRow < 0) return []
 
   const at = (r: number, k: string): Cell => (col[k] === undefined ? undefined : cell(r, col[k]))
+  const dayCols = dayColumnDates(values, headerRow)
+  const dayDates = [...dayCols.values()].sort()
   const people = []
   let department = ''
   for (let r = headerRow + 1; r <= lastRow; r++) {
@@ -198,6 +250,8 @@ function parsePeople(values: any[][], formulas: any[][]): any[] {
       dealMemoSent: sv(at(r, 'dealMemoSent')), dealMemoExecuted: sv(at(r, 'dealMemoExecuted')),
       payrollForwarded: sv(at(r, 'payrollForwarded')), teamEngine: sv(at(r, 'teamEngine')),
       shootCrew: sv(at(r, 'shootCrew')), rtwCheck: sv(at(r, 'rtwCheck')),
+      bookedDates: [...dayCols].filter(([c]) => { const v = sv(cell(r, c)); return v && !/^n\/?a$/i.test(v) }).map(([, d]) => d),
+      dayWindow: dayDates.length ? [dayDates[0], dayDates[dayDates.length - 1]] : null,
     })
   }
   return people
@@ -252,7 +306,7 @@ serve(async (req) => {
         if (!sheetId) continue
         const { data: allCrew, error: resErr } = await adminC
           .from('resources')
-          .select('id, name, sheet_synced, role, department, contact_email, contact_phone, agent, tax_status, hire_start_date, hire_end_date, deal_memo_emailed, deal_memo_drafted, deal_memo_sent, deal_memo_executed, payroll_forwarded, team_engine, shoot_crew, rtw_check, resource_rates(cost_amount, cost_type, sixth_day_rate, seventh_day_rate, ot_rate, box_pw, car_allowance)')
+          .select('id, name, sheet_synced, sheet_pending, crew_class, role, department, contact_email, contact_phone, agent, tax_status, hire_start_date, hire_end_date, deal_memo_emailed, deal_memo_drafted, deal_memo_sent, deal_memo_executed, payroll_forwarded, team_engine, shoot_crew, rtw_check, resource_rates(cost_amount, cost_type, sixth_day_rate, seventh_day_rate, ot_rate, box_pw, car_allowance)')
           .eq('production_id', prod.id).eq('type', 'crew')
         if (resErr) { report.push({ production: prod.id, error: resErr.message }); continue }
         const synced = (allCrew ?? []).filter(r => r.sheet_synced)
@@ -356,7 +410,77 @@ serve(async (req) => {
           added++
         }
 
-        report.push({ production: prod.id, syncedRows: synced.length, updated, added })
+        // ── Booked days: sheet "X" marks → Confirmed bookings (additional crew
+        // that come from the sheet — synced or pending). Fulltime crew fill
+        // their days from hire dates, so they're left alone. Within the
+        // sheet's date window, days the sync itself added are removed when their
+        // X goes; anything painted in the app is never removed.
+        let bookingsAdded = 0, bookingsRemoved = 0
+        try {
+          const { data: crewNow } = await adminC.from('resources')
+            .select('id, name, crew_class, sheet_synced, sheet_pending')
+            .eq('production_id', prod.id).eq('type', 'crew')
+          const eligible = new Map<string, string>()   // normName → resource id
+          const nameCount = new Map<string, number>()
+          for (const r of crewNow ?? []) nameCount.set(norm(r.name), (nameCount.get(norm(r.name)) ?? 0) + 1)
+          for (const r of crewNow ?? []) {
+            if ((r.crew_class ?? 'additional') !== 'additional') continue
+            if (!r.sheet_synced && !r.sheet_pending) continue
+            if (nameCount.get(norm(r.name)) !== 1) continue
+            eligible.set(norm(r.name), r.id)
+          }
+          const targets = [...byName].filter(([k, p]) => eligible.has(k) && p.dayWindow)
+          if (targets.length) {
+            const ids = targets.map(([k]) => eligible.get(k)!)
+            const [from, to] = targets[0][1].dayWindow
+            // deno-lint-ignore no-explicit-any
+            const existing: any[] = []
+            for (let i = 0; i < ids.length; i += 100) {
+              const { data: ex, error: exErr } = await adminC.from('resource_bookings')
+                .select('id, resource_id, booking_date, status, day_id, source')
+                .in('resource_id', ids.slice(i, i + 100)).gte('booking_date', from).lte('booking_date', to)
+              if (exErr) throw exErr
+              existing.push(...(ex ?? []))
+            }
+            const inserts: Record<string, unknown>[] = []
+            const toBooked: string[] = []
+            const deletes: string[] = []
+            for (const [k, p] of targets) {
+              const rid = eligible.get(k)!
+              const want = new Set<string>(p.bookedDates)
+              const mine = existing.filter(b => b.resource_id === rid)
+              const byDate = new Map<string, typeof mine>()
+              for (const b of mine) { const l = byDate.get(b.booking_date) ?? []; l.push(b); byDate.set(b.booking_date, l) }
+              for (const d of want) {
+                const have = byDate.get(d) ?? []
+                if (!have.length) inserts.push({ id: crypto.randomUUID(), resource_id: rid, booking_date: d, day_id: null, status: 'booked', source: 'sheet' })
+                else if (!have.some(b => b.status === 'booked') && have[0].day_id == null && have[0].status !== 'unavailable') toBooked.push(have[0].id)
+              }
+              for (const b of mine) {
+                // Only days this sync created — never days painted in the app
+                if (b.source === 'sheet' && b.day_id == null && !want.has(b.booking_date)) deletes.push(b.id)
+              }
+            }
+            for (let i = 0; i < inserts.length; i += 500) {
+              const { error } = await adminC.from('resource_bookings').insert(inserts.slice(i, i + 500))
+              if (error) throw error
+            }
+            for (let i = 0; i < toBooked.length; i += 200) {
+              const { error } = await adminC.from('resource_bookings').update({ status: 'booked' }).in('id', toBooked.slice(i, i + 200))
+              if (error) throw error
+            }
+            for (let i = 0; i < deletes.length; i += 200) {
+              const { error } = await adminC.from('resource_bookings').delete().in('id', deletes.slice(i, i + 200))
+              if (error) throw error
+            }
+            bookingsAdded = inserts.length + toBooked.length
+            bookingsRemoved = deletes.length
+          }
+        } catch (err) {
+          report.push({ production: prod.id, bookings: 'failed', error: String((err as Error)?.message ?? err) })
+        }
+
+        report.push({ production: prod.id, syncedRows: synced.length, updated, added, bookingsAdded, bookingsRemoved })
       }
       return json({ ok: true, report })
     }
