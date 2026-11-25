@@ -11740,3 +11740,5 @@ table.sa-table { display: table; width: 100%; }
 .db-hires-row { display: flex; flex-direction: column; padding: .2em 0; line-height: 1.25; }
 .db-hires-row strong { font-size: 1.1em; font-weight: 700; }
 .db-hires-row span { color: var(--db-dim); font-size: .9em; }
+.db-note.db-hires-group--on, .db-note.db-hires-group--off { padding: .6em .2em; }
+.db-panel--hires .db-hires-row + .db-hires-row { margin-top: .25em; }

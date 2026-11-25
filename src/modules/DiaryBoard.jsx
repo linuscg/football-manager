@@ -260,7 +260,7 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
   useAutoScroll(hiresRef, [hires.length])
 
   useAutoScroll(travelRef, [travel.length])
-  useAutoScroll(notesRef, [notes.length, todayDay?.logistics?.length])
+  useAutoScroll(notesRef, [notes.length, todayDay?.logistics?.length, hires.length])
 
   function fullscreen() {
     const el = rootRef.current
@@ -336,7 +336,18 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
           <section className="db-panel db-panel--notes">
             <div className="db-panel-head"><span>Also today</span></div>
             <div className="db-scroll" ref={notesRef}>
-              {notes.length === 0 && !(todayDay?.logistics?.length) && <div className="db-empty db-empty--sm">Nothing else noted</div>}
+              {notes.length === 0 && !(todayDay?.logistics?.length) && !startsHires.today.on.length && !startsHires.today.off.length && <div className="db-empty db-empty--sm">Nothing else noted</div>}
+              {[['on', '⬆ Equipment on hire'], ['off', '⬇ Equipment off hire']].map(([k, label]) => startsHires.today[k].length > 0 && (
+                <div key={k} className={`db-note db-hires-group--${k}`}>
+                  <div className="db-hires-label">{label}</div>
+                  {startsHires.today[k].map(r => (
+                    <div key={r.id} className="db-hires-row">
+                      <strong>{r.name}</strong>
+                      <span>{[r.category, r.vendor].filter(Boolean).join(' · ')}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
               {notes.map((n, i) => (
                 <div key={`n${i}`} className={`db-note${n.unavailable ? ' is-unavail' : ''}`}>
                   <div className="db-note-title">{n.title}</div>
@@ -356,36 +367,19 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
           </section>
 
           <section className="db-panel db-panel--hires">
-            <div className="db-panel-head"><span>Starts &amp; hires</span></div>
+            <div className="db-panel-head"><span>New starts</span></div>
             <div className="db-scroll" ref={hiresRef}>
               {['today', 'tomorrow'].map(when => {
-                const g = startsHires[when]
-                const empty = !g.starts.length && !g.on.length && !g.off.length
-                if (when === 'tomorrow' && empty) return null
+                const list = startsHires[when].starts
+                if (when === 'tomorrow' && !list.length) return null
                 return (
                   <div key={when} className={`db-hires-day${when === 'tomorrow' ? ' is-tmrw' : ''}`}>
                     {when === 'tomorrow' && <div className="db-hires-when">Tomorrow</div>}
-                    {when === 'today' && empty && <div className="db-empty db-empty--sm">No crew starts or equipment hires today</div>}
-                    {g.starts.length > 0 && (
-                      <div className="db-hires-group">
-                        <div className="db-hires-label">👋 Crew starting</div>
-                        {g.starts.map(r => (
-                          <div key={r.id} className="db-hires-row">
-                            <strong>{r.name}</strong>
-                            <span>{[r.role, r.department].filter(Boolean).join(' · ')}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {[['on', '⬆ On hire'], ['off', '⬇ Off hire']].map(([k, label]) => g[k].length > 0 && (
-                      <div key={k} className={`db-hires-group db-hires-group--${k}`}>
-                        <div className="db-hires-label">{label}</div>
-                        {g[k].map(r => (
-                          <div key={r.id} className="db-hires-row">
-                            <strong>{r.name}</strong>
-                            <span>{[r.category, r.vendor].filter(Boolean).join(' · ')}</span>
-                          </div>
-                        ))}
+                    {when === 'today' && !list.length && <div className="db-empty db-empty--sm">No one starting today</div>}
+                    {list.map(r => (
+                      <div key={r.id} className="db-hires-row">
+                        <strong>{r.name}</strong>
+                        <span>{[r.role, r.department].filter(Boolean).join(' · ')}</span>
                       </div>
                     ))}
                   </div>
@@ -400,7 +394,7 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
               <span className="db-panel-count">{dayName(tomorrowIso)}</span>
             </div>
             <div className="db-tmrw">
-              {tomorrow.meetings.length === 0 && tomorrow.notes.length === 0 && <div className="db-empty db-empty--sm">Nothing in the diary yet</div>}
+              {tomorrow.meetings.length === 0 && tomorrow.notes.length === 0 && !startsHires.tomorrow.on.length && !startsHires.tomorrow.off.length && <div className="db-empty db-empty--sm">Nothing in the diary yet</div>}
               {tomorrow.meetings.slice(0, 6).map((m, i) => (
                 <div key={i} className="db-tmrw-row">
                   <span className="db-tmrw-time">{m.start != null ? fmtHM(m.start) : (m.approx || 'TBC')}</span>
@@ -408,6 +402,12 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
                 </div>
               ))}
               {tomorrow.meetings.length > 6 && <div className="db-tmrw-more">+ {tomorrow.meetings.length - 6} more</div>}
+              {[['on', '⬆'], ['off', '⬇']].flatMap(([k, icon]) => startsHires.tomorrow[k].map(r => (
+                <div key={k + r.id} className={`db-tmrw-row db-hires-group--${k}`}>
+                  <span className="db-tmrw-time db-hires-label">{icon} {k === 'on' ? 'On' : 'Off'}</span>
+                  <span className="db-tmrw-title">{r.name}</span>
+                </div>
+              )))}
             </div>
           </section>
         </main>
