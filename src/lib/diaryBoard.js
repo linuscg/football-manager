@@ -64,8 +64,55 @@ function expandLeading(text, key) {
   return m && key?.[m[1]] ? key[m[1]] + m[2] : text
 }
 
+// ── Colour key ("Black — Meeting   Green — Recce   Red — Fitting …") ───────
+// Each category in the key is written in its own colour; diary entries are
+// coloured to match. Colours come from the diary-board function as per-cell
+// runs: [[startIndex, '#rrggbb'], …] (the first, startIndex -1, is the cell's
+// default text colour).
+const COLOUR_WORDS = /^(black|green|red|blue|orange|purple|teal|brown|slate|burgundy|grey|gray|yellow|pink|navy|maroon|gold|olive|cyan|magenta|violet|lime|white|silver)$/i
+
+export function colourAt(runs, index) {
+  if (!runs?.length) return null
+  let col = runs[0][1]
+  for (const [start, c] of runs) {
+    if (start < 0) continue
+    if (start <= index) col = c ?? runs[0][1]
+    else break
+  }
+  return col
+}
+
+export function parseColourKey(grid, colours) {
+  for (let r = 0; r < Math.min((grid ?? []).length, 12); r++) {
+    for (let c = 0; c < (grid[r] ?? []).length; c++) {
+      const text = String(grid[r][c] ?? '')
+      const re = /([A-Za-z]+)\s+[—–-]\s+([A-Za-z][A-Za-z ]*?)(?=\s{2,}|\n|$)/g
+      const key = []
+      for (const m of text.matchAll(re)) {
+        if (!COLOUR_WORDS.test(m[1])) continue
+        key.push({ label: m[2].trim(), hex: colourAt(colours?.[r]?.[c], m.index) ?? '#222222' })
+      }
+      if (key.length >= 4) return key
+    }
+  }
+  return []
+}
+
+const rgb = h => [1, 3, 5].map(i => parseInt(String(h).slice(i, i + 2), 16))
+function nearestCategory(hex, key) {
+  if (!hex || !key?.length) return null
+  const [r, g, b] = rgb(hex)
+  let best = null, bestD = Infinity
+  for (const k of key) {
+    const [r2, g2, b2] = rgb(k.hex)
+    const d = Math.hypot(r - r2, g - g2, b - b2)
+    if (d < bestD) { bestD = d; best = k }
+  }
+  return bestD <= 60 ? best : null
+}
+
 // One diary entry (a blank-line-separated block of a cell)
-function parseEntry(block, key) {
+function parseEntry(block, key, category = null) {
   const lines = block.split('\n').map(l => l.trim()).filter(Boolean)
   if (!lines.length) return null
   let first = lines[0]
@@ -100,20 +147,39 @@ function parseEntry(block, key) {
   const status = /\b(cancel+ed|postponed)\b/i.test(text) ? 'cancelled' : null
   return {
     title: expandLeading(expandPeopleLine(first.replace(URL_RE, '').replace(/\s*[—–-]\s*$/, '').trim(), key), key),
-    unavailable: /\b(unavailable|wfh|not available)\b/i.test(first),
+    category,   // { label, hex } from the diary's colour key, or null
+    unavailable: /unavailable/i.test(category?.label ?? '') || /\b(unavailable|wfh|not available)\b/i.test(first),
     start, end, tbc, approx, location, details, status,
     timed: start != null,
     raw: block.trim(),
   }
 }
 
-const splitCell = (cell, key) => String(cell ?? '').split(/\n\s*\n/).map(b => parseEntry(b, key)).filter(e => e && e.title)
+// Split a cell into entries, keeping each block's offset so its text colour
+// (→ key category) can be looked up from the cell's colour runs.
+function splitCell(cell, key, runs, colourKey) {
+  const text = String(cell ?? '')
+  const out = []
+  const sep = /\n\s*\n/g
+  let start = 0, m
+  const take = (from, to) => {
+    const block = text.slice(from, to)
+    const lead = block.length - block.trimStart().length
+    const hex = colourAt(runs, from + lead)
+    const e = parseEntry(block, key, nearestCategory(hex, colourKey))
+    if (e && e.title) out.push(e)
+  }
+  while ((m = sep.exec(text))) { take(start, m.index); start = m.index + m[0].length }
+  take(start, text.length)
+  return out
+}
 
 // grid → { [iso]: { weekLabel, weekNote, entries: [...], logistics: [...] } }
-export function parseDiaryGrid(grid, today) {
+export function parseDiaryGrid(grid, today, colours = null) {
   const days = {}
   const rows = grid ?? []
   const key = parseInitialsKey(rows)
+  const colourKey = parseColourKey(rows, colours)
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r] ?? []
     const dates = row.map(c => headerToIso(c, today))
@@ -131,7 +197,7 @@ export function parseDiaryGrid(grid, today) {
         if (!iso) return
         const d = (days[iso] ??= { weekLabel, weekNote: '', entries: [], logistics: [] })
         if (!isTravelRow && k === 0 && label && !/starts\s*\/\s*notes/i.test(label)) d.weekNote = label
-        const items = splitCell(sub[c], key)
+        const items = splitCell(sub[c], key, colours?.[rr]?.[c], colourKey)
         if (isTravelRow) d.logistics.push(...items)
         else d.entries.push(...items)
       })

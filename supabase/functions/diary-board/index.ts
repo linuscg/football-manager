@@ -115,7 +115,39 @@ serve(async (req) => {
       try {
         const titles = await sheetTitles(diaryId, token, 'diary', sa.client_email)
         const tab = pick(titles, /internal diary/i, /diary/i) ?? titles[0]
-        out.diary = await values(diaryId, token, `${q(tab)}!A1:J600`)
+        // Values + text colours: the diary colour-codes entries (green = recce,
+        // red = fitting …) against a key; runs come back per cell as
+        // [[startIndex, '#rrggbb'], …] with the cell's default colour first.
+        const range = `${q(tab)}!A1:J600`
+        const fields = 'sheets.data.rowData.values(formattedValue,textFormatRuns(startIndex,format/foregroundColorStyle),effectiveFormat/textFormat/foregroundColorStyle)'
+        const res = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${diaryId}?ranges=${encodeURIComponent(range)}&includeGridData=true&fields=${encodeURIComponent(fields)}`,
+          { headers: { Authorization: `Bearer ${token}` } })
+        if (!res.ok) throw new SheetError(`Google Sheets error ${res.status} reading the diary.`)
+        // deno-lint-ignore no-explicit-any
+        const rowData: any[] = (await res.json()).sheets?.[0]?.data?.[0]?.rowData ?? []
+        // deno-lint-ignore no-explicit-any
+        const hex = (st: any) => {
+          const c = st?.rgbColor
+          if (!c) return null
+          const h = (v: number | undefined) => Math.round((v ?? 0) * 255).toString(16).padStart(2, '0')
+          return `#${h(c.red)}${h(c.green)}${h(c.blue)}`
+        }
+        const grid: string[][] = []
+        const colours: (Array<[number, string | null]> | null)[][] = []
+        rowData.forEach((row, r) => {
+          grid[r] = []; colours[r] = []
+          // deno-lint-ignore no-explicit-any
+          ;(row?.values ?? []).forEach((v: any, c: number) => {
+            grid[r][c] = v?.formattedValue ?? ''
+            const base = hex(v?.effectiveFormat?.textFormat?.foregroundColorStyle)
+            // deno-lint-ignore no-explicit-any
+            const runs = (v?.textFormatRuns ?? []).map((t: any) => [t.startIndex ?? 0, hex(t.format?.foregroundColorStyle)] as [number, string | null])
+            colours[r][c] = grid[r][c] ? [[-1, base], ...runs] : null
+          })
+        })
+        out.diary = grid
+        out.diaryColours = colours
         out.diaryTab = tab
       } catch (e) { errors.push(String((e as Error).message)) }
     }

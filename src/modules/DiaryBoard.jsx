@@ -58,6 +58,24 @@ function Clock() {
   )
 }
 
+// ── Diary colour-key categories ─────────────────────────────────────────────
+// The key's colours are for a white sheet; lift dark ones so they read on the
+// dark board. "Meeting" (black in the key) is the default and gets no chip.
+function displayHex(hex) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  if (lum >= 0.45) return hex
+  const t = lum < 0.2 ? 0.55 : 0.35
+  const mix = v => Math.round(v + (255 - v) * t).toString(16).padStart(2, '0')
+  return `#${mix(r)}${mix(g)}${mix(b)}`
+}
+const isPlainMeeting = cat => !cat || /^meeting$/i.test(cat.label)
+const catStyle = cat => (isPlainMeeting(cat) ? undefined : { '--db-cat': displayHex(cat.hex) })
+function CatChip({ cat }) {
+  if (isPlainMeeting(cat)) return null
+  return <span className="db-cat">{cat.label}</span>
+}
+
 // One-line text that, if it doesn't fit, scrolls sideways in a slow loop
 // (long attendee lists stay readable on a TV without growing the card).
 function Ticker({ text }) {
@@ -125,7 +143,7 @@ function Meetings({ meetings, nowMin }) {
         const pct = st === 'now' && end ? Math.min(100, Math.round(((nowMin - m.start) / (end - m.start)) * 100)) : 0
         const mins = st === 'upcoming' ? m.start - nowMin : null
         return (
-          <div key={i} className={`db-meet db-meet--${st}${m.unavailable ? ' is-unavail' : ''}`}>
+          <div key={i} className={`db-meet db-meet--${st}${m.unavailable ? ' is-unavail' : ''}${m.category ? ' has-cat' : ''}`} style={catStyle(m.category)}>
             <div className="db-meet-time">
               {m.start != null ? fmtHM(m.start) : (m.approx || 'TBC')}
               {m.end != null && <span className="db-meet-end">– {fmtHM(m.end)}</span>}
@@ -134,6 +152,7 @@ function Meetings({ meetings, nowMin }) {
             <div className="db-meet-body">
               <div className="db-meet-title">
                 {m.title}
+                <CatChip cat={m.category} />
                 {st === 'now' && <span className="db-pill db-pill--now">Now</span>}
                 {i === nextIdx && mins != null && (
                   <span className="db-pill db-pill--next">{mins < 60 ? `in ${mins} min` : `in ${Math.floor(mins / 60)}h ${mins % 60}m`}</span>
@@ -267,7 +286,7 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
   }, [load, production.diarySheetUrl, production.travelSheetUrl])
 
   // Re-parse when the data or the day changes
-  const days = useMemo(() => (data?.diary ? parseDiaryGrid(data.diary, today) : {}), [data, today])
+  const days = useMemo(() => (data?.diary ? parseDiaryGrid(data.diary, today, data.diaryColours) : {}), [data, today])
   const todayDay = days[today]
   const { meetings, notes } = useMemo(() => splitDay(todayDay), [todayDay])
   const tomorrowIso = addDaysIso(today, 1)
@@ -382,16 +401,16 @@ export default function DiaryBoard({ production, onUpdateProduction, canEdit }) 
                 </div>
               ))}
               {notes.map((n, i) => (
-                <div key={`n${i}`} className={`db-note${n.unavailable ? ' is-unavail' : ''}`}>
-                  <div className="db-note-title">{n.title}</div>
+                <div key={`n${i}`} className={`db-note${n.unavailable ? ' is-unavail' : ''}${n.category ? ' has-cat' : ''}`} style={catStyle(n.category)}>
+                  <div className="db-note-title">{n.title} <CatChip cat={n.category} /></div>
                   {n.details.slice(0, 2).map((d, j) => <div key={j} className="db-note-detail">{d}</div>)}
                 </div>
               ))}
               {(todayDay?.logistics ?? []).map((n, i) => (
-                <div key={`l${i}`} className="db-note db-note--logi">
+                <div key={`l${i}`} className={`db-note db-note--logi${n.category ? ' has-cat' : ''}`} style={catStyle(n.category)}>
                   <div className="db-note-title">
                     {n.start != null && <span className="db-note-time">{fmtHM(n.start)}{n.tbc ? ' TBC' : ''}</span>}
-                    {n.title}
+                    {n.title} <CatChip cat={n.category} />
                   </div>
                   {n.details.slice(0, 2).map((d, j) => <div key={j} className="db-note-detail">{d}</div>)}
                 </div>

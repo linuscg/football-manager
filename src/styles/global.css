@@ -11747,3 +11747,11 @@ table.sa-table { display: table; width: 100%; }
 .db-note.db-hires-group--on, .db-note.db-hires-group--off { padding: .6em .2em; }
 .db-panel--hires .db-hires-row + .db-hires-row { margin-top: .25em; }
 .db-meet-body { min-width: 0; }
+/* Diary colour-key categories (recce, fitting, rehearsal, unavailable …) */
+.db-cat { font-size: .5em; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: .25em .6em; border-radius: 999px; color: var(--db-cat); border: 1px solid var(--db-cat); background: color-mix(in srgb, var(--db-cat) 14%, transparent); white-space: nowrap; vertical-align: middle; }
+.db-note .db-cat { font-size: .62em; margin-left: .35em; }
+.db-meet.has-cat:not(.db-meet--now) { border-left-color: var(--db-cat); }
+.db-meet.has-cat .db-meet-time { color: var(--db-cat); }
+.db-meet--past.has-cat .db-meet-time { color: inherit; }
+.db-note.has-cat { border-left: .25em solid var(--db-cat); padding-left: .7em; }
+.db-meet.is-unavail .db-meet-title, .db-note.is-unavail .db-note-title { color: var(--db-cat, #fca5a5); }
