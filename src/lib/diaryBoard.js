@@ -36,8 +36,36 @@ function headerToIso(text, today) {
 const toMin = s => { const m = String(s).match(/(\d{1,2})[:.](\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null }
 const URL_RE = /https?:\/\/\S+/g
 
+// ── Initials key ("AJ — Abi Jarvis   |   AB — Abir Mohammad   | …") ─────────
+// Read from any cell holding several "XX — Name" pairs; used to expand people
+// lists ("BW / HBA / BR") into full names.
+export function parseInitialsKey(grid) {
+  const key = {}
+  for (const row of grid ?? []) {
+    for (const cell of row ?? []) {
+      const s = String(cell ?? '')
+      const pairs = [...s.matchAll(/(?:^|\||\n)\s*([A-Z]{2,4})\s+[—–-]\s+([^|\n]+?)\s*(?=\||\n|$)/g)]
+      if (pairs.length < 4) continue
+      for (const [, ini, name] of pairs) key[ini] = name.trim()
+    }
+  }
+  return key
+}
+
+// "BW / HBA / BR" or "Art / Set Dec / TC" → full names. Only list items that
+// are exactly a known set of initials are expanded ("SFX", "UK" are left alone).
+function expandPeopleLine(line, key) {
+  if (!key || !Object.keys(key).length) return line
+  return line.split(/(\s*(?:\/|,|&|\+|\|)\s*)/).map(part => key[part.trim()] ?? part).join('')
+}
+// "BW — Unavailable", "VB arrives UK", "AM — New script issued"
+function expandLeading(text, key) {
+  const m = text.match(/^([A-Z]{2,4})(\b.*)$/)
+  return m && key?.[m[1]] ? key[m[1]] + m[2] : text
+}
+
 // One diary entry (a blank-line-separated block of a cell)
-function parseEntry(block) {
+function parseEntry(block, key) {
   const lines = block.split('\n').map(l => l.trim()).filter(Boolean)
   if (!lines.length) return null
   let first = lines[0]
@@ -66,12 +94,12 @@ function parseEntry(block) {
   for (const l of rest) {
     if (/^@/.test(l) && !location) { location = l.replace(/^@\s*/, '').replace(URL_RE, '').replace(/\s*[—–-]\s*$/, '').trim(); continue }
     const clean = l.replace(URL_RE, '').replace(/\s*[—–-]\s*$/, '').trim()
-    if (clean) details.push(clean)
+    if (clean) details.push(expandPeopleLine(clean, key))
   }
   const text = lines.join(' ')
   const status = /\b(cancel+ed|postponed)\b/i.test(text) ? 'cancelled' : null
   return {
-    title: first.replace(URL_RE, '').replace(/\s*[—–-]\s*$/, '').trim(),
+    title: expandLeading(expandPeopleLine(first.replace(URL_RE, '').replace(/\s*[—–-]\s*$/, '').trim(), key), key),
     unavailable: /\b(unavailable|wfh|not available)\b/i.test(first),
     start, end, tbc, approx, location, details, status,
     timed: start != null,
@@ -79,12 +107,13 @@ function parseEntry(block) {
   }
 }
 
-const splitCell = cell => String(cell ?? '').split(/\n\s*\n/).map(parseEntry).filter(e => e && e.title)
+const splitCell = (cell, key) => String(cell ?? '').split(/\n\s*\n/).map(b => parseEntry(b, key)).filter(e => e && e.title)
 
 // grid → { [iso]: { weekLabel, weekNote, entries: [...], logistics: [...] } }
 export function parseDiaryGrid(grid, today) {
   const days = {}
   const rows = grid ?? []
+  const key = parseInitialsKey(rows)
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r] ?? []
     const dates = row.map(c => headerToIso(c, today))
@@ -102,7 +131,7 @@ export function parseDiaryGrid(grid, today) {
         if (!iso) return
         const d = (days[iso] ??= { weekLabel, weekNote: '', entries: [], logistics: [] })
         if (!isTravelRow && k === 0 && label && !/starts\s*\/\s*notes/i.test(label)) d.weekNote = label
-        const items = splitCell(sub[c])
+        const items = splitCell(sub[c], key)
         if (isTravelRow) d.logistics.push(...items)
         else d.entries.push(...items)
       })

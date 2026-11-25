@@ -11668,7 +11668,7 @@ table.sa-table { display: table; width: 100%; }
 .db-meet-title { font-size: 1.45em; font-weight: 700; line-height: 1.2; display: flex; flex-wrap: wrap; align-items: center; gap: .45em; }
 .db-meet-meta { margin-top: .35em; color: var(--db-dim); font-size: 1em; line-height: 1.35; }
 .db-meet-loc { color: #cbd5e1; }
-.db-meet-detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-meet-detail { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .db-meet--past { opacity: .32; padding-top: .45em; padding-bottom: .45em; }
 .db-meet--past .db-meet-time, .db-meet--past .db-meet-title { font-size: 1.1em; }
 .db-meet--now { background: rgba(52, 211, 153, .1); border-left-color: var(--db-now); }
